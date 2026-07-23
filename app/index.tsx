@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
-import { Button, Screen, Text } from '@/components';
+import { Appear, Button, Screen, Text } from '@/components';
 import { space, useColors } from '@/theme';
 
 export default function Welcome() {
@@ -34,18 +34,18 @@ export default function Welcome() {
           <Text style={{ fontSize: 30 }}>🌿</Text>
         </View>
 
-        <View style={{ gap: space.md }}>
+        <Appear delay={80} style={{ gap: space.md }}>
           <Text variant="display">Ekipa</Text>
           <Text variant="heading" tone="soft">
             Company, without the noise.
           </Text>
-        </View>
+        </Appear>
 
-        <View style={{ gap: space.md }}>
+        <Appear delay={220} style={{ gap: space.md }}>
           <Bullet text="No texting anyone. No organizing anything." />
           <Bullet text="Small groups — never more than a few people." />
           <Bullet text="We plan it. You just say yes or no." />
-        </View>
+        </Appear>
       </View>
     </Screen>
   );

@@ -1,5 +1,7 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { tapSelect } from '@/lib/haptics';
 import { radius, space, useColors } from '@/theme';
+import { PressableScale } from './PressableScale';
 import { Text } from './Text';
 
 interface TagProps {
@@ -12,11 +14,9 @@ interface TagProps {
 
 export function Tag({ label, selected, onPress, emoji }: TagProps) {
   const c = useColors();
-  const Container: typeof Pressable | typeof View = onPress ? Pressable : View;
 
-  return (
-    <Container
-      onPress={onPress}
+  const inner = (
+    <View
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -30,9 +30,23 @@ export function Tag({ label, selected, onPress, emoji }: TagProps) {
       }}
     >
       {emoji ? <Text variant="callout">{emoji}</Text> : null}
-      <Text variant="callout" tone={selected ? 'brand' : 'soft'} style={{ fontWeight: '600' }}>
+      <Text variant="calloutStrong" tone={selected ? 'brand' : 'soft'}>
         {label}
       </Text>
-    </Container>
+    </View>
+  );
+
+  if (!onPress) return inner;
+
+  return (
+    <PressableScale
+      haptic={false}
+      onPress={() => {
+        tapSelect();
+        onPress();
+      }}
+    >
+      {inner}
+    </PressableScale>
   );
 }

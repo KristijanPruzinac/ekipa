@@ -135,15 +135,37 @@ export const radius = {
   pill: 999,
 } as const;
 
+/**
+ * Font families. Fraunces — a soft, natural serif — carries the wordmark and
+ * titles for editorial warmth; Inter carries everything functional. Weight is
+ * baked into the family name (never set fontWeight alongside a custom font, or
+ * Android renders a faux-bold on top).
+ */
+export const fonts = {
+  displayBold: 'Fraunces_700Bold',
+  display: 'Fraunces_600SemiBold',
+  strong: 'Inter_600SemiBold',
+  medium: 'Inter_500Medium',
+  regular: 'Inter_400Regular',
+} as const;
+
 export const type = {
-  display: { fontSize: 34, lineHeight: 40, fontWeight: '700' as const, letterSpacing: -0.5 },
-  title: { fontSize: 26, lineHeight: 32, fontWeight: '700' as const, letterSpacing: -0.3 },
-  heading: { fontSize: 20, lineHeight: 27, fontWeight: '600' as const },
-  body: { fontSize: 17, lineHeight: 26, fontWeight: '400' as const },
-  bodyStrong: { fontSize: 17, lineHeight: 26, fontWeight: '600' as const },
-  callout: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
-  label: { fontSize: 13, lineHeight: 18, fontWeight: '600' as const, letterSpacing: 0.3 },
-  caption: { fontSize: 13, lineHeight: 18, fontWeight: '400' as const },
+  display: { fontFamily: fonts.displayBold, fontSize: 34, lineHeight: 40, letterSpacing: -0.5 },
+  title: { fontFamily: fonts.display, fontSize: 26, lineHeight: 32, letterSpacing: -0.3 },
+  heading: { fontFamily: fonts.strong, fontSize: 20, lineHeight: 27 },
+  body: { fontFamily: fonts.regular, fontSize: 17, lineHeight: 26 },
+  bodyStrong: { fontFamily: fonts.strong, fontSize: 17, lineHeight: 26 },
+  callout: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 22 },
+  calloutStrong: { fontFamily: fonts.strong, fontSize: 15, lineHeight: 22 },
+  label: { fontFamily: fonts.strong, fontSize: 13, lineHeight: 18, letterSpacing: 0.6 },
+  caption: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18 },
 } as const;
 
 export type TypeVariant = keyof typeof type;
+
+/** Motion tokens — everything gentle. Springs are soft, never bouncy. */
+export const motion = {
+  duration: { fast: 140, base: 240, slow: 380 },
+  spring: { damping: 16, stiffness: 180, mass: 0.9 },
+  pressScale: 0.97,
+} as const;

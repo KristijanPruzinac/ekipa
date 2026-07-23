@@ -28,10 +28,17 @@ Defined in [`src/theme/tokens.ts`](../src/theme/tokens.ts), light + dark.
 
 ## Type
 
-A humanist scale (`type` in tokens): `display` / `title` / `heading` / `body` /
-`callout` / `label` / `caption`. Negative letter-spacing on large sizes, roomy
-line-heights on body copy. Labels are the only uppercase, used as quiet
-section markers.
+**Fraunces** — a soft, natural optical serif — carries the wordmark and titles
+for editorial warmth; **Inter** carries everything functional (headings, body,
+labels). Fonts load at the root ([app/_layout.tsx](../app/_layout.tsx)) and the
+splash is held until they're ready, so there's no flash of system text.
+
+The scale (`type` in tokens): `display` / `title` (Fraunces) then `heading` /
+`body` / `bodyStrong` / `callout` / `calloutStrong` / `label` / `caption`
+(Inter). Weight is baked into the family name — never set `fontWeight` alongside
+a custom font or Android renders a faux-bold on top. Negative letter-spacing on
+large sizes, roomy line-heights on body copy. Labels are the only uppercase,
+used as quiet section markers.
 
 ## Components
 
@@ -46,10 +53,25 @@ A deliberately tiny kit so the whole app reads as one calm system:
 - **Tag** — selectable chip for tap-only onboarding.
 - **Text** — typographic variants + tones, the only way text is rendered.
 
-## Motion
+## Motion & touch
 
-Gentle. Screen transitions fade. No bounce, no confetti, no gamified
-celebration — rewards here are real meetings, not dopamine loops.
+Gentle and physical, never loud. Interactivity here is tactile feedback, not
+gamification — the reward is a real meeting, not a dopamine loop.
+
+- **Press** — every tappable thing springs down slightly and back
+  ([`PressableScale`](../src/components/PressableScale.tsx)), the one touch
+  primitive. Motion values live in `motion` (tokens): soft springs, ~0.97 press
+  scale, gentle durations.
+- **Entrance** — content fades and rises a few px on mount
+  ([`Appear`](../src/components/Appear.tsx)), staggered so a screen exhales into
+  place rather than snapping.
+- **Haptics** ([`src/lib/haptics.ts`](../src/lib/haptics.ts)) — a light tick on
+  press, a selection tick on choosing a chip or filling a heart, and a single
+  success note reserved for real commitments ("Yes, I'll come"). Sparing by
+  design.
+- **The heart** on the reflect screen pops with a spring as it fills — the one
+  small moment of delight, and it's about a person, not a score.
+- Screen transitions fade. No bounce, no confetti, no streaks, no red dots.
 
 ## Voice
 

@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
-import { Button, Card, Screen, Text } from '@/components';
+import { Appear, Button, Card, Screen, Text } from '@/components';
 import { endTimeLabel, formatDuration, formatWhen } from '@/lib/format';
 import { MOCK_MEETUP, MOCK_STANDING } from '@/lib/mock';
 import { radius, space, useColors } from '@/theme';
@@ -14,7 +14,11 @@ export default function InviteDetail() {
     <Screen
       footer={
         <View style={{ gap: space.sm }}>
-          <Button label="Yes, I'll come" onPress={() => router.replace('/reflect/preview')} />
+          <Button
+            label="Yes, I'll come"
+            celebrate
+            onPress={() => router.replace('/reflect/preview')}
+          />
           <Button
             label="Not this time"
             variant="ghost"
@@ -26,7 +30,7 @@ export default function InviteDetail() {
         </View>
       }
     >
-      <View style={{ alignItems: 'center', gap: space.md, marginBottom: space.xl }}>
+      <Appear style={{ alignItems: 'center', gap: space.md, marginBottom: space.xl }}>
         <View
           style={{
             width: 72,
@@ -47,34 +51,39 @@ export default function InviteDetail() {
           {'  ·  '}
           {formatDuration(meetup.durationMin)}
         </Text>
-      </View>
+      </Appear>
 
-      <Card>
-        <Text variant="label" tone="muted">
-          WHERE
-        </Text>
-        <Text variant="bodyStrong" style={{ marginTop: space.xs }}>
-          {meetup.venueName}
-        </Text>
-        <Text variant="callout" tone="soft" style={{ marginTop: 2 }}>
-          {meetup.venueNote} · Public place.
-        </Text>
-      </Card>
-
-      <View style={{ height: space.md }} />
-
-      <Card>
-        <Text variant="label" tone="muted">
-          WHAT TO EXPECT
-        </Text>
-        <Text variant="body" tone="soft" style={{ marginTop: space.sm }}>
-          {meetup.whatToExpect}
-        </Text>
-      </Card>
+      <Appear delay={80}>
+        <Card>
+          <Text variant="label" tone="muted">
+            WHERE
+          </Text>
+          <Text variant="bodyStrong" style={{ marginTop: space.xs }}>
+            {meetup.venueName}
+          </Text>
+          <Text variant="callout" tone="soft" style={{ marginTop: 2 }}>
+            {meetup.venueNote} · Public place.
+          </Text>
+        </Card>
+      </Appear>
 
       <View style={{ height: space.md }} />
 
-      <Card>
+      <Appear delay={150}>
+        <Card>
+          <Text variant="label" tone="muted">
+            WHAT TO EXPECT
+          </Text>
+          <Text variant="body" tone="soft" style={{ marginTop: space.sm }}>
+            {meetup.whatToExpect}
+          </Text>
+        </Card>
+      </Appear>
+
+      <View style={{ height: space.md }} />
+
+      <Appear delay={220}>
+        <Card>
         <Text variant="label" tone="muted">
           WHO'S COMING
         </Text>
@@ -104,7 +113,8 @@ export default function InviteDetail() {
             </View>
           ))}
         </View>
-      </Card>
+        </Card>
+      </Appear>
     </Screen>
   );
 }

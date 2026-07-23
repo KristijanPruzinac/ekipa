@@ -29,7 +29,8 @@
         {
           "color": "#4A6B4D"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
