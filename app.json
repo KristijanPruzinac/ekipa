@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Ekipa",
+    "slug": "ekipa",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "ekipa",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F1E8"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.ekipa.mobile"
+    },
+    "android": {
+      "package": "app.ekipa.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#F5F1E8"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#4A6B4D"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
