@@ -98,12 +98,23 @@ docs/                       PLAN.md, DESIGN.md, PRODUCT.md
 ## Status
 
 Design system, data model + RLS, and the full vertical slice (welcome → home
-→ invite → reflect) are built. Phone auth and the real Supabase-backed invite
-loop (`lib/data/repository.dart`, plus the confirm/cancel trigger in
-`supabase/migrations/0002_meetup_status_transitions.sql`) are also written
-and wired in, with a mock-data fallback when no backend is configured — but
-**no Supabase project has been provisioned yet**, so none of it has run
-against a live database. Provisioning one (and running the migrations) is
-the next concrete step. After that: profile inference from behavior, push
+→ invite → reflect) are built. The Supabase-backed invite loop
+(`lib/data/repository.dart`, the confirm/cancel trigger in
+`supabase/migrations/0002_meetup_status_transitions.sql`) is wired in, with
+a mock-data fallback when no backend is configured. A project is now live
+(`ekipa_app_v1`, `eu-central-1`) with all four migrations applied, an
+advisor security/performance pass done, and the RLS invariants + RSVP
+trigger verified against real seeded data (not just reviewed) — invisible
+declines, attendee identities staying hidden pre-confirmation, and a single
+decline cancelling a proposal even with an existing yes already in, all
+confirmed live. The app builds and boots against the real project and
+correctly redirects an unauthenticated session to `/auth`.
+
+**Not done: phone sign-in itself.** It needs an SMS provider (Twilio,
+MessageBird, or Vonage) connected in the Supabase dashboard under
+Authentication → Providers → Phone — no available tooling exposes that
+config, so it's a manual step, deliberately deferred for now. Until it's
+connected, `/auth` will accept a number but can't actually deliver a code.
+After that: profile inference from behavior, push
 notifications, the morning-of confirmation flow, then the composer. See
 [docs/PLAN.md](docs/PLAN.md).
