@@ -35,12 +35,16 @@ Ekipa is not a discovery app. It's an organizer nobody has to be.
 - **Ambiguity is the tax this group can't afford.** Fixed durations, stated end
   times, explicit "what to expect", a normalized exit script.
 
-See [docs/PLAN.md](docs/PLAN.md) for the full phased build and
-[docs/DESIGN.md](docs/DESIGN.md) for the visual language.
+See [docs/PLAN.md](docs/PLAN.md) for the full phased build,
+[docs/DESIGN.md](docs/DESIGN.md) for the visual language, and
+[docs/PRODUCT.md](docs/PRODUCT.md) for the founding strategy (who this is for,
+why they're isolated, failure modes, cold start, monetization).
 
 ## Stack
 
-- **Client** — Expo (React Native) + `expo-router`, TypeScript.
+- **Client** — Flutter (Dart), targeting Android (and web for quick iteration).
+  iOS is deferred until a Mac is available in the dev environment; nothing in
+  the design is iOS-specific.
 - **Backend** — Supabase: Postgres, phone auth, Row-Level Security, Edge Functions.
 - **The composer** — a scheduled Edge Function that builds groups from
   availability + shared activity + the mutual-yes graph. Runs by hand from an
@@ -49,41 +53,52 @@ See [docs/PLAN.md](docs/PLAN.md) for the full phased build and
 ## Getting started
 
 ```bash
-# 1. Install deps and reconcile versions to your installed Expo CLI
-npm install
-npx expo install --fix
+# 1. Install dependencies
+flutter pub get
 
 # 2. Configure the backend (optional — the app runs on mock data without it)
-cp .env.example .env
-#   then paste your Supabase URL + anon key
+flutter run \
+  --dart-define=SUPABASE_URL=https://your-project.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=your-anon-key
 
-# 3. Run
-npx expo start
+# Or, without a backend, just:
+flutter run
 ```
 
-Without a `.env`, the app runs entirely on mock data (`src/lib/mock.ts`), so the
-whole UI — welcome → onboarding → invitation → reflect — is explorable offline.
+Without `--dart-define` config, the app runs entirely on mock data
+(`lib/data/mock_data.dart`), so the whole UI — welcome (arrival) → invitation
+→ reflect — is explorable offline. There is no onboarding screen: the arrival
+screen itself is the zero-onboarding promise, not a step before it.
+
+Run `flutter doctor` first if this is a fresh machine — you'll need the
+Android SDK (with `cmdline-tools` installed and licenses accepted via
+`flutter doctor --android-licenses`).
 
 ## Project layout
 
 ```
-app/                      expo-router screens (the vertical slice)
-  index.tsx               welcome
-  onboarding/activities   tap-only intake (step 1 of 3)
-  home.tsx                your invitations
-  invite/[id].tsx         the yes / not-this-time invitation
-  reflect/[id].tsx        "who would you be happy to see again?"
-src/
-  components/             the small shared UI kit (Screen, Card, Button, Tag, Text)
-  theme/                  design tokens + light/dark resolution
-  lib/                    supabase client, domain types, activity catalog, mock data
+lib/
+  main.dart                 entry point: theme + router wiring
+  router.dart                go_router routes for the vertical slice
+  theme/                     colors, spacing/radius/motion tokens, type scale, ThemeData
+  widgets/                   the small shared UI kit (Screen, AppCard, AppButton,
+                              AppTag, AppText, PressableScale, Appear)
+  models/                    domain types (Profile, Meetup, Attendee, enums)
+  data/                      activity catalog, mock data, date formatting, Supabase client
+  screens/
+    welcome_screen.dart                 arrival — no onboarding, ready immediately
+    home_screen.dart                    your invitations
+    invite_detail_screen.dart           the yes / not-this-time invitation
+    reflect_screen.dart                 "who would you be happy to see again?"
 supabase/
   migrations/0001_init.sql  schema with the privacy model in RLS
-docs/                     PLAN.md, DESIGN.md
+docs/                       PLAN.md, DESIGN.md, PRODUCT.md
 ```
 
 ## Status
 
 Foundation scaffold: design system, data model + RLS, and a working vertical
-slice on mock data. Next: real auth + onboarding persistence, then the invite
-loop against Supabase, then the composer. See [docs/PLAN.md](docs/PLAN.md).
+slice on mock data — ported from an initial React Native prototype to Flutter.
+Next: real auth + silent profile-building (no onboarding form — see PLAN.md
+Phase 1), then the invite loop against Supabase, then the composer. See
+[docs/PLAN.md](docs/PLAN.md).

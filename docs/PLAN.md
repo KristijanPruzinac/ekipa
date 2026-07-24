@@ -7,22 +7,43 @@ eventually don't need the app._
 
 ## Phase 0 — Foundation ✅ (this scaffold)
 
-- Expo + expo-router + TypeScript project.
-- Design system: tokens (calm/natural, light + dark), shared UI kit.
+- Flutter (Dart) project, targeting Android (and web for quick iteration/demo).
+  iOS is deferred — no Mac in the current dev environment — and will be
+  re-added when one is available; nothing in the design is iOS-hostile.
+- Design system: one dusk theme (no light variant — see DESIGN.md), shared
+  glass/glow widget kit.
 - Data model + RLS encoding the two privacy invariants (invisible declines,
   one-way-private reflections).
-- Working vertical slice on mock data: welcome → onboarding → invite → reflect.
+- Working vertical slice on mock data: welcome (arrival) → invite → reflect.
+  **Zero onboarding screens** — no upfront chip-pickers or preference forms;
+  see Phase 1 for how the profile actually gets built.
 
-## Phase 1 — Auth & onboarding persistence
+_Started as an Expo/React Native prototype, then ported to Flutter once the
+design decisions were validated — see the README for why._
 
-- Supabase phone auth (SMS). First name + city captured on first run.
-- Onboarding as **tap-only** intake, three short steps:
-  1. **Activities** — checkbox chips, pick 3+ (built).
-  2. **Availability** — weekday/weekend × day/evening slots.
-  3. **Comfort** — group size (2/3/4), talk level, same-gender-only toggle.
-- System **writes the one-line blurb** from the checkboxes. No free-text bio,
-  no photos required, no profile browsing anywhere in the app.
-- Persist to `profiles`; gate routing on "is onboarding complete".
+## Phase 1 — Auth & silent profile-building
+
+- Supabase phone auth (SMS) is the *only* thing asked of a new user before
+  they land on Welcome. No activities/availability/comfort form — that
+  contradicts the "nobody initiates, nothing is asked of you" premise as much
+  as an initiate button would.
+- Everything Phase 0's old three-step intake used to collect is instead
+  inferred or asked **one question at a time, in-context, after the fact**:
+  - **Activities** — start from a broad, generous default set for the
+    person's city; narrow based on which invitations they actually accept
+    vs. decline over time.
+  - **Availability** — inferred from which invitations they accept/decline
+    and at what times, not asked upfront.
+  - **Comfort** (group size, talk level, same-gender-only) — same-gender-only
+    is the one thing worth a single explicit toggle (safety-relevant, can't
+    be safely inferred); offer it unobtrusively from a settings surface the
+    user finds on their own, never as a gate before Welcome. Talk level and
+    group-size preference are inferred from reflections and repeat behavior.
+- System still **writes the one-line blurb** shown to others — from inferred
+  signal, not a form. No free-text bio, no photos required, no profile
+  browsing anywhere in the app.
+- Persist to `profiles`; routing gates only on "is phone-verified", never on
+  "is onboarding complete" — that concept no longer exists.
 
 ## Phase 2 — The invite loop (against Supabase)
 
