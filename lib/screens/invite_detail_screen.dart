@@ -179,12 +179,12 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Color(0xFF3F5D3A), Color(0xFF2E4429)],
+                        colors: [EkipaColors.paperTileTop, EkipaColors.paperTileBottom],
                       ),
                       borderRadius: BorderRadius.circular(EkipaRadius.lg),
                     ),
                     child: ActivityIcon(meetup.activitySlug,
-                        size: 30, color: const Color(0xFFBFE0A8)),
+                        size: 30, color: EkipaColors.paperTileGlyph),
                   ),
                 ),
               ),
@@ -327,7 +327,7 @@ class _PaperSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppText(label, variant: EkipaTextVariant.label, tone: EkipaTone.paperMoss),
+        AppText(label, variant: EkipaTextVariant.label, tone: EkipaTone.paperEmber),
         const SizedBox(height: EkipaSpace.sm),
         child,
       ],

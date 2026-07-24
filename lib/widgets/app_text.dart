@@ -15,7 +15,6 @@ enum EkipaTone {
   // The "paper" world — dark ink for text on cream ticket cards.
   paperInk,
   paperSoft,
-  paperMoss,
   paperEmber,
 }
 
@@ -31,7 +30,6 @@ Color _toneColor(EkipaTone tone, EkipaColors c) {
     EkipaTone.normal => c.ink,
     EkipaTone.paperInk => EkipaColors.paperInk,
     EkipaTone.paperSoft => EkipaColors.paperInkSoft,
-    EkipaTone.paperMoss => EkipaColors.paperMoss,
     EkipaTone.paperEmber => EkipaColors.paperEmber,
   };
 }

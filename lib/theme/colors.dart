@@ -70,9 +70,13 @@ class EkipaColors extends ThemeExtension<EkipaColors> {
   // ThemeExtension. Dark, warm, and readable on cream.
   static const paperInk = Color(0xFF2E2519);
   static const paperInkSoft = Color(0xFF6B5F4C);
-  static const paperMoss = Color(0xFF3F5D3A); // section labels on paper
-  static const paperEmber = Color(0xFF9A6A2E); // warm accent on paper
+  static const paperEmber = Color(0xFF9A6A2E); // the paper world's one accent
   static const paperLine = Color(0x33564A38); // perforation / hairline on paper
+  // The warm activity tile that sits on cream stock — the paper/arrival layer
+  // is amber, never moss (moss owns the digital/system layer). See DESIGN.md.
+  static const paperTileTop = Color(0xFFB07A38);
+  static const paperTileBottom = Color(0xFF7C5222);
+  static const paperTileGlyph = Color(0xFFF3E4C6);
 
   static const dusk = EkipaColors(
     bg: Color(0xFF0A0F0A),
