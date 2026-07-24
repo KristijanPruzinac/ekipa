@@ -64,6 +64,16 @@ class EkipaColors extends ThemeExtension<EkipaColors> {
 
   final Color danger;
 
+  // ── The "paper" world ──────────────────────────────────────────────────
+  // Ink colors for text drawn on the warm cream ticket/paper cards. These
+  // never vary (single theme), so they live as constants rather than in the
+  // ThemeExtension. Dark, warm, and readable on cream.
+  static const paperInk = Color(0xFF2E2519);
+  static const paperInkSoft = Color(0xFF6B5F4C);
+  static const paperMoss = Color(0xFF3F5D3A); // section labels on paper
+  static const paperEmber = Color(0xFF9A6A2E); // warm accent on paper
+  static const paperLine = Color(0x33564A38); // perforation / hairline on paper
+
   static const dusk = EkipaColors(
     bg: Color(0xFF0A0F0A),
     bgGradientTop: Color(0xFF0A0F0A),

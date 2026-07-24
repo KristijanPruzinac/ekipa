@@ -7,10 +7,10 @@ import '../theme/colors.dart';
 import '../theme/tokens.dart';
 import '../widgets/activity_icon.dart';
 import '../widgets/app_button.dart';
-import '../widgets/app_card.dart';
 import '../widgets/app_text.dart';
 import '../widgets/appear.dart';
 import '../widgets/screen.dart';
+import '../widgets/ticket_card.dart';
 
 class InviteDetailScreen extends StatefulWidget {
   const InviteDetailScreen({
@@ -30,15 +30,27 @@ class InviteDetailScreen extends StatefulWidget {
 
 class _InviteDetailScreenState extends State<InviteDetailScreen> {
   bool _submitting = false;
+  String? _error;
 
   Future<void> _respond(bool accept) async {
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
     if (isBackendConfigured) {
       try {
         await repository.respond(widget.meetup.id, accept: accept);
       } catch (_) {
-        // Best-effort: still let them proceed locally rather than strand
-        // them on a network blip — their RSVP simply wasn't recorded.
+        // Do NOT proceed as if it worked — a phantom "accepted" that never
+        // reached the server becomes a no-show, the one thing this product
+        // can't survive. Surface it and let them tap again.
+        if (mounted) {
+          setState(() {
+            _submitting = false;
+            _error = "That didn't go through — check your connection and try again.";
+          });
+        }
+        return;
       }
     }
     if (!mounted) return;
@@ -48,10 +60,10 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     final meetup = widget.meetup;
     final alreadyResponded = meetup.myRsvp != 'pending';
-    final showAttendees = meetup.status == GroupStatus.confirmed && meetup.attendees.isNotEmpty;
+    final showAttendees =
+        meetup.status == GroupStatus.confirmed && meetup.attendees.isNotEmpty;
 
     return Screen(
       backgroundAsset: 'assets/backgrounds/home_night.jpg',
@@ -66,6 +78,10 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
             )
           : Column(
               children: [
+                if (_error != null) ...[
+                  AppText(_error!, tone: EkipaTone.danger, center: true),
+                  const SizedBox(height: EkipaSpace.sm),
+                ],
                 AppButton(
                   label: "Yes, I'll come",
                   celebrate: true,
@@ -88,113 +104,130 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
                 ),
               ],
             ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Appear(
-            child: Column(
-              children: [
-                Hero(
+      child: Appear(
+        child: TicketCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Hero: activity icon + title + time.
+              Center(
+                child: Hero(
                   tag: 'activity-${meetup.id}',
                   child: Container(
-                    width: 72,
-                    height: 72,
+                    width: 68,
+                    height: 68,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
+                      gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [
-                          c.moss.withValues(alpha: 0.22),
-                          c.moss.withValues(alpha: 0.06),
-                        ],
+                        colors: [Color(0xFF3F5D3A), Color(0xFF2E4429)],
                       ),
                       borderRadius: BorderRadius.circular(EkipaRadius.lg),
-                      border: Border.all(color: c.moss.withValues(alpha: 0.25)),
                     ),
-                    child: ActivityIcon(meetup.activitySlug, size: 30, color: c.mossGlow),
+                    child: ActivityIcon(meetup.activitySlug,
+                        size: 30, color: const Color(0xFFBFE0A8)),
                   ),
                 ),
-                const SizedBox(height: EkipaSpace.md),
-                AppText(meetup.activityLabel, variant: EkipaTextVariant.title, center: true),
-                const SizedBox(height: EkipaSpace.md),
-                AppText(
-                  '${formatWhen(meetup.startsAt)} – ${endTimeLabel(meetup.startsAt, meetup.durationMin)}   ·   ${formatDuration(meetup.durationMin)}',
-                  tone: EkipaTone.soft,
-                  center: true,
+              ),
+              const SizedBox(height: EkipaSpace.md),
+              AppText(meetup.activityLabel,
+                  variant: EkipaTextVariant.title,
+                  tone: EkipaTone.paperInk,
+                  center: true),
+              const SizedBox(height: EkipaSpace.sm),
+              AppText(
+                '${formatWhen(meetup.startsAt)} · ${formatDuration(meetup.durationMin)}',
+                variant: EkipaTextVariant.callout,
+                tone: EkipaTone.paperSoft,
+                center: true,
+              ),
+              const SizedBox(height: EkipaSpace.lg),
+              const TicketPerforation(),
+              const SizedBox(height: EkipaSpace.lg),
+
+              _PaperSection(
+                label: 'WHERE',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppText(meetup.venueName,
+                        variant: EkipaTextVariant.bodyStrong,
+                        tone: EkipaTone.paperInk),
+                    const SizedBox(height: 2),
+                    AppText('${meetup.venueNote} · Public place.',
+                        variant: EkipaTextVariant.callout,
+                        tone: EkipaTone.paperSoft),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: EkipaSpace.xl),
-          Appear(
-            delay: const Duration(milliseconds: 80),
-            child: AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const AppText('WHERE', variant: EkipaTextVariant.label, tone: EkipaTone.moss),
-                  const SizedBox(height: EkipaSpace.xs),
-                  AppText(meetup.venueName, variant: EkipaTextVariant.bodyStrong),
-                  const SizedBox(height: 2),
-                  AppText('${meetup.venueNote} · Public place.', variant: EkipaTextVariant.callout, tone: EkipaTone.soft),
-                ],
               ),
-            ),
-          ),
-          const SizedBox(height: EkipaSpace.md),
-          Appear(
-            delay: const Duration(milliseconds: 150),
-            child: AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const AppText('WHAT TO EXPECT', variant: EkipaTextVariant.label, tone: EkipaTone.moss),
-                  const SizedBox(height: EkipaSpace.sm),
-                  AppText(meetup.whatToExpect, tone: EkipaTone.soft),
-                ],
+              const SizedBox(height: EkipaSpace.lg),
+              const TicketPerforation(),
+              const SizedBox(height: EkipaSpace.lg),
+
+              _PaperSection(
+                label: 'WHAT TO EXPECT',
+                child: AppText(meetup.whatToExpect,
+                    variant: EkipaTextVariant.body, tone: EkipaTone.paperInk),
               ),
-            ),
-          ),
-          const SizedBox(height: EkipaSpace.md),
-          Appear(
-            delay: const Duration(milliseconds: 220),
-            child: AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const AppText("WHO'S COMING", variant: EkipaTextVariant.label, tone: EkipaTone.mossGlow),
-                  const SizedBox(height: EkipaSpace.md),
-                  if (showAttendees)
-                    for (final a in meetup.attendees) ...[
-                      _AttendeeRow(attendee: a),
-                      if (a != meetup.attendees.last) const SizedBox(height: EkipaSpace.lg),
-                    ]
-                  else
-                    const AppText(
-                      "Private until everyone accepts. As soon as the group is set, you'll see who's in.",
-                      tone: EkipaTone.faint,
-                    ),
-                ],
+              const SizedBox(height: EkipaSpace.lg),
+              const TicketPerforation(),
+              const SizedBox(height: EkipaSpace.lg),
+
+              _PaperSection(
+                label: "WHO'S COMING",
+                child: showAttendees
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (final a in meetup.attendees) ...[
+                            _PaperAttendee(name: a.firstName),
+                            if (a != meetup.attendees.last)
+                              const SizedBox(height: EkipaSpace.md),
+                          ],
+                        ],
+                      )
+                    : AppText(
+                        "Private until everyone's in. As soon as the group is set, you'll see who's coming.",
+                        variant: EkipaTextVariant.callout,
+                        tone: EkipaTone.paperSoft,
+                      ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _AttendeeRow extends StatelessWidget {
-  const _AttendeeRow({required this.attendee});
+class _PaperSection extends StatelessWidget {
+  const _PaperSection({required this.label, required this.child});
 
-  final Attendee attendee;
+  final String label;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppText(label, variant: EkipaTextVariant.label, tone: EkipaTone.paperMoss),
+        const SizedBox(height: EkipaSpace.sm),
+        child,
+      ],
+    );
+  }
+}
+
+class _PaperAttendee extends StatelessWidget {
+  const _PaperAttendee({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
       children: [
         Container(
           width: 40,
@@ -202,21 +235,15 @@ class _AttendeeRow extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: c.glassStrong,
-            border: Border.all(color: c.line),
+            color: const Color(0xFFE3D5B8),
+            border: Border.all(color: EkipaColors.paperLine),
           ),
-          child: AppText(attendee.firstName[0], variant: EkipaTextVariant.bodyStrong, tone: EkipaTone.soft),
+          child: AppText(name[0],
+              variant: EkipaTextVariant.bodyStrong, tone: EkipaTone.paperInk),
         ),
         const SizedBox(width: EkipaSpace.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AppText(attendee.firstName, variant: EkipaTextVariant.bodyStrong),
-              AppText(attendee.blurb, variant: EkipaTextVariant.callout, tone: EkipaTone.faint),
-            ],
-          ),
-        ),
+        AppText(name,
+            variant: EkipaTextVariant.bodyStrong, tone: EkipaTone.paperInk),
       ],
     );
   }

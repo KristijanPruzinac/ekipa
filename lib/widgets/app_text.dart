@@ -3,7 +3,21 @@ import '../theme/colors.dart';
 import '../theme/text_styles.dart';
 export '../theme/text_styles.dart' show EkipaTextVariant;
 
-enum EkipaTone { normal, soft, faint, moss, mossGlow, ember, onBrand, danger }
+enum EkipaTone {
+  normal,
+  soft,
+  faint,
+  moss,
+  mossGlow,
+  ember,
+  onBrand,
+  danger,
+  // The "paper" world — dark ink for text on cream ticket cards.
+  paperInk,
+  paperSoft,
+  paperMoss,
+  paperEmber,
+}
 
 Color _toneColor(EkipaTone tone, EkipaColors c) {
   return switch (tone) {
@@ -15,6 +29,10 @@ Color _toneColor(EkipaTone tone, EkipaColors c) {
     EkipaTone.onBrand => c.textOnBrand,
     EkipaTone.danger => c.danger,
     EkipaTone.normal => c.ink,
+    EkipaTone.paperInk => EkipaColors.paperInk,
+    EkipaTone.paperSoft => EkipaColors.paperInkSoft,
+    EkipaTone.paperMoss => EkipaColors.paperMoss,
+    EkipaTone.paperEmber => EkipaColors.paperEmber,
   };
 }
 

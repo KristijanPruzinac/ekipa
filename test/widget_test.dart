@@ -37,7 +37,7 @@ void main() {
     // A 'proposed' meetup should never reveal attendee identities pre-confirmation.
     expect(find.text("Yes, I'll come"), findsOneWidget);
     expect(
-      find.text("Private until everyone accepts. As soon as the group is set, you'll see who's in."),
+      find.text("Private until everyone's in. As soon as the group is set, you'll see who's coming."),
       findsOneWidget,
     );
     expect(find.text('Lucija'), findsNothing);
