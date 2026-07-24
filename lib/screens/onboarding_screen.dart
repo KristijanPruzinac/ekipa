@@ -89,6 +89,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       // night sky, not the bright dawn the short auth screen can afford.
       backgroundAsset: 'assets/backgrounds/home_night.jpg',
       scrim: 0.35,
+      ambient: true,
       footer: Column(
         children: [
           if (_error != null) ...[

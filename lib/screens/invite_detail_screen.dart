@@ -126,6 +126,7 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
     return Screen(
       backgroundAsset: 'assets/backgrounds/home_night.jpg',
       scrim: 0.3,
+      ambient: true,
       footer: alreadyResponded
           ? (meetup.myRsvp == 'yes'
               ? _withdrawFooter(meetup)

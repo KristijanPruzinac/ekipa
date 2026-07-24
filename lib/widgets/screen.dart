@@ -82,7 +82,25 @@ class Screen extends StatelessWidget {
                 Expanded(
                   child: scroll
                       ? SingleChildScrollView(padding: padding, child: child)
-                      : Padding(padding: padding, child: child),
+                      : LayoutBuilder(
+                          // `scroll: false` screens center their content and
+                          // assume it always fits. On a short viewport (a
+                          // typical desktop browser window, landscape, etc.)
+                          // that assumption breaks — without this, overflow
+                          // is silently clipped in release builds (no debug
+                          // banner), so content just vanishes. Falling back
+                          // to scrollable only when it doesn't fit keeps the
+                          // calm centered look everywhere it still applies.
+                          builder: (context, constraints) => SingleChildScrollView(
+                            padding: padding,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: constraints.maxHeight - padding.vertical,
+                              ),
+                              child: child,
+                            ),
+                          ),
+                        ),
                 ),
                 if (footer != null)
                   Container(

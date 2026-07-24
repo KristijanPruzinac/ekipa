@@ -59,6 +59,7 @@ class _ReflectScreenState extends State<ReflectScreen> {
     return Screen(
       backgroundAsset: 'assets/backgrounds/reflect_star.jpg',
       scrim: 0.32,
+      ambient: true,
       footer: Column(
         children: [
           AppButton(label: 'Done', loading: _submitting, onPressed: _done),

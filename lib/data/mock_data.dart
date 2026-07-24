@@ -43,6 +43,7 @@ final Meetup mockStanding = mockMeetup.copyWith(
     Attendee(id: 'u2', firstName: 'Marko'),
     Attendee(id: 'u3', firstName: 'Ivana'),
   ],
+  myRsvp: 'yes',
 );
 
 /// A confirmed group that hasn't hit the T−3h name reveal yet — shows its
@@ -59,4 +60,5 @@ final Meetup mockFormingConfirmed = mockMeetup.copyWith(
       'A calm hour over coffee with three others. Come as you are; leave when you like.',
   attendees: const [],
   composition: const MeetupComposition(total: 4, women: 2, men: 2, other: 0),
+  myRsvp: 'yes',
 );

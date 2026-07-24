@@ -216,6 +216,7 @@ class Meetup {
     bool? isStanding,
     MeetupComposition? composition,
     String? whatToExpect,
+    String? myRsvp,
   }) {
     return Meetup(
       id: id ?? this.id,
@@ -232,7 +233,7 @@ class Meetup {
       composition: composition ?? this.composition,
       expiresAt: expiresAt,
       whatToExpect: whatToExpect ?? this.whatToExpect,
-      myRsvp: myRsvp,
+      myRsvp: myRsvp ?? this.myRsvp,
     );
   }
 }

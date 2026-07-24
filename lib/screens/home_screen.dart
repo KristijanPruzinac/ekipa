@@ -40,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Screen(
       backgroundAsset: 'assets/backgrounds/home_night.jpg',
       scrim: 0.25,
+      ambient: true,
       child: FutureBuilder<List<Meetup>>(
         future: _invitations,
         builder: (context, snapshot) {
