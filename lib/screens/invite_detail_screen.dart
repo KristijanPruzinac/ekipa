@@ -32,6 +32,11 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
   bool _submitting = false;
   String? _error;
 
+  /// The withdraw affordance is two-step: a confirmed "yes" is a real
+  /// commitment other people are counting on, so it can't be undone with a
+  /// single stray tap.
+  bool _confirmingWithdraw = false;
+
   Future<void> _respond(bool accept) async {
     setState(() {
       _submitting = true;
@@ -58,6 +63,61 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
     accept ? widget.onAccept() : widget.onDecline();
   }
 
+  Widget _withdrawFooter(Meetup meetup) {
+    final confirmed = meetup.status == GroupStatus.confirmed;
+    final settled = confirmed
+        ? "You're in. First names will appear three hours before you meet."
+        : "You said yes — we'll let you know once everyone's in.";
+
+    if (!_confirmingWithdraw) {
+      return Column(
+        children: [
+          AppText(settled, tone: EkipaTone.soft, center: true),
+          const SizedBox(height: EkipaSpace.md),
+          GestureDetector(
+            onTap: () => setState(() => _confirmingWithdraw = true),
+            child: const AppText(
+              "Can't make it anymore?",
+              variant: EkipaTextVariant.callout,
+              tone: EkipaTone.faint,
+              center: true,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        if (_error != null) ...[
+          AppText(_error!, tone: EkipaTone.danger, center: true),
+          const SizedBox(height: EkipaSpace.sm),
+        ],
+        AppText(
+          confirmed
+              ? "The others are counting on this one. Only cancel if you truly can't come — no reason needed."
+              : "That's completely fine. No reason needed, and no one is told.",
+          variant: EkipaTextVariant.callout,
+          tone: EkipaTone.soft,
+          center: true,
+        ),
+        const SizedBox(height: EkipaSpace.md),
+        AppButton(
+          label: 'Cancel my spot',
+          variant: EkipaButtonVariant.danger,
+          loading: _submitting,
+          onPressed: () => _respond(false),
+        ),
+        const SizedBox(height: EkipaSpace.sm),
+        AppButton(
+          label: "Never mind, I'm still coming",
+          variant: EkipaButtonVariant.ghost,
+          onPressed: _submitting ? null : () => setState(() => _confirmingWithdraw = false),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final meetup = widget.meetup;
@@ -67,13 +127,13 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
       backgroundAsset: 'assets/backgrounds/home_night.jpg',
       scrim: 0.3,
       footer: alreadyResponded
-          ? AppText(
-              meetup.myRsvp == 'yes'
-                  ? "You said yes — we'll let you know once everyone's in."
-                  : "You said not this time. That's between you and the app.",
-              tone: EkipaTone.soft,
-              center: true,
-            )
+          ? (meetup.myRsvp == 'yes'
+              ? _withdrawFooter(meetup)
+              : const AppText(
+                  "You said not this time. That's between you and the app.",
+                  tone: EkipaTone.soft,
+                  center: true,
+                ))
           : Column(
               children: [
                 if (_error != null) ...[
