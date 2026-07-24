@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/format.dart';
+import '../data/repository.dart';
+import '../data/supabase_client.dart';
 import '../models/models.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
@@ -10,7 +12,7 @@ import '../widgets/app_text.dart';
 import '../widgets/appear.dart';
 import '../widgets/screen.dart';
 
-class InviteDetailScreen extends StatelessWidget {
+class InviteDetailScreen extends StatefulWidget {
   const InviteDetailScreen({
     super.key,
     required this.meetup,
@@ -23,24 +25,67 @@ class InviteDetailScreen extends StatelessWidget {
   final VoidCallback onDecline;
 
   @override
+  State<InviteDetailScreen> createState() => _InviteDetailScreenState();
+}
+
+class _InviteDetailScreenState extends State<InviteDetailScreen> {
+  bool _submitting = false;
+
+  Future<void> _respond(bool accept) async {
+    setState(() => _submitting = true);
+    if (isBackendConfigured) {
+      try {
+        await repository.respond(widget.meetup.id, accept: accept);
+      } catch (_) {
+        // Best-effort: still let them proceed locally rather than strand
+        // them on a network blip — their RSVP simply wasn't recorded.
+      }
+    }
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    accept ? widget.onAccept() : widget.onDecline();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final meetup = widget.meetup;
+    final alreadyResponded = meetup.myRsvp != 'pending';
+    final showAttendees = meetup.status == GroupStatus.confirmed && meetup.attendees.isNotEmpty;
 
     return Screen(
-      footer: Column(
-        children: [
-          AppButton(label: "Yes, I'll come", celebrate: true, onPressed: onAccept),
-          const SizedBox(height: EkipaSpace.sm),
-          AppButton(label: 'Not this time', variant: EkipaButtonVariant.ghost, onPressed: onDecline),
-          const SizedBox(height: EkipaSpace.sm),
-          const AppText(
-            "Saying no is completely private. No one is told, and it won't affect future invitations.",
-            variant: EkipaTextVariant.caption,
-            tone: EkipaTone.faint,
-            center: true,
-          ),
-        ],
-      ),
+      footer: alreadyResponded
+          ? AppText(
+              meetup.myRsvp == 'yes'
+                  ? "You said yes — we'll let you know once everyone's in."
+                  : "You said not this time. That's between you and the app.",
+              tone: EkipaTone.soft,
+              center: true,
+            )
+          : Column(
+              children: [
+                AppButton(
+                  label: "Yes, I'll come",
+                  celebrate: true,
+                  loading: _submitting,
+                  onPressed: () => _respond(true),
+                ),
+                const SizedBox(height: EkipaSpace.sm),
+                AppButton(
+                  label: 'Not this time',
+                  variant: EkipaButtonVariant.ghost,
+                  loading: _submitting,
+                  onPressed: () => _respond(false),
+                ),
+                const SizedBox(height: EkipaSpace.sm),
+                const AppText(
+                  "Saying no is completely private. No one is told, and it won't affect future invitations.",
+                  variant: EkipaTextVariant.caption,
+                  tone: EkipaTone.faint,
+                  center: true,
+                ),
+              ],
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -115,10 +160,16 @@ class InviteDetailScreen extends StatelessWidget {
                 children: [
                   const AppText("WHO'S COMING", variant: EkipaTextVariant.label, tone: EkipaTone.mossGlow),
                   const SizedBox(height: EkipaSpace.md),
-                  for (final a in meetup.attendees) ...[
-                    _AttendeeRow(attendee: a),
-                    if (a != meetup.attendees.last) const SizedBox(height: EkipaSpace.lg),
-                  ],
+                  if (showAttendees)
+                    for (final a in meetup.attendees) ...[
+                      _AttendeeRow(attendee: a),
+                      if (a != meetup.attendees.last) const SizedBox(height: EkipaSpace.lg),
+                    ]
+                  else
+                    const AppText(
+                      "Private until everyone accepts. As soon as the group is set, you'll see who's in.",
+                      tone: EkipaTone.faint,
+                    ),
                 ],
               ),
             ),

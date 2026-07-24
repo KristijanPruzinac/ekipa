@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../data/mock_data.dart';
+import '../data/repository.dart';
+import '../data/supabase_client.dart';
 import '../models/models.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
@@ -10,8 +11,9 @@ import '../widgets/appear.dart';
 import '../widgets/screen.dart';
 
 class ReflectScreen extends StatefulWidget {
-  const ReflectScreen({super.key, required this.onDone});
+  const ReflectScreen({super.key, required this.meetup, required this.onDone});
 
+  final Meetup meetup;
   final VoidCallback onDone;
 
   @override
@@ -20,6 +22,7 @@ class ReflectScreen extends StatefulWidget {
 
 class _ReflectScreenState extends State<ReflectScreen> {
   final Set<String> _picked = {};
+  bool _submitting = false;
 
   void _toggle(String id) {
     setState(() {
@@ -27,14 +30,31 @@ class _ReflectScreenState extends State<ReflectScreen> {
     });
   }
 
+  Future<void> _done() async {
+    setState(() => _submitting = true);
+    if (isBackendConfigured) {
+      final decisions = {
+        for (final a in widget.meetup.attendees) a.id: _picked.contains(a.id),
+      };
+      try {
+        await repository.submitReflection(widget.meetup.id, decisions);
+      } catch (_) {
+        // Best-effort — nothing useful to show them if this fails silently.
+      }
+    }
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    widget.onDone();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final attendees = mockMeetup.attendees;
+    final attendees = widget.meetup.attendees;
 
     return Screen(
       footer: Column(
         children: [
-          AppButton(label: 'Done', onPressed: widget.onDone),
+          AppButton(label: 'Done', loading: _submitting, onPressed: _done),
           const SizedBox(height: EkipaSpace.sm),
           const AppText(
             "Only shared when it's mutual. If they're not sure, no one ever finds out either way.",

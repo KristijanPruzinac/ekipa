@@ -97,8 +97,13 @@ docs/                       PLAN.md, DESIGN.md, PRODUCT.md
 
 ## Status
 
-Foundation scaffold: design system, data model + RLS, and a working vertical
-slice on mock data — ported from an initial React Native prototype to Flutter.
-Next: real auth + silent profile-building (no onboarding form — see PLAN.md
-Phase 1), then the invite loop against Supabase, then the composer. See
+Design system, data model + RLS, and the full vertical slice (welcome → home
+→ invite → reflect) are built. Phone auth and the real Supabase-backed invite
+loop (`lib/data/repository.dart`, plus the confirm/cancel trigger in
+`supabase/migrations/0002_meetup_status_transitions.sql`) are also written
+and wired in, with a mock-data fallback when no backend is configured — but
+**no Supabase project has been provisioned yet**, so none of it has run
+against a live database. Provisioning one (and running the migrations) is
+the next concrete step. After that: profile inference from behavior, push
+notifications, the morning-of confirmation flow, then the composer. See
 [docs/PLAN.md](docs/PLAN.md).

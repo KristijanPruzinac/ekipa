@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../data/format.dart';
 import '../data/mock_data.dart';
+import '../data/repository.dart';
+import '../data/supabase_client.dart';
 import '../models/models.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
@@ -11,38 +13,85 @@ import '../widgets/appear.dart';
 import '../widgets/pressable_scale.dart';
 import '../widgets/screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.onOpenMeetup});
 
   final void Function(Meetup meetup) onOpenMeetup;
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late Future<List<Meetup>> _invitations;
+
+  @override
+  void initState() {
+    super.initState();
+    _invitations = isBackendConfigured
+        ? repository.myInvitations()
+        : Future.value([mockMeetup, mockStanding]);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Screen(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const AppText('OSIJEK', variant: EkipaTextVariant.label, tone: EkipaTone.moss),
-          const SizedBox(height: EkipaSpace.xs),
-          const AppText('A new invitation', variant: EkipaTextVariant.title),
-          const SizedBox(height: EkipaSpace.xl),
-          Appear(
-            delay: const Duration(milliseconds: 80),
-            child: _InviteCard(meetup: mockMeetup, hero: true, onTap: () => onOpenMeetup(mockMeetup)),
-          ),
-          const SizedBox(height: EkipaSpace.xxl),
-          Appear(
-            delay: const Duration(milliseconds: 160),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const AppText('YOUR STANDING GROUP', variant: EkipaTextVariant.label, tone: EkipaTone.faint),
-                const SizedBox(height: EkipaSpace.md),
-                _InviteCard(meetup: mockStanding, onTap: () => onOpenMeetup(mockStanding)),
+      child: FutureBuilder<List<Meetup>>(
+        future: _invitations,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Padding(
+              padding: EdgeInsets.only(top: EkipaSpace.xxxl),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          final meetups = snapshot.data ?? const [];
+          final standing = meetups.where((m) => m.isStanding).toList();
+          final fresh = meetups.where((m) => !m.isStanding).toList();
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const AppText('OSIJEK', variant: EkipaTextVariant.label, tone: EkipaTone.moss),
+              const SizedBox(height: EkipaSpace.xs),
+              const AppText('A new invitation', variant: EkipaTextVariant.title),
+              const SizedBox(height: EkipaSpace.xl),
+              if (fresh.isEmpty)
+                const Appear(
+                  delay: Duration(milliseconds: 80),
+                  child: AppText(
+                    "Nothing yet — usually within a week. We'll let you know the moment "
+                    "something comes together nearby.",
+                    tone: EkipaTone.soft,
+                  ),
+                )
+              else
+                Appear(
+                  delay: const Duration(milliseconds: 80),
+                  child: _InviteCard(
+                    meetup: fresh.first,
+                    hero: true,
+                    onTap: () => widget.onOpenMeetup(fresh.first),
+                  ),
+                ),
+              if (standing.isNotEmpty) ...[
+                const SizedBox(height: EkipaSpace.xxl),
+                Appear(
+                  delay: const Duration(milliseconds: 160),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const AppText('YOUR STANDING GROUP', variant: EkipaTextVariant.label, tone: EkipaTone.faint),
+                      const SizedBox(height: EkipaSpace.md),
+                      _InviteCard(meetup: standing.first, onTap: () => widget.onOpenMeetup(standing.first)),
+                    ],
+                  ),
+                ),
               ],
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -106,24 +155,26 @@ class _InviteCard extends StatelessWidget {
             _Row(label: 'When', value: formatWhen(meetup.startsAt)),
             const SizedBox(height: EkipaSpace.sm),
             _Row(label: 'For', value: formatDuration(meetup.durationMin)),
-            const SizedBox(height: EkipaSpace.md),
-            Row(
-              children: [
-                for (var i = 0; i < meetup.attendees.length; i++)
-                  Padding(
-                    padding: EdgeInsets.only(left: i == 0 ? 0 : 14),
-                    child: _MiniAvatar(letter: meetup.attendees[i].firstName[0]),
+            if (meetup.status == GroupStatus.confirmed && meetup.attendees.isNotEmpty) ...[
+              const SizedBox(height: EkipaSpace.md),
+              Row(
+                children: [
+                  for (var i = 0; i < meetup.attendees.length; i++)
+                    Padding(
+                      padding: EdgeInsets.only(left: i == 0 ? 0 : 14),
+                      child: _MiniAvatar(letter: meetup.attendees[i].firstName[0]),
+                    ),
+                  const SizedBox(width: EkipaSpace.sm),
+                  Expanded(
+                    child: AppText(
+                      names,
+                      variant: EkipaTextVariant.caption,
+                      tone: EkipaTone.faint,
+                    ),
                   ),
-                const SizedBox(width: EkipaSpace.sm),
-                Expanded(
-                  child: AppText(
-                    names,
-                    variant: EkipaTextVariant.caption,
-                    tone: EkipaTone.faint,
-                  ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
             const SizedBox(height: EkipaSpace.md),
             AppText(
               meetup.status == GroupStatus.confirmed ? 'Confirmed · every other week →' : 'Tap to see the plan →',

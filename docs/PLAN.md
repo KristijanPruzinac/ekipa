@@ -21,7 +21,7 @@ eventually don't need the app._
 _Started as an Expo/React Native prototype, then ported to Flutter once the
 design decisions were validated — see the README for why._
 
-## Phase 1 — Auth & silent profile-building
+## Phase 1 — Auth & silent profile-building ✅ (client-side)
 
 - Supabase phone auth (SMS) is the *only* thing asked of a new user before
   they land on Welcome. No activities/availability/comfort form — that
@@ -44,8 +44,14 @@ design decisions were validated — see the README for why._
   browsing anywhere in the app.
 - Persist to `profiles`; routing gates only on "is phone-verified", never on
   "is onboarding complete" — that concept no longer exists.
+- **Built:** `AuthScreen` (phone + SMS code, nothing else) and a `GoRouter`
+  redirect that only gates on session state — see `lib/router.dart`. The
+  gate is a no-op when no Supabase project is configured, so the mock-data
+  demo path (see README) is untouched. Profile inference (activities from
+  behavior, etc.) is not implemented yet — `profiles` rows exist (via the
+  `handle_new_user` trigger) but nothing narrows them post-signup yet.
 
-## Phase 2 — The invite loop (against Supabase)
+## Phase 2 — The invite loop (against Supabase) ✅ (client-side, untested against a live project)
 
 - Home = your invitations, read from `meetups` + your own `meetup_members` row.
 - Invitation screen: what-to-expect, first-name attendees (via
@@ -56,6 +62,25 @@ design decisions were validated — see the README for why._
   morning-of confirmation tap.
 - Morning-of: a no-confirm quietly shrinks/cancels the group and notifies
   everyone **before they leave home**. No-shows are the deadliest failure here.
+
+**Built:** `lib/data/repository.dart` (`myInvitations`, `respond`,
+`submitReflection`), wired into Home/Invite/Reflect with a mock-data fallback
+when no backend is configured (see README). `supabase/migrations/0002_meetup_status_transitions.sql`
+adds the trigger that actually flips a meetup to `confirmed` once every
+member has said yes, or `cancelled` the instant anyone says no — 0001_init.sql
+had the RLS invariants but nothing that made the status transition happen.
+Home and Invite Detail now only ever reveal attendee identities once a
+meetup is `confirmed`, matching the RLS truth instead of the mock UI's old
+behavior of always showing names.
+
+**Not built:** push notifications, the morning-of confirmation flow, and —
+important — none of this has been run against a real, provisioned Supabase
+project. There isn't one yet. The code is written directly against the
+schema in `supabase/migrations/`, but until a project exists and
+`SUPABASE_URL`/`SUPABASE_ANON_KEY` are supplied via `--dart-define`, it's
+verified by `flutter analyze`/`flutter test` and schema review, not a live
+run. Provisioning the project and running the migrations is the next
+concrete step, and needs a Supabase account.
 
 ## Phase 3 — Reflect & crystallize
 
