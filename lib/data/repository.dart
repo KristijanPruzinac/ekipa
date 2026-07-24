@@ -122,6 +122,7 @@ class EkipaRepository {
     required bool sameGenderOnly,
     required int groupSizePref,
     required List<String> activities,
+    required List<String> availability,
   }) async {
     final uid = supabase.auth.currentUser!.id;
     await supabase.from('profiles').update({
@@ -131,6 +132,7 @@ class EkipaRepository {
       'same_gender_only': sameGenderOnly,
       'group_size_pref': groupSizePref,
       'activities': activities,
+      'availability': availability,
     }).eq('id', uid);
   }
 }

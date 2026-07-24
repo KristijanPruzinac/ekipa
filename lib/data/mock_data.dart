@@ -50,7 +50,7 @@ final Meetup mockStanding = mockMeetup.copyWith(
 final Meetup mockFormingConfirmed = mockMeetup.copyWith(
   id: 'mtp_demo_3',
   status: GroupStatus.confirmed,
-  activitySlug: 'coffee',
+  activitySlug: 'coffee_quiet',
   activityLabel: 'Coffee',
   venueName: 'Kava bar Cvajner',
   venueNote: 'Corner table by the window.',

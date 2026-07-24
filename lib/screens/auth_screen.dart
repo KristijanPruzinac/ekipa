@@ -87,7 +87,8 @@ class _AuthScreenState extends State<AuthScreen> {
           const Appear(
             delay: Duration(milliseconds: 80),
             child: AppText(
-              "That's the only thing we ask before you're ready. No forms after this.",
+              "We text you a code to sign in. After that, just a minute of "
+              "quick logistics — never a profile to fill out.",
               tone: EkipaTone.soft,
             ),
           ),
