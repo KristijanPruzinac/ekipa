@@ -13,6 +13,7 @@ import '../widgets/app_text.dart';
 import '../widgets/appear.dart';
 import '../widgets/pressable_scale.dart';
 import '../widgets/screen.dart';
+import '../widgets/ticket_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.onOpenMeetup});
@@ -70,14 +71,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 )
               else
-                Appear(
-                  delay: const Duration(milliseconds: 80),
-                  child: _InviteCard(
-                    meetup: fresh.first,
-                    hero: true,
-                    onTap: () => widget.onOpenMeetup(fresh.first),
+                for (var i = 0; i < fresh.length; i++) ...[
+                  if (i > 0) const SizedBox(height: EkipaSpace.lg),
+                  Appear(
+                    delay: Duration(milliseconds: 80 + i * 90),
+                    child: _PaperInviteCard(
+                      meetup: fresh[i],
+                      onTap: () => widget.onOpenMeetup(fresh[i]),
+                    ),
                   ),
-                ),
+                ],
               if (standing.isNotEmpty) ...[
                 const SizedBox(height: EkipaSpace.xxl),
                 Appear(
@@ -101,11 +104,10 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _InviteCard extends StatelessWidget {
-  const _InviteCard({required this.meetup, required this.onTap, this.hero = false});
+  const _InviteCard({required this.meetup, required this.onTap});
 
   final Meetup meetup;
   final VoidCallback onTap;
-  final bool hero;
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +117,6 @@ class _InviteCard extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: AppCard(
-        emphasis: hero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -185,8 +186,82 @@ class _InviteCard extends StatelessWidget {
             AppText(
               meetup.status == GroupStatus.confirmed ? 'Confirmed · every other week →' : 'Tap to see the plan →',
               variant: EkipaTextVariant.calloutStrong,
-              tone: hero ? EkipaTone.mossGlow : EkipaTone.faint,
+              tone: EkipaTone.faint,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A fresh invitation on Home, rendered as a compact paper ticket — the same
+/// tactile "handed to you" stock as the detail screen, so tapping through feels
+/// like turning the ticket over rather than jumping worlds. The standing group
+/// stays dark glass; only genuinely new invitations get the paper.
+class _PaperInviteCard extends StatelessWidget {
+  const _PaperInviteCard({required this.meetup, required this.onTap});
+
+  final Meetup meetup;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onTap,
+      child: TicketCard(
+        padding: const EdgeInsets.all(EkipaSpace.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Hero(
+                  tag: 'activity-${meetup.id}',
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF3F5D3A), Color(0xFF2E4429)],
+                      ),
+                      borderRadius: BorderRadius.circular(EkipaRadius.md),
+                    ),
+                    child: ActivityIcon(meetup.activitySlug,
+                        size: 24, color: const Color(0xFFBFE0A8)),
+                  ),
+                ),
+                const SizedBox(width: EkipaSpace.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppText(meetup.activityLabel,
+                          variant: EkipaTextVariant.heading,
+                          tone: EkipaTone.paperInk),
+                      AppText(meetup.venueName,
+                          variant: EkipaTextVariant.callout,
+                          tone: EkipaTone.paperSoft),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: EkipaSpace.md),
+            const TicketPerforation(),
+            const SizedBox(height: EkipaSpace.md),
+            AppText(
+              '${formatWhen(meetup.startsAt)} · ${formatDuration(meetup.durationMin)}',
+              variant: EkipaTextVariant.callout,
+              tone: EkipaTone.paperInk,
+            ),
+            const SizedBox(height: EkipaSpace.sm),
+            const AppText('Tap to see the plan →',
+                variant: EkipaTextVariant.calloutStrong,
+                tone: EkipaTone.paperMoss),
           ],
         ),
       ),
