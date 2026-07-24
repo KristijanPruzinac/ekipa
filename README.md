@@ -25,11 +25,14 @@ Ekipa is not a discovery app. It's an organizer nobody has to be.
 - **Activity-first, shoulder-to-shoulder.** Walking, board games, bouldering —
   parallel activities that remove the conversational spotlight. "Just talk" is
   intentionally absent.
-- **A decline is invisible.** A proposed meetup only becomes visible to its
-  members once everyone has accepted. Nobody ever learns who said no.
-- **"Would you see them again?" is mutual and private.** One-sided yeses and any
-  no are never revealed to anyone. Mutual yeses become the graph that seeds
-  future groups.
+- **A decline is invisible.** A proposal only forms once everyone accepts, and
+  nobody ever learns who said no. Even then a first name is the only thing you
+  learn about anyone — no blurb — and names appear just three hours before you
+  meet (before that, only the group's shape: how many, what mix).
+- **Reflection is a private feeling, not a rating.** After a meeting each person
+  quietly answers "how did it feel?" at four levels (really enjoyed → rather
+  not). Only mutual warmth seeds a future group; "rather not" is a silent,
+  permanent exclusion. No one is ever told how anyone answered.
 - **Repetition over novelty.** Friendship needs ~40–60 hours together, so the
   value engine is the recurring cohort, not the one-off.
 - **Ambiguity is the tax this group can't afford.** Fixed durations, stated end

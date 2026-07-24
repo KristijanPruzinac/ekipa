@@ -59,16 +59,20 @@ coordination failures are solvable with tooling.
 
 ## The vibe mechanic (why it beats an algorithm)
 
-After a real meeting, each person privately answers "who would you be happy to
-see again?" **Mutual human judgment after a real meeting beats any interest model.**
+After a real meeting, each person privately answers **"how did it feel?"** for
+each person — at four levels: really enjoyed / enjoyed / no preference / rather
+not. **Mutual human judgment after a real meeting beats any interest model.**
 Rules that make it safe:
 
-- **Strictly mutual, strictly private.** Only mutual yeses have any effect. A
-  one-sided yes and any no are never revealed. Nobody can ever learn they weren't
-  picked.
-- **Never framed as rating people.** "Who would you be happy to see again?" is a
-  preference about your future, not a judgment of them.
-- Mutual yeses become edges in a graph the composer uses to seed future groups.
+- **Strictly mutual, strictly private.** Only mutual warmth (both people at
+  *enjoyed* or above) seeds a future group. A one-sided feeling and any
+  reluctance are never revealed. Nobody can ever learn they weren't picked.
+- **Never framed as rating people.** It's a preference about your future, not a
+  judgment of them — which is why the scale is *feelings*, not stars.
+- **"Rather not" is a silent, permanent exclusion.** The pair is never composed
+  again; the other person is never told. It's the gentle, un-accusatory version
+  of a block, folded into the same quiet gesture.
+- Mutual warmth becomes edges in a graph the composer uses to seed future groups.
 
 ## Group crystallization (a ladder, because friendship has stages)
 
