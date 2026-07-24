@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthState;
 
@@ -12,6 +12,28 @@ import 'screens/home_screen.dart';
 import 'screens/invite_detail_screen.dart';
 import 'screens/reflect_screen.dart';
 import 'screens/welcome_screen.dart';
+
+/// Calm fade-through + a whisper of scale, so screens dissolve into one
+/// another instead of cutting. Kept gentle on purpose — motion here is
+/// atmosphere, not spectacle.
+CustomTransitionPage<void> _fade(Widget child, GoRouterState state) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    transitionDuration: const Duration(milliseconds: 420),
+    reverseTransitionDuration: const Duration(milliseconds: 320),
+    child: child,
+    transitionsBuilder: (context, animation, secondary, child) {
+      final eased = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: eased,
+        child: Transform.scale(
+          scale: 0.98 + 0.02 * eased.value,
+          child: child,
+        ),
+      );
+    },
+  );
+}
 
 Meetup _mockMeetupById(String id) => id == mockStanding.id ? mockStanding : mockMeetup;
 
@@ -51,38 +73,45 @@ final GoRouter appRouter = GoRouter(
   routes: [
     GoRoute(
       path: '/auth',
-      builder: (context, state) => const AuthScreen(),
+      pageBuilder: (context, state) => _fade(const AuthScreen(), state),
     ),
     GoRoute(
       path: '/',
-      builder: (context, state) => WelcomeScreen(
-        onContinue: () => context.push('/home'),
+      pageBuilder: (context, state) => _fade(
+        WelcomeScreen(onContinue: () => context.push('/home')),
+        state,
       ),
     ),
     GoRoute(
       path: '/home',
-      builder: (context, state) => HomeScreen(
-        onOpenMeetup: (meetup) => context.push('/invite/${meetup.id}', extra: meetup),
+      pageBuilder: (context, state) => _fade(
+        HomeScreen(
+          onOpenMeetup: (meetup) => context.push('/invite/${meetup.id}', extra: meetup),
+        ),
+        state,
       ),
     ),
     GoRoute(
       path: '/invite/:id',
-      builder: (context, state) {
+      pageBuilder: (context, state) {
         final meetup = (state.extra as Meetup?) ?? _mockMeetupById(state.pathParameters['id']!);
-        return InviteDetailScreen(
-          meetup: meetup,
-          onAccept: () => context.pushReplacement('/reflect/${meetup.id}', extra: meetup),
-          onDecline: () => context.pop(),
+        return _fade(
+          InviteDetailScreen(
+            meetup: meetup,
+            onAccept: () => context.go('/home'),
+            onDecline: () => context.pop(),
+          ),
+          state,
         );
       },
     ),
     GoRoute(
       path: '/reflect/:id',
-      builder: (context, state) {
+      pageBuilder: (context, state) {
         final meetup = (state.extra as Meetup?) ?? mockMeetup;
-        return ReflectScreen(
-          meetup: meetup,
-          onDone: () => context.go('/home'),
+        return _fade(
+          ReflectScreen(meetup: meetup, onDone: () => context.go('/home')),
+          state,
         );
       },
     ),

@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
 import '../widgets/activity_icon.dart';
+import '../widgets/animated_headline.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_text.dart';
 import '../widgets/appear.dart';
@@ -36,6 +37,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Screen(
+      backgroundAsset: 'assets/backgrounds/home_night.jpg',
+      scrim: 0.25,
       child: FutureBuilder<List<Meetup>>(
         future: _invitations,
         builder: (context, snapshot) {
@@ -55,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               const AppText('OSIJEK', variant: EkipaTextVariant.label, tone: EkipaTone.moss),
               const SizedBox(height: EkipaSpace.xs),
-              const AppText('A new invitation', variant: EkipaTextVariant.title),
+              const AnimatedHeadline('A new invitation', variant: EkipaTextVariant.title),
               const SizedBox(height: EkipaSpace.xl),
               if (fresh.isEmpty)
                 const Appear(
@@ -118,23 +121,26 @@ class _InviteCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        c.moss.withValues(alpha: 0.22),
-                        c.moss.withValues(alpha: 0.06),
-                      ],
+                Hero(
+                  tag: 'activity-${meetup.id}',
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          c.moss.withValues(alpha: 0.22),
+                          c.moss.withValues(alpha: 0.06),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(EkipaRadius.md),
+                      border: Border.all(color: c.moss.withValues(alpha: 0.25)),
                     ),
-                    borderRadius: BorderRadius.circular(EkipaRadius.md),
-                    border: Border.all(color: c.moss.withValues(alpha: 0.25)),
+                    child: ActivityIcon(meetup.activitySlug, size: 24, color: c.mossGlow),
                   ),
-                  child: ActivityIcon(meetup.activitySlug, size: 24, color: c.mossGlow),
                 ),
                 const SizedBox(width: EkipaSpace.md),
                 Expanded(

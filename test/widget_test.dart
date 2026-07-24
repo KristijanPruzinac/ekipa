@@ -25,7 +25,9 @@ void main() {
     await tester.pump(); // let HomeScreen's FutureBuilder resolve the mock future
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('A new invitation'), findsOneWidget);
+    // 'A new invitation' renders as a per-character AnimatedHeadline, so assert
+    // on the stable section label + the invitation card instead.
+    expect(find.text('OSIJEK'), findsOneWidget);
     expect(find.text('Walking'), findsOneWidget);
 
     await tester.tap(find.text('Walking'));

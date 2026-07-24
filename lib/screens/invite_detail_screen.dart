@@ -54,6 +54,8 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
     final showAttendees = meetup.status == GroupStatus.confirmed && meetup.attendees.isNotEmpty;
 
     return Screen(
+      backgroundAsset: 'assets/backgrounds/home_night.jpg',
+      scrim: 0.3,
       footer: alreadyResponded
           ? AppText(
               meetup.myRsvp == 'yes'
@@ -92,23 +94,26 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
           Appear(
             child: Column(
               children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        c.moss.withValues(alpha: 0.22),
-                        c.moss.withValues(alpha: 0.06),
-                      ],
+                Hero(
+                  tag: 'activity-${meetup.id}',
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          c.moss.withValues(alpha: 0.22),
+                          c.moss.withValues(alpha: 0.06),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(EkipaRadius.lg),
+                      border: Border.all(color: c.moss.withValues(alpha: 0.25)),
                     ),
-                    borderRadius: BorderRadius.circular(EkipaRadius.lg),
-                    border: Border.all(color: c.moss.withValues(alpha: 0.25)),
+                    child: ActivityIcon(meetup.activitySlug, size: 30, color: c.mossGlow),
                   ),
-                  child: ActivityIcon(meetup.activitySlug, size: 30, color: c.mossGlow),
                 ),
                 const SizedBox(height: EkipaSpace.md),
                 AppText(meetup.activityLabel, variant: EkipaTextVariant.title, center: true),

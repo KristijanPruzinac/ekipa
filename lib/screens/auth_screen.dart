@@ -69,6 +69,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
     return Screen(
       scroll: false,
+      backgroundAsset: 'assets/backgrounds/auth_dawn.jpg',
+      scrim: 0.12,
       footer: AppButton(
         label: _codeSent ? 'Confirm code' : 'Send code',
         loading: _loading,

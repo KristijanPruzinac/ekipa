@@ -23,6 +23,8 @@ class WelcomeScreen extends StatelessWidget {
     return Screen(
       scroll: false,
       ambient: true,
+      backgroundAsset: 'assets/backgrounds/welcome_dusk.jpg',
+      scrim: 0.28,
       footer: Column(
         children: [
           AppButton(label: 'See my invitation', onPressed: onContinue),
