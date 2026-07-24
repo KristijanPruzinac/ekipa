@@ -52,20 +52,36 @@ class EkipaRepository {
     final meetups = <Meetup>[];
     for (final row in rows as List) {
       final meetupRow = Map<String, dynamic>.from(row['meetups'] as Map);
-      final attendees = await _attendeesFor(
-        meetupRow['id'] as String,
-        meetupRow['status'] as String,
-      );
-      meetups.add(Meetup.fromRow(meetupRow, attendees: attendees, myRsvp: row['rsvp'] as String));
+      final id = meetupRow['id'] as String;
+      final confirmed = meetupRow['status'] as String == 'confirmed';
+      // Names only resolve inside the T−3h reveal window; the server returns an
+      // empty set before then (see confirmed_attendees, 0007). When it does,
+      // fall back to the group's shape so a confirmed meetup still says
+      // something concrete about who's coming.
+      final attendees = confirmed ? await _attendeesFor(id) : const <Attendee>[];
+      final composition =
+          confirmed && attendees.isEmpty ? await _compositionFor(id) : null;
+      meetups.add(Meetup.fromRow(
+        meetupRow,
+        attendees: attendees,
+        composition: composition,
+        myRsvp: row['rsvp'] as String,
+      ));
     }
     meetups.sort((a, b) => a.startsAt.compareTo(b.startsAt));
     return meetups;
   }
 
-  Future<List<Attendee>> _attendeesFor(String meetupId, String status) async {
-    if (status != 'confirmed') return const [];
+  Future<List<Attendee>> _attendeesFor(String meetupId) async {
     final rows = await supabase.rpc('confirmed_attendees', params: {'m': meetupId});
     return (rows as List).map((r) => Attendee.fromRow(Map<String, dynamic>.from(r as Map))).toList();
+  }
+
+  Future<MeetupComposition?> _compositionFor(String meetupId) async {
+    final rows = await supabase.rpc('group_composition', params: {'m': meetupId});
+    final list = rows as List;
+    if (list.isEmpty) return null;
+    return MeetupComposition.fromRow(Map<String, dynamic>.from(list.first as Map));
   }
 
   /// Writes only the current user's own RSVP. Whether that turns the
@@ -80,20 +96,42 @@ class EkipaRepository {
         .eq('user_id', uid);
   }
 
-  /// [decisions] maps attendee id -> "would see them again". Only ever
-  /// writes the current user's own reflections — see `reflections_rw_own`.
-  Future<void> submitReflection(String meetupId, Map<String, bool> decisions) async {
-    if (decisions.isEmpty) return;
+  /// [feelings] maps attendee id -> how the meetup felt. Only ever writes the
+  /// current user's own reflections (see `reflections_rw_own`); a `rather_not`
+  /// silently records a permanent exclusion server-side (see 0006).
+  Future<void> submitReflection(String meetupId, Map<String, Sentiment> feelings) async {
+    if (feelings.isEmpty) return;
     final uid = supabase.auth.currentUser!.id;
-    final rows = decisions.entries
+    final rows = feelings.entries
         .map((e) => {
               'meetup_id': meetupId,
               'rater_id': uid,
               'subject_id': e.key,
-              'would_meet_again': e.value,
+              'sentiment': e.value.wire,
             })
         .toList();
     await supabase.from('reflections').upsert(rows);
+  }
+
+  /// Persists the logistics captured in onboarding. Writes only the current
+  /// user's own profile row (see `profiles_update_own`).
+  Future<void> saveProfile({
+    required String firstName,
+    required String city,
+    String? gender,
+    required bool sameGenderOnly,
+    required int groupSizePref,
+    required List<String> activities,
+  }) async {
+    final uid = supabase.auth.currentUser!.id;
+    await supabase.from('profiles').update({
+      'first_name': firstName,
+      'city': city,
+      'gender': gender,
+      'same_gender_only': sameGenderOnly,
+      'group_size_pref': groupSizePref,
+      'activities': activities,
+    }).eq('id', uid);
   }
 }
 

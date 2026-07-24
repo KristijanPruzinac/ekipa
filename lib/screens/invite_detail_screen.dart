@@ -62,8 +62,6 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
   Widget build(BuildContext context) {
     final meetup = widget.meetup;
     final alreadyResponded = meetup.myRsvp != 'pending';
-    final showAttendees =
-        meetup.status == GroupStatus.confirmed && meetup.attendees.isNotEmpty;
 
     return Screen(
       backgroundAsset: 'assets/backgrounds/home_night.jpg',
@@ -176,28 +174,85 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
 
               _PaperSection(
                 label: "WHO'S COMING",
-                child: showAttendees
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final a in meetup.attendees) ...[
-                            _PaperAttendee(name: a.firstName),
-                            if (a != meetup.attendees.last)
-                              const SizedBox(height: EkipaSpace.md),
-                          ],
-                        ],
-                      )
-                    : AppText(
-                        "Private until everyone's in. As soon as the group is set, you'll see who's coming.",
-                        variant: EkipaTextVariant.callout,
-                        tone: EkipaTone.paperSoft,
-                      ),
+                child: _WhosComing(meetup: meetup),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+/// The three states of "who's coming", in order of how much they reveal:
+///   • names — inside the T−3h window, first names resolve
+///   • shape — confirmed but pre-reveal: how many, what mix, no names
+///   • private — not yet confirmed: nothing, not even a count
+class _WhosComing extends StatelessWidget {
+  const _WhosComing({required this.meetup});
+
+  final Meetup meetup;
+
+  @override
+  Widget build(BuildContext context) {
+    if (meetup.attendees.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final a in meetup.attendees) ...[
+            _PaperAttendee(name: a.firstName),
+            if (a != meetup.attendees.last) const SizedBox(height: EkipaSpace.md),
+          ],
+        ],
+      );
+    }
+
+    final comp = meetup.composition;
+    if (meetup.status == GroupStatus.confirmed && comp != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppText(_countLine(comp),
+              variant: EkipaTextVariant.bodyStrong, tone: EkipaTone.paperInk),
+          if (_mixLine(comp) != null) ...[
+            const SizedBox(height: 2),
+            AppText(_mixLine(comp)!,
+                variant: EkipaTextVariant.callout, tone: EkipaTone.paperSoft),
+          ],
+          const SizedBox(height: EkipaSpace.sm),
+          const AppText(
+            "First names appear three hours before you meet — close enough to be "
+            "useful, too late to overthink.",
+            variant: EkipaTextVariant.callout,
+            tone: EkipaTone.paperSoft,
+          ),
+        ],
+      );
+    }
+
+    return const AppText(
+      "Private until everyone's in. As soon as the group is set, you'll see who's coming.",
+      variant: EkipaTextVariant.callout,
+      tone: EkipaTone.paperSoft,
+    );
+  }
+
+  String _countLine(MeetupComposition c) {
+    final n = c.total;
+    return n == 1 ? 'One other person is coming.' : '$n people are coming.';
+  }
+
+  String? _mixLine(MeetupComposition c) {
+    final parts = <String>[];
+    if (c.women > 0) parts.add('${c.women} ${c.women == 1 ? 'woman' : 'women'}');
+    if (c.men > 0) parts.add('${c.men} ${c.men == 1 ? 'man' : 'men'}');
+    if (parts.isEmpty || parts.length == 1 && c.other == 0) {
+      // A single-gender group is worth stating plainly; a mix of one kind only
+      // with no "other" is already implied by the count, so skip it.
+      if (parts.length == 1 && c.total == (c.women + c.men)) return parts.first;
+      return null;
+    }
+    return parts.join(', ');
   }
 }
 

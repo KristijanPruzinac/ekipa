@@ -32,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _invitations = isBackendConfigured
         ? repository.myInvitations()
-        : Future.value([mockMeetup, mockStanding]);
+        : Future.value([mockMeetup, mockFormingConfirmed, mockStanding]);
   }
 
   @override

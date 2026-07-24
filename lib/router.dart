@@ -35,7 +35,11 @@ CustomTransitionPage<void> _fade(Widget child, GoRouterState state) {
   );
 }
 
-Meetup _mockMeetupById(String id) => id == mockStanding.id ? mockStanding : mockMeetup;
+Meetup _mockMeetupById(String id) => switch (id) {
+      _ when id == mockStanding.id => mockStanding,
+      _ when id == mockFormingConfirmed.id => mockFormingConfirmed,
+      _ => mockMeetup,
+    };
 
 /// Bridges Supabase's auth stream to GoRouter's `refreshListenable`, so a
 /// sign-in/sign-out re-evaluates `redirect` without a manual navigation
@@ -108,7 +112,7 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/reflect/:id',
       pageBuilder: (context, state) {
-        final meetup = (state.extra as Meetup?) ?? mockMeetup;
+        final meetup = (state.extra as Meetup?) ?? _mockMeetupById(state.pathParameters['id']!);
         return _fade(
           ReflectScreen(meetup: meetup, onDone: () => context.go('/home')),
           state,

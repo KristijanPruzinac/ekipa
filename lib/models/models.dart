@@ -5,30 +5,48 @@ enum TalkLevel { chatty, balanced, quietCompany }
 
 enum AvailabilitySlot { weekdayMorning, weekdayEvening, weekendDay, weekendEvening }
 
+/// How the last meetup felt — the four-level reflection (see 0006). Only mutual
+/// warmth (both people at [enjoyed] or above) seeds a future group; [ratherNot]
+/// is a silent, permanent "never compose us again".
+enum Sentiment { reallyEnjoyed, enjoyed, noPreference, ratherNot }
+
+extension SentimentWire on Sentiment {
+  /// The value stored in `reflections.sentiment`.
+  String get wire => switch (this) {
+        Sentiment.reallyEnjoyed => 'really_enjoyed',
+        Sentiment.enjoyed => 'enjoyed',
+        Sentiment.noPreference => 'no_preference',
+        Sentiment.ratherNot => 'rather_not',
+      };
+}
+
 class Profile {
   const Profile({
     required this.id,
     required this.firstName,
     required this.city,
+    required this.gender,
     required this.activities,
     required this.availability,
     required this.groupSizePref,
     required this.talkLevel,
     required this.sameGenderOnly,
-    required this.blurb,
   });
 
   final String id;
   final String firstName;
   final String city;
+
+  /// Used only for same-gender grouping and the pre-reveal group shape.
+  /// Never shown as a label on a person.
+  final String? gender;
   final List<String> activities; // activity slugs
   final List<AvailabilitySlot> availability;
   final int groupSizePref; // 2, 3, or 4
   final TalkLevel talkLevel;
   final bool sameGenderOnly;
 
-  /// System-written one-liner shown to matched others. No free-text bio.
-  final String blurb;
+  bool get isComplete => firstName.trim().isNotEmpty && city.trim().isNotEmpty;
 
   /// Maps a `profiles` row (supabase/migrations/0001_init.sql) to a [Profile].
   /// Availability isn't surfaced anywhere in the UI yet, so it's left empty
@@ -37,6 +55,7 @@ class Profile {
         id: row['id'] as String,
         firstName: row['first_name'] as String? ?? '',
         city: (row['city'] as String? ?? '').isEmpty ? 'Osijek' : row['city'] as String,
+        gender: row['gender'] as String?,
         activities: List<String>.from(row['activities'] as List? ?? const []),
         availability: const [],
         groupSizePref: row['group_size_pref'] as int? ?? 3,
@@ -45,7 +64,6 @@ class Profile {
           orElse: () => TalkLevel.balanced,
         ),
         sameGenderOnly: row['same_gender_only'] as bool? ?? false,
-        blurb: row['blurb'] as String? ?? '',
       );
 }
 
@@ -62,20 +80,48 @@ enum GroupStatus {
   cancelled,
 }
 
-/// A person as shown inside a confirmed invitation. First name only.
+/// A person as shown inside a confirmed invitation. First name only — no
+/// blurb, no bio, nothing to pre-judge on. Resolved only inside the T−3h
+/// reveal window (see 0007); before that the client holds none of this.
 class Attendee {
-  const Attendee({required this.id, required this.firstName, required this.blurb});
+  const Attendee({required this.id, required this.firstName});
 
   final String id;
   final String firstName;
-  final String blurb;
 
   /// Maps a row from the `confirmed_attendees(m uuid)` RPC — the only path
-  /// by which one user learns anything about another (see 0001_init.sql).
+  /// by which one user learns anything about another (see 0007).
   factory Attendee.fromRow(Map<String, dynamic> row) => Attendee(
         id: row['id'] as String,
         firstName: row['first_name'] as String,
-        blurb: row['blurb'] as String? ?? '',
+      );
+}
+
+/// The *shape* of a confirmed group shown before the T−3h name reveal — counts
+/// only, never identities (see `group_composition`, 0007).
+class MeetupComposition {
+  const MeetupComposition({
+    required this.total,
+    required this.women,
+    required this.men,
+    required this.other,
+  });
+
+  final int total;
+  final int women;
+  final int men;
+  final int other;
+
+  /// True when the group is a clean single-gender set — worth stating plainly
+  /// to someone who asked for same-gender company.
+  bool get isSingleGender =>
+      (women == total || men == total) && total > 0;
+
+  factory MeetupComposition.fromRow(Map<String, dynamic> row) => MeetupComposition(
+        total: (row['total'] as num?)?.toInt() ?? 0,
+        women: (row['women'] as num?)?.toInt() ?? 0,
+        men: (row['men'] as num?)?.toInt() ?? 0,
+        other: (row['other'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -93,6 +139,8 @@ class Meetup {
     required this.attendees,
     required this.isStanding,
     required this.whatToExpect,
+    this.composition,
+    this.expiresAt,
     this.myRsvp = 'pending',
   });
 
@@ -108,6 +156,14 @@ class Meetup {
   final List<Attendee> attendees;
   final bool isStanding;
 
+  /// The group's shape, shown once confirmed but before the T−3h name reveal.
+  /// Null when the meetup isn't confirmed, or once [attendees] are revealed.
+  final MeetupComposition? composition;
+
+  /// When an unaccepted proposal quietly dies (see 0007). Null for meetups
+  /// that are already confirmed or standing.
+  final DateTime? expiresAt;
+
   /// What actually happens — reduces ambiguity, the key anxiety tax.
   final String whatToExpect;
 
@@ -122,8 +178,10 @@ class Meetup {
   factory Meetup.fromRow(
     Map<String, dynamic> row, {
     required List<Attendee> attendees,
+    MeetupComposition? composition,
     String myRsvp = 'pending',
   }) {
+    final expires = row['expires_at'] as String?;
     return Meetup(
       id: row['id'] as String,
       status: GroupStatus.values.firstWhere(
@@ -139,6 +197,8 @@ class Meetup {
       durationMin: row['duration_min'] as int? ?? 90,
       attendees: attendees,
       isStanding: row['is_standing'] as bool? ?? false,
+      composition: composition,
+      expiresAt: expires == null ? null : DateTime.parse(expires).toLocal(),
       whatToExpect: row['what_to_expect'] as String? ?? '',
       myRsvp: myRsvp,
     );
@@ -152,7 +212,9 @@ class Meetup {
     String? venueName,
     String? venueNote,
     DateTime? startsAt,
+    List<Attendee>? attendees,
     bool? isStanding,
+    MeetupComposition? composition,
     String? whatToExpect,
   }) {
     return Meetup(
@@ -165,9 +227,12 @@ class Meetup {
       city: city,
       startsAt: startsAt ?? this.startsAt,
       durationMin: durationMin,
-      attendees: attendees,
+      attendees: attendees ?? this.attendees,
       isStanding: isStanding ?? this.isStanding,
+      composition: composition ?? this.composition,
+      expiresAt: expiresAt,
       whatToExpect: whatToExpect ?? this.whatToExpect,
+      myRsvp: myRsvp,
     );
   }
 }
