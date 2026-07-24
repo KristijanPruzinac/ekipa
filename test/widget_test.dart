@@ -1,7 +1,12 @@
 import 'package:ekipa/main.dart';
+import 'package:ekipa/router.dart' show appRouter;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  // appRouter is a process-wide singleton, so without a reset the navigation
+  // state from one test (e.g. parked on /invite/:id) leaks into the next.
+  setUp(() => appRouter.go('/'));
+
   testWidgets('Welcome screen renders the arrival state and primary action', (tester) async {
     await tester.pumpWidget(const EkipaApp());
     // The constellation field and arrival pulse animate forever, so pump a
@@ -40,6 +45,28 @@ void main() {
       find.text("Private until everyone's in. As soon as the group is set, you'll see who's coming."),
       findsOneWidget,
     );
+    expect(find.text('Lucija'), findsNothing);
+  });
+
+  testWidgets('Confirmed-but-pre-reveal meetup shows its shape, never names', (tester) async {
+    await tester.pumpWidget(const EkipaApp());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.text('See my invitation'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // The confirmed Coffee group is past confirmation but before the T-3h
+    // reveal, so its card should show the composition, not the attendees.
+    await tester.tap(find.text('Coffee'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('4 people are coming.'), findsOneWidget);
+    expect(find.text('2 women, 2 men'), findsOneWidget);
+    // No identities leak before the reveal window.
     expect(find.text('Lucija'), findsNothing);
   });
 }
