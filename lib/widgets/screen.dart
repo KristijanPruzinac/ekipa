@@ -95,7 +95,7 @@ class Screen extends StatelessWidget {
                             padding: padding,
                             child: ConstrainedBox(
                               constraints: BoxConstraints(
-                                minHeight: constraints.maxHeight - padding.vertical,
+                                minHeight: (constraints.maxHeight - padding.vertical).clamp(0.0, double.infinity),
                               ),
                               child: child,
                             ),

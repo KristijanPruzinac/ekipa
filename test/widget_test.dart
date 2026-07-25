@@ -58,9 +58,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
-    // The confirmed Coffee group is past confirmation but before the T-3h
+    // The confirmed photo-walk group is past confirmation but before the T-3h
     // reveal, so its card should show the composition, not the attendees.
-    await tester.tap(find.text('Coffee'));
+    await tester.tap(find.text('Photo walk'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 

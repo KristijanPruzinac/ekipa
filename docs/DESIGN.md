@@ -17,6 +17,8 @@ Codename for the current visual direction: **dusk** — warmth found in the dark
 | Safe to say no | "not this time" is always present, always private, never punished |
 | Human, not a marketplace | first names only (no blurb, no photos, no profile browsing) |
 | Never made to perform yourself | onboarding is one short *logistics* pass (when/where/how-many) — never a bio, personality, or anything another member reads |
+| Findable, with nobody to ask | the arrival surface carries a photo of the exact spot, a pin, a group name, and live arrival counts — outdoors the app is the signage too |
+| Someone else starts the conversation | the deck deals the first question the moment everyone's present; the app takes the opener so no person has to |
 
 ## Color
 
@@ -106,12 +108,17 @@ gamification — the reward is a real meeting, not a dopamine loop.
   ([`Appear`](../lib/widgets/appear.dart)), staggered so a screen exhales into
   place rather than snapping.
 - **Haptics** (`flutter/services.dart`'s `HapticFeedback`, used directly in the
-  widgets) — a light tick on press, a selection tick on filling a heart, and a
-  single medium-impact note reserved for real commitments ("Yes, I'll come").
+  widgets) — a light tick on press, a selection tick on choosing a feeling on
+  Reflect, and a single medium-impact note reserved for real commitments
+  ("Yes, I'll come").
   Sparing by design.
-- **The heart** on the reflect screen ([`reflect_screen.dart`](../lib/screens/reflect_screen.dart))
-  pops with a spring as it fills — the one small moment of delight, and it's
-  about a person, not a score. It stays moss, not ember, on purpose.
+- **The reflect selector** ([`reflect_screen.dart`](../lib/screens/reflect_screen.dart))
+  is four feeling levels per person (really enjoyed / enjoyed / no preference /
+  rather not); the chosen row warms with a soft glow and a small spring — the
+  one small moment of delight, and it's about a person, not a score. All four
+  options carry equal visual weight ("rather not" is never styled as danger —
+  it's a quiet preference, not an accusation). It stays moss, not ember, on
+  purpose.
 - **The arrival pulse** on Welcome ([`welcome_screen.dart`](../lib/screens/welcome_screen.dart))
   is the other ember moment — a slow breathing dot standing in for "we're
   working on it, quietly."
@@ -121,8 +128,19 @@ gamification — the reward is a real meeting, not a dopamine loop.
 ## Voice
 
 Plain, warm, second person. Short sentences. Never hype, never FOMO, never
-"You have 3 new matches!". Compare:
+"You have 3 new matches!".
+
+**And, since v2.1, confident** — there is no host, no venue, and nobody on site,
+so the app has to hold the authority a host would. It states the place rather
+than proposing it, gives the first arriver a job rather than leaving them
+waiting, and starts the activity itself. Hedging reads as abandonment when
+you're standing outdoors looking for three strangers. Compare:
 
 - ✅ "A relaxed 90-minute walk with three other people. You can head off whenever
   you like; nobody will ask why."
 - ❌ "🔥 New group alert! Don't miss out — RSVP now!"
+- ✅ "The two benches by the fountain, facing the river. 18:00. You're the Blue
+  Fox group."
+- ❌ "Where would everyone like to meet? Vote below!"
+- ✅ "You're first. Take the bench facing the river — the others will find you."
+- ❌ "Waiting for other members to arrive…"

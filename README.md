@@ -39,6 +39,8 @@ Ekipa is not a discovery app. It's an organizer nobody has to be.
   times, explicit "what to expect", a normalized exit script.
 
 See [docs/PLAN.md](docs/PLAN.md) for the full phased build,
+[docs/GRAPH.md](docs/GRAPH.md) for the connection graph and the composer (the
+actual matching mechanism — edge formation, weight, decay, the slot model),
 [docs/DESIGN.md](docs/DESIGN.md) for the visual language, and
 [docs/PRODUCT.md](docs/PRODUCT.md) for the founding strategy (who this is for,
 why they're isolated, failure modes, cold start, monetization).
@@ -95,7 +97,7 @@ lib/
     reflect_screen.dart                 "who would you be happy to see again?"
 supabase/
   migrations/0001_init.sql  schema with the privacy model in RLS
-docs/                       PLAN.md, DESIGN.md, PRODUCT.md
+docs/                       PLAN.md, GRAPH.md, DESIGN.md, PRODUCT.md
 ```
 
 ## Status

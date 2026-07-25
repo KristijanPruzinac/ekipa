@@ -1,9 +1,27 @@
 # Ekipa — v2 rebuild & completion plan
 
-Derived from the code review dated 2026-07-24. This plan turns that review
-into an ordered, dependency-aware build sequence. It is the working spec for
-the next several sessions; it is **not** committed as product truth until the
-v2 source docs (below) are reconciled.
+> **STATUS (2026-07-26): largely executed / superseded — historical record.**
+> Product truth now lives in `PRODUCT.md`, `PLAN.md`, `DESIGN.md`, `GRAPH.md`.
+> Read those first; use this file only for the reasoning behind decisions.
+>
+> - **Open decisions, resolved:** #1 the v2 docs were written and are canonical
+>   (Phase A2 done). #2 the onboarding reversal was confirmed and built
+>   (logistics-only pass, PLAN Phase 1). #3 `rather_not` got the dedicated
+>   `exclusions` table (option b, as recommended). #4 (scheduler) and #5
+>   (admin panel shape) remain genuinely open and now live with Phase B/C
+>   work in PLAN.md.
+> - **The migration ledger below is stale.** The live sequence consolidated
+>   A3+A4 into `0006_v2_identity_and_reflection.sql` (blurb removal +
+>   four-level sentiment + exclusions), landed the T−3h gate as `0007` and the
+>   race-free trigger + post-confirmation withdraw as `0008`; `0009` is now
+>   reserved for the graph-mechanism schema (`slot_kind`, attendance-gated
+>   edges, weighted `mutual_connections()`, `pair_history` — GRAPH.md §9).
+> - Phases B/C remain the open back half and are sequenced in PLAN.md
+>   (Phases 2b–6) rather than here.
+
+Derived from the code review dated 2026-07-24. This plan turned that review
+into an ordered, dependency-aware build sequence for the sessions that
+followed.
 
 ## Read this first — two honesty flags
 

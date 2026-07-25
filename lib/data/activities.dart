@@ -1,6 +1,12 @@
 /// The activity catalog. Deliberately shoulder-to-shoulder and parallel:
 /// activities that remove the conversational spotlight. "Just talk" is the
 /// hardest format for this population and is intentionally absent.
+///
+/// All of these run at curated *outdoor* spots — there is no venue and no host
+/// (docs/PRODUCT.md, "Where it happens"), so anything needing a surface depends
+/// on the spot having one and on what members said they can bring. The
+/// always-available default is the in-app question deck, not an activity here.
+/// `coffee_quiet` is the winter/weather fallback, never the default.
 class Activity {
   const Activity({required this.slug, required this.label, required this.emoji, this.seed = false});
 

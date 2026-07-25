@@ -214,7 +214,9 @@ class _InviteDetailScreenState extends State<InviteDetailScreen> {
                         variant: EkipaTextVariant.bodyStrong,
                         tone: EkipaTone.paperInk),
                     const SizedBox(height: 2),
-                    AppText('${meetup.venueNote} · Public place.',
+                    // Outdoors and visible is the safety mechanism, so the
+                    // ticket says so plainly (docs/PRODUCT.md).
+                    AppText('${meetup.venueNote} · Outdoors, in the open, with people around.',
                         variant: EkipaTextVariant.callout,
                         tone: EkipaTone.paperSoft),
                   ],

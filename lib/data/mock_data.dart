@@ -8,13 +8,18 @@ DateTime _nextSaturdayAt(int hour, int minute) {
 }
 
 /// Sample invitation used to explore the UI before the backend is wired.
+///
+/// Spots are curated *outdoor* places — quiet, free, open, and visible — never
+/// venues and never anything booked on the group's behalf. There is no host
+/// and nothing reserved, so the note has to say precisely where to stand
+/// (see docs/PRODUCT.md, "Where it happens").
 final Meetup mockMeetup = Meetup(
   id: 'mtp_demo_1',
   status: GroupStatus.proposed,
   activitySlug: 'walk',
   activityLabel: 'Walking',
-  venueName: 'Park by the Drava',
-  venueNote: 'Meet at the main entrance, near the fountain.',
+  venueName: 'The promenade by the Drava',
+  venueNote: 'The two benches by the fountain, facing the river.',
   city: 'Osijek',
   startsAt: _nextSaturdayAt(15, 0),
   durationMin: 90,
@@ -33,11 +38,11 @@ final Meetup mockStanding = mockMeetup.copyWith(
   status: GroupStatus.confirmed,
   activitySlug: 'boardgames',
   activityLabel: 'Board games',
-  venueName: 'Kocka board-game café',
-  venueNote: 'Table booked under "Ekipa".',
+  venueName: 'The picnic tables in Park Kralja Petra Krešimira IV',
+  venueNote: 'The tables under the plane trees, left of the main path.',
   startsAt: _nextSaturdayAt(18, 0),
   isStanding: true,
-  whatToExpect: 'Your regular group, every other Saturday. Same faces, a familiar table, no organizing on your part.',
+  whatToExpect: 'Your regular group, every other Saturday. Same faces, the same table under the trees, no organizing on your part.',
   attendees: const [
     Attendee(id: 'u1', firstName: 'Lucija'),
     Attendee(id: 'u2', firstName: 'Marko'),
@@ -51,13 +56,13 @@ final Meetup mockStanding = mockMeetup.copyWith(
 final Meetup mockFormingConfirmed = mockMeetup.copyWith(
   id: 'mtp_demo_3',
   status: GroupStatus.confirmed,
-  activitySlug: 'coffee_quiet',
-  activityLabel: 'Coffee',
-  venueName: 'Kava bar Cvajner',
-  venueNote: 'Corner table by the window.',
+  activitySlug: 'photography',
+  activityLabel: 'Photo walk',
+  venueName: 'The steps below the pedestrian bridge',
+  venueNote: 'The wide steps on the near bank, under the first span.',
   startsAt: _nextSaturdayAt(11, 0),
   whatToExpect:
-      'A calm hour over coffee with three others. Come as you are; leave when you like.',
+      'A slow hour along the river with three others, cameras or phones. Long quiet stretches are the point. Leave whenever you like.',
   attendees: const [],
   composition: const MeetupComposition(total: 4, women: 2, men: 2, other: 0),
   myRsvp: 'yes',

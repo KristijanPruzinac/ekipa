@@ -29,13 +29,14 @@ class Starfield extends StatefulWidget {
 
 class _StarfieldState extends State<Starfield>
     with SingleTickerProviderStateMixin {
-  // Unbounded controller used purely as a frame ticker; we read elapsed
-  // seconds from it rather than a 0..1 value, so the motion never "resets".
+  // Frame ticker that advances at exactly 1.0 per real second, so the
+  // painter can read `_ticker.value` as elapsed seconds. A very long period
+  // means it effectively never resets during a session.
   late final AnimationController _ticker = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 1),
     upperBound: double.infinity,
-  )..repeat(min: 0, max: 1e9, period: const Duration(seconds: 1000000));
+  )..repeat(min: 0, max: 100000, period: const Duration(seconds: 100000));
 
   late final List<_Star> _stars;
   late final List<(int, int)> _pairs;

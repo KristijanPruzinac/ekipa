@@ -1,5 +1,19 @@
 # Ekipa — finalization plan (visual polish + motion + v2 completion)
 
+> **STATUS (2026-07-26): decisions resolved, plan a working session record.**
+> Product truth lives in `PRODUCT.md`, `PLAN.md`, `DESIGN.md`, `GRAPH.md`.
+>
+> - **§0.2 palette — resolved as recommended:** the two warmth registers
+>   (moss = digital/system, amber/ember = paper & arrival) were adopted and
+>   are documented in DESIGN.md as the rule. "Ember exactly twice" is retired.
+> - **Reflect — resolved:** the four-level selector was built (the comp's
+>   single heart was not copied); DESIGN.md now describes the built selector.
+> - **Onboarding reversal — confirmed and built** (PLAN Phase 1).
+> - **`rather_not` storage — resolved:** dedicated `exclusions` table
+>   (consolidated into migration `0006`).
+> - Open decision #4 (copying comps more literally) is closed unless
+>   reopened explicitly.
+
 Goal: a professional, polished, **fully functional** app that looks and moves
 like the reference mockups — no static screens. This plan merges three tracks:
 
