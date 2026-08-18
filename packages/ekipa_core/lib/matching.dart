@@ -9,6 +9,8 @@ library;
 export 'src/matching/composition.dart';
 export 'src/matching/eligibility.dart';
 export 'src/matching/matching_config.dart';
+export 'src/matching/matchmaker.dart';
+export 'src/matching/plan.dart';
 export 'src/matching/ring.dart';
 export 'src/matching/ring_draw.dart';
 export 'src/matching/rings.dart';

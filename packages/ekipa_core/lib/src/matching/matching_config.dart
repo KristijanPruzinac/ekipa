@@ -150,6 +150,22 @@ abstract final class MatchingKeys {
         'of six and holds by construction.',
   );
 
+  /// How many times a group is rebuilt before the slot gives up.
+  ///
+  /// Bounded because the alternative is a nightly job that can hang: a
+  /// population whose gender ratio or cluster split makes a valid group
+  /// impossible would otherwise retry forever, and nobody is awake to notice. A
+  /// run that hits this ceiling reports it in `rebuild_attempts`, which is the
+  /// signal that the constraints and the population disagree.
+  static final ConfigKey<int> maxRebuildAttempts = ConfigKey.integer(
+    'matching.max_rebuild_attempts',
+    defaultValue: 8,
+    description:
+        'How many candidate groups a slot may build and discard before it '
+        'gives up. A rising count means the constraints and the population '
+        'disagree.',
+  );
+
   // ── Respect (03_MATCHMAKER.md §6, 04_TRUST.md §4.1) ──────────────────────
 
   /// Real ratings needed before the respect posterior may be used.
@@ -202,6 +218,7 @@ abstract final class MatchingKeys {
     minGroupSize,
     maxGroupSize,
     maxKnownPairFraction,
+    maxRebuildAttempts,
     minRespectRatings,
     respectPriorWeight,
     respectPriorMean,
@@ -233,6 +250,7 @@ final class MatchConfig {
       minGroupSize = snapshot.get(MatchingKeys.minGroupSize),
       maxGroupSize = snapshot.get(MatchingKeys.maxGroupSize),
       maxKnownPairFraction = snapshot.get(MatchingKeys.maxKnownPairFraction),
+      maxRebuildAttempts = snapshot.get(MatchingKeys.maxRebuildAttempts),
       minRespectRatings = snapshot.get(MatchingKeys.minRespectRatings),
       respectPriorWeight = snapshot.get(MatchingKeys.respectPriorWeight),
       respectPriorMean = snapshot.get(MatchingKeys.respectPriorMean),
@@ -279,6 +297,9 @@ final class MatchConfig {
 
   /// See [MatchingKeys.maxKnownPairFraction].
   final double maxKnownPairFraction;
+
+  /// See [MatchingKeys.maxRebuildAttempts].
+  final int maxRebuildAttempts;
 
   /// See [MatchingKeys.minRespectRatings].
   final int minRespectRatings;
