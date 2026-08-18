@@ -52,3 +52,7 @@ app.*.map.json
 # Supabase local
 supabase/.branches/
 supabase/.temp/
+
+# Tooling scratch
+.appium-screenshots/
+design/preview/.cache/

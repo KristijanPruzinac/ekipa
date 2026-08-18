@@ -1,5 +1,12 @@
 # Ekipa
 
+> ⚠️ **This README describes v2 and is superseded.** As of 2026-08-18 the product was
+> redesigned from the ground up. The canonical specification is
+> [`docs/v3/`](docs/v3/README.md) — start with [the Bible](docs/v3/00_BIBLE.md), then
+> [open questions](docs/v3/09_OPEN_QUESTIONS.md). All code and migrations described below
+> are flagged legacy: see [`docs/v3/LEGACY_AUDIT.md`](docs/v3/LEGACY_AUDIT.md). This file
+> is rewritten at P0.
+
 **Company, without the noise.**
 
 An app for people whose need for connection is normal or high, but whose

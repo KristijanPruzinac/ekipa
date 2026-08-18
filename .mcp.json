@@ -3,6 +3,26 @@
     "supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=synezcumbimkztiatqjm&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching"
+    },
+    "ui-ux-pro": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "ui-ux-pro-mcp", "--stdio"]
+    },
+    "appium": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "appium-mcp@latest"],
+      "env": {
+        "ANDROID_HOME": "C:\\Users\\kikom\\AppData\\Local\\Android\\Sdk",
+        "JAVA_HOME": "C:\\Program Files\\Android\\Android Studio\\jbr",
+        "SCREENSHOTS_DIR": "C:\\Users\\kikom\\Documents\\GitHub\\ekipa\\.appium-screenshots"
+      }
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
     }
   }
 }
