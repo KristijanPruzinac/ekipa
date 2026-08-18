@@ -102,6 +102,26 @@ void main() {
       );
     });
 
+    test('UI-NO-DATA', () {
+      expect(
+        idsFor(
+          'packages/ekipa_ui/lib/src/primitives/person_name.dart',
+          "import 'package:ekipa_data/ekipa_data.dart';",
+        ),
+        contains('UI-NO-DATA'),
+      );
+    });
+
+    test('UI-NO-MATCHING', () {
+      expect(
+        idsFor(
+          'packages/ekipa_ui/lib/src/primitives/group_card.dart',
+          "import 'package:ekipa_core/matching.dart';",
+        ),
+        contains('UI-NO-MATCHING'),
+      );
+    });
+
     test('NO-LEGACY-IMPORT', () {
       expect(
         idsFor(
@@ -126,6 +146,8 @@ void main() {
         'MOBILE-NO-MATCHING',
         'MOBILE-NO-SERVICE-ROLE',
         'CONSOLE-NO-SERVICE-ROLE',
+        'UI-NO-DATA',
+        'UI-NO-MATCHING',
         'PLATFORM-BRANCH-CONFINED',
       };
       expect(rules.map((r) => r.id).toSet(), tested);
@@ -178,6 +200,18 @@ void main() {
         idsFor(
           'legacy/v2/lib/router.dart',
           "import 'package:ekipa/legacy/thing.dart';",
+        ),
+        isEmpty,
+      );
+    });
+
+    test('the design system may import core value objects', () {
+      // The one dependency ekipa_ui is allowed, and the reason PersonName can
+      // refuse a raw String.
+      expect(
+        idsFor(
+          'packages/ekipa_ui/lib/src/primitives/person_name.dart',
+          "import 'package:ekipa_core/ekipa_core.dart';",
         ),
         isEmpty,
       );

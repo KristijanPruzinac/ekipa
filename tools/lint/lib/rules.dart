@@ -77,6 +77,7 @@ final class Violation {
 const _core = 'packages/ekipa_core/lib';
 const _mobile = 'apps/mobile/lib';
 const _console = 'apps/console/lib';
+const _ui = 'packages/ekipa_ui/lib';
 
 /// Every rule enforced by CI.
 final List<Rule> rules = [
@@ -186,6 +187,32 @@ final List<Rule> rules = [
     why:
         'AC-4: no service-role key in the browser. Every console action is an '
         'audited RPC that re-checks the role server-side.',
+  ),
+
+  // ── The design system takes value objects, never infrastructure ──────────
+  Rule(
+    id: 'UI-NO-DATA',
+    scope: _ui,
+    pattern: RegExp(
+      r'''import\s+['"]package:(ekipa_data|supabase|postgres|firebase|http)''',
+    ),
+    forbids: 'importing infrastructure into the design system',
+    why:
+        'ekipa_ui depends on ekipa_core for value objects so that PersonName '
+        'can refuse a raw String. That is the whole of the allowance. A '
+        'primitive that can reach a backend client is a primitive that will '
+        'eventually fetch something, and then no screen can be rendered in a '
+        'widget test without a network.',
+  ),
+  Rule(
+    id: 'UI-NO-MATCHING',
+    scope: _ui,
+    pattern: RegExp(r'''import\s+['"]package:ekipa_core/matching\.dart'''),
+    forbids: 'importing the matcher into the design system',
+    why:
+        'Directive D9, by the back door: ekipa_ui is compiled into the mobile '
+        'binary, so a matching import here defeats MOBILE-NO-MATCHING without '
+        'tripping it.',
   ),
 
   // ── D8 / C-3: platform differences stay countable ────────────────────────
