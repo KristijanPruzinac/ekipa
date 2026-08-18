@@ -12,11 +12,18 @@ class AppCard extends StatelessWidget {
     super.key,
     required this.child,
     this.emphasis = false,
+    this.soft = false,
     this.padding = const EdgeInsets.all(EkipaSpace.xl),
   });
 
   final Widget child;
   final bool emphasis;
+
+  /// A barely-there variant: near-invisible fill, hairline border, no hard
+  /// drop shadow — just enough blur to separate content from a busy photo
+  /// behind it. For moments that shouldn't read as a boxed panel (e.g. the
+  /// Welcome "waiting" pill).
+  final bool soft;
   final EdgeInsets padding;
 
   @override
@@ -40,20 +47,22 @@ class AppCard extends StatelessWidget {
                     ],
                   )
                 : null,
-            color: emphasis ? null : c.glass,
+            color: emphasis ? null : c.glass.withValues(alpha: soft ? 0.02 : null),
             borderRadius: BorderRadius.circular(EkipaRadius.xl),
             border: Border.all(
-              color: emphasis ? c.moss.withValues(alpha: 0.35) : c.line,
+              color: emphasis
+                  ? c.moss.withValues(alpha: 0.35)
+                  : (soft ? c.lineSoft : c.line),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
                 color: emphasis
                     ? c.moss.withValues(alpha: 0.18)
-                    : Colors.black.withValues(alpha: 0.35),
-                blurRadius: emphasis ? 44 : 28,
-                offset: const Offset(0, 16),
-                spreadRadius: emphasis ? -12 : -10,
+                    : Colors.black.withValues(alpha: soft ? 0.16 : 0.35),
+                blurRadius: emphasis ? 44 : (soft ? 22 : 28),
+                offset: Offset(0, soft ? 10 : 16),
+                spreadRadius: emphasis ? -12 : (soft ? -16 : -10),
               ),
               BoxShadow(
                 color: Colors.white.withValues(alpha: 0.05),

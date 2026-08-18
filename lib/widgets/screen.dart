@@ -56,7 +56,10 @@ class Screen extends StatelessWidget {
           else
             Positioned.fill(child: _gradientFallback(c)),
 
-          // Optional legibility scrim, darker at the top where display text sits.
+          // Optional legibility scrim, darker at the top where display text
+          // sits. Holds a floor further down (rather than fading to near
+          // nothing) so faint captions lower on the page stay readable
+          // against whatever the photo is doing there.
           if (scrim > 0)
             Positioned.fill(
               child: DecoratedBox(
@@ -64,9 +67,11 @@ class Screen extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
+                    stops: const [0.0, 0.55, 1.0],
                     colors: [
                       Colors.black.withValues(alpha: scrim),
-                      Colors.black.withValues(alpha: scrim * 0.15),
+                      Colors.black.withValues(alpha: scrim * 0.55),
+                      Colors.black.withValues(alpha: scrim * 0.38),
                     ],
                   ),
                 ),

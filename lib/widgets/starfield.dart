@@ -52,13 +52,15 @@ class _StarfieldState extends State<Starfield>
       final warm = false;
       return _Star(
         dx: rnd.nextDouble(),
-        dy: rnd.nextDouble() * 0.9 + 0.02,
-        r: 0.6 + rnd.nextDouble() * 1.6,
+        // Concentrated in the top half of the sky, not spread edge-to-edge —
+        // the band fades out (see _topFade) rather than stopping sharply.
+        dy: rnd.nextDouble() * 0.48 + 0.02,
+        r: 0.9 + rnd.nextDouble() * 2.1,
         phase: rnd.nextDouble() * pi * 2,
         speed: 0.6 + rnd.nextDouble() * 1.4,
-        baseBright: 0.25 + rnd.nextDouble() * 0.55,
+        baseBright: 0.32 + rnd.nextDouble() * 0.58,
         warm: warm,
-        glow: rnd.nextDouble() < 0.18, // a handful get a soft halo
+        glow: rnd.nextDouble() < 0.26, // more halos now that stars read bigger
       );
     });
 
@@ -188,30 +190,42 @@ class _SkyPainter extends CustomPainter {
   final double loop;
   final EkipaColors colors;
 
+  /// Smooth taper so the top-half band blends into the photo below instead
+  /// of stopping in a visible line: full strength until [_fadeStart], eased
+  /// out to nothing by [_fadeEnd].
+  static const _fadeStart = 0.30;
+  static const _fadeEnd = 0.52;
+  double _topFade(double dy) {
+    if (dy <= _fadeStart) return 1.0;
+    return (1 - (dy - _fadeStart) / (_fadeEnd - _fadeStart)).clamp(0.0, 1.0);
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
-    // 1. Faint warm threads between the "connected" stars.
+    // 1. Warm threads between the "connected" stars — bolder than a
+    //    hairline so the constellation motif actually reads.
     for (final (ai, bi) in pairs) {
       final a = stars[ai];
       final b = stars[bi];
       final p1 = Offset(a.dx * size.width, a.dy * size.height);
       final p2 = Offset(b.dx * size.width, b.dy * size.height);
-      final glow = 0.16 + 0.12 * sin(t * 0.8 + ai);
+      final fade = _topFade((a.dy + b.dy) / 2);
+      final glow = (0.26 + 0.16 * sin(t * 0.8 + ai)) * fade;
       final paint = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.9
+        ..strokeWidth = 1.6
         ..shader = ui.Gradient.linear(p1, p2, [
           colors.ember.withValues(alpha: glow),
-          colors.ember.withValues(alpha: glow * 0.3),
+          colors.ember.withValues(alpha: glow * 0.35),
         ]);
       canvas.drawLine(p1, p2, paint);
     }
 
-    // 2. Twinkling stars.
+    // 2. Twinkling stars, faded toward the bottom of their band.
     for (final s in stars) {
       final center = Offset(s.dx * size.width, s.dy * size.height);
       final tw = 0.5 + 0.5 * sin(t * s.speed + s.phase);
-      final bright = (s.baseBright + 0.35 * tw).clamp(0.0, 1.0);
+      final bright = (s.baseBright + 0.35 * tw).clamp(0.0, 1.0) * _topFade(s.dy);
       final color = s.warm
           ? colors.ember.withValues(alpha: bright)
           : Colors.white.withValues(alpha: bright * 0.9);
