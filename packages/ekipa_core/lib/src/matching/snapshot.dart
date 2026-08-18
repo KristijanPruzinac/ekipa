@@ -132,8 +132,8 @@ final class MatchSnapshot {
   /// How many hangouts have completed since this pair last met.
   ///
   /// One of the two cooldown clocks. `null` when they have never met, which is
-  /// not the same as "a very long time ago" and must not be treated as it —
-  /// a pair who have never met has no cooldown to satisfy.
+  /// not the same as "a very long time ago" and must not be treated as it — a
+  /// pair who have never met has no cooldown to satisfy.
   int? interveningHangoutsSince(PersonId a, PersonId b) {
     var lastIndex = -1;
     for (var i = 0; i < history.length; i++) {

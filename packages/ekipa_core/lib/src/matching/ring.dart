@@ -2,8 +2,8 @@
 ///
 /// **Intention.** These three sets are the product's actual thesis. A dating
 /// app draws from strangers forever; a friend-of-a-friend app draws from R1
-/// forever and closes. Drawing from all three, in a ratio somebody can tune,
-/// is the bet — and [Ring] exists so the bet can be *measured*, because the
+/// forever and closes. Drawing from all three, in a ratio somebody can tune, is
+/// the bet — and [Ring] exists so the bet can be *measured*, because the
 /// primary metric is edge yield sliced by realised ring (03_MATCHMAKER.md §9).
 ///
 /// **This type lives behind `package:ekipa_core/matching.dart` and not in the

@@ -108,11 +108,11 @@ enum Enjoyment {
 
   /// Whether this answer can contribute to a mutual edge.
   ///
-  /// An edge needs **both** sides positive (02_DOMAIN.md). A one-sided
-  /// "I enjoyed them" creates nothing, and that is load-bearing for privacy
-  /// rather than for manners: if one-sided liking could pull someone back,
-  /// being re-matched would leak that they liked you — and *not* being
-  /// re-matched would leak the opposite.
+  /// An edge needs **both** sides positive (02_DOMAIN.md). A one-sided "I
+  /// enjoyed them" creates nothing, and that is load-bearing for privacy rather
+  /// than for manners: if one-sided liking could pull someone back, being
+  /// re-matched would leak that they liked you — and *not* being re-matched
+  /// would leak the opposite.
   bool get isPositive =>
       this == Enjoyment.reallyEnjoyed || this == Enjoyment.enjoyed;
 

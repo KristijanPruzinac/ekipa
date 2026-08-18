@@ -12,9 +12,9 @@ import 'package:meta/meta.dart';
 /// wrong order.
 ///
 /// That is not tidiness. If the order of the key could carry a direction, then
-/// invariant 4 — *the direction of an edge is not stored and cannot be
-/// derived* — becomes a convention rather than a fact, and a convention is
-/// something a future query can quietly break.
+/// invariant 4 — *the direction of an edge is not stored and cannot be derived*
+/// — becomes a convention rather than a fact, and a convention is something a
+/// future query can quietly break.
 @immutable
 final class PairKey {
   /// Orders [one] and [other] canonically.
@@ -56,8 +56,8 @@ final class PairKey {
 
 /// A mutual positive connection between two people.
 ///
-/// Formed only when **both** sides rated the other positively. A one-sided
-/// "I enjoyed them" creates nothing, and the reason is privacy rather than
+/// Formed only when **both** sides rated the other positively. A one-sided "I
+/// enjoyed them" creates nothing, and the reason is privacy rather than
 /// manners: if one-sided liking could pull someone back, being re-matched would
 /// leak that they liked you, and *not* being re-matched would leak the
 /// opposite.

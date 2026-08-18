@@ -96,8 +96,8 @@ final class SeedPolicy {
   ///
   /// Determinism note: the order of [eligible] is respected in the cumulative
   /// scan, so the same pool in the same order with the same [random] produces
-  /// the same sequence. Callers must therefore hand this a stably ordered
-  /// list — the pipeline sorts by person id before calling.
+  /// the same sequence. Callers must therefore hand this a stably ordered list
+  /// — the pipeline sorts by person id before calling.
   List<Person> draw(
     Iterable<Person> eligible,
     MatchConfig config,

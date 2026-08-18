@@ -15,8 +15,8 @@ enum StandingTier {
   /// Elevated accumulator, no active response yet. Invisible.
   watched,
 
-  /// Fewer hangouts per period. Invisible, because a throttle a person can
-  /// feel but not see is exactly as effective and does not become a status.
+  /// Fewer hangouts per period. Invisible, because a throttle a person can feel
+  /// but not see is exactly as effective and does not become a status.
   throttled,
 
   /// Preferentially matched with others in the same band. Invisible.
@@ -59,17 +59,17 @@ enum StandingTier {
 /// carry almost no information, because almost everybody presses yes. Two
 /// mechanisms handle that, and they do different jobs:
 ///
-///   * **the Beta prior** pulls a small sample toward "respectful", so nobody
+/// * **the Beta prior** pulls a small sample toward "respectful", so nobody
 ///     is condemned by a bad evening;
-///   * **the evidence gate** refuses to use the number at all below
+/// * **the evidence gate** refuses to use the number at all below
 ///     [usableAfter] ratings, so nobody is *boosted* by a small clean sample
 ///     either.
 ///
 /// The prior alone would not be enough. It would still produce an ordering, and
 /// an ordering invites ranking — which is the one use of this signal that is
-/// forbidden (03_MATCHMAKER.md §6). One bit from three strangers cannot
-/// support a ranking; it can support removing a genuinely disruptive tail, and
-/// that is all it is asked to do.
+/// forbidden (03_MATCHMAKER.md §6). One bit from three strangers cannot support
+/// a ranking; it can support removing a genuinely disruptive tail, and that is
+/// all it is asked to do.
 @immutable
 final class RespectSignal {
   /// Records [yes] and [no] respect answers about one person.
@@ -138,8 +138,8 @@ final class RespectSignal {
 ///
 /// Deliberately narrow. The matcher gets a tier, a respect signal and a quota —
 /// not the accumulator scores, not the infractions, not the reports. It cannot
-/// rank people by trustworthiness because it is not given a number to rank
-/// them by, and that is a stronger guarantee than a rule saying it must not.
+/// rank people by trustworthiness because it is not given a number to rank them
+/// by, and that is a stronger guarantee than a rule saying it must not.
 @immutable
 final class Standing {
   /// Records a person's trust state.

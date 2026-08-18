@@ -12,10 +12,10 @@ import 'package:meta/meta.dart';
 /// leak what it was never given, and the list of fields here is a list anyone
 /// can check against the promise in 02_DOMAIN.md §6.
 ///
-/// **Rejected — passing the database row.** It is one import away and it is
-/// how a first name ends up in a diagnostic string that gets logged. Legacy
-/// defect S4: domain types that carry database shape cannot be tested without
-/// a schema, and cannot be trusted without reading the schema.
+/// **Rejected — passing the database row.** It is one import away and it is how
+/// a first name ends up in a diagnostic string that gets logged. Legacy defect
+/// S4: domain types that carry database shape cannot be tested without a
+/// schema, and cannot be trusted without reading the schema.
 @immutable
 final class Person {
   /// Describes a person for matching purposes.

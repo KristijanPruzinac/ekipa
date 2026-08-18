@@ -7,9 +7,9 @@ import 'package:ekipa_core/src/foundation/ids.dart';
 /// behavioural constant is a literal in code.* If a product person could
 /// reasonably want it different next month, it is a row in `config_values`.
 /// Every default below is a **guess** — the simulator's job is to replace them
-/// with numbers whose failure modes we have already seen
-/// (03_MATCHMAKER.md §8), and a guess in a config row can be changed from a
-/// console while a guess in a literal needs a release.
+/// with numbers whose failure modes we have already seen (03_MATCHMAKER.md §8),
+/// and a guess in a config row can be changed from a console while a guess in a
+/// literal needs a release.
 ///
 /// The keys are declared in one place so the console's config editor can list
 /// them with their descriptions, and so [MatchingKeys.all] can be asserted
@@ -39,8 +39,21 @@ abstract final class MatchingKeys {
         'enjoyed). This is the mechanism the product is a bet on.',
   );
 
-  // `C = 1 − A − B` is never configured directly, so the three shares can
-  // never fail to sum. A setting that can be inconsistent will be.
+  // `C = 1 − A − B` is never configured directly, so the three shares can never
+  // fail to sum. A setting that can be inconsistent will be.
+
+  /// How hard a run corrects a ring that is running short.
+  ///
+  /// Zero disables deficit correction entirely, which is what makes the
+  /// correction itself measurable: run half the nights with it off and the
+  /// console can say what it bought.
+  static final ConfigKey<double> ringDeficitGain = ConfigKey.decimal(
+    'matching.ring_deficit_gain',
+    defaultValue: 1,
+    description:
+        'How strongly later draws in a run are pushed toward a ring that '
+        'fallbacks have starved. Zero turns the correction off.',
+  );
 
   /// Half-life of an edge's weight.
   static final ConfigKey<Duration> edgeHalfLife = ConfigKey.duration(
@@ -178,6 +191,7 @@ abstract final class MatchingKeys {
   static final List<ConfigKey<Object?>> all = [
     ringShareEnjoyed,
     ringShareLeaf,
+    ringDeficitGain,
     edgeHalfLife,
     bridgeDiscount,
     starveGain,
@@ -208,6 +222,7 @@ final class MatchConfig {
     : versionId = snapshot.versionId,
       ringShareEnjoyed = snapshot.get(MatchingKeys.ringShareEnjoyed),
       ringShareLeaf = snapshot.get(MatchingKeys.ringShareLeaf),
+      ringDeficitGain = snapshot.get(MatchingKeys.ringDeficitGain),
       edgeHalfLife = snapshot.get(MatchingKeys.edgeHalfLife),
       bridgeDiscount = snapshot.get(MatchingKeys.bridgeDiscount),
       starveGain = snapshot.get(MatchingKeys.starveGain),
@@ -231,6 +246,9 @@ final class MatchConfig {
 
   /// See [MatchingKeys.ringShareLeaf].
   final double ringShareLeaf;
+
+  /// See [MatchingKeys.ringDeficitGain].
+  final double ringDeficitGain;
 
   /// See [MatchingKeys.edgeHalfLife].
   final Duration edgeHalfLife;

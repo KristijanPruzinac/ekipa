@@ -6,8 +6,11 @@
 /// and `tools/lint` fails the build if it does.
 library;
 
+export 'src/matching/composition.dart';
 export 'src/matching/eligibility.dart';
 export 'src/matching/matching_config.dart';
 export 'src/matching/ring.dart';
+export 'src/matching/ring_draw.dart';
+export 'src/matching/rings.dart';
 export 'src/matching/seed_policy.dart';
 export 'src/matching/snapshot.dart';
