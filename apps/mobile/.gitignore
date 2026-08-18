@@ -43,28 +43,3 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-
-# Env / secrets
-.env
-.env.local
-.env*.local
-
-# Supabase local
-supabase/.branches/
-supabase/.temp/
-
-# Tooling scratch
-.appium-screenshots/
-design/preview/.cache/
-
-# ── Pub workspace ────────────────────────────────────────────────────────────
-# One lockfile at the root; member packages must not carry their own.
-/packages/*/pubspec.lock
-/apps/*/pubspec.lock
-/services/*/pubspec.lock
-/tools/*/pubspec.lock
-**/.dart_tool/
-*.iml
-
-# Coverage output
-coverage/

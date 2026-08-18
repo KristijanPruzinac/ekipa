@@ -1,0 +1,27 @@
+name: console
+description: >-
+  The master console (Flutter Web). Separate app, separate auth realm, separate
+  deployment. Holds no service-role key: every action is an audited RPC that
+  re-checks the caller's role server-side (AC-4).
+publish_to: none
+version: 0.1.0+1
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.44.0"
+
+dependencies:
+  ekipa_core: ^0.1.0
+  ekipa_data: ^0.1.0
+  ekipa_ui: ^0.1.0
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^9.0.0
+
+flutter:
+  uses-material-design: true

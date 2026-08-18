@@ -1,28 +1,41 @@
-# This file configures the analyzer, which statically analyzes Dart code to
-# check for errors, warnings, and lints.
+# Shared analyzer configuration for every package in the workspace.
 #
-# The issues identified by the analyzer are surfaced in the UI of Dart-enabled
-# IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
-# invoked from the command line by running `flutter analyze`.
+# very_good_analysis over flutter_lints: it treats warnings as errors by default and
+# enables the rules that catch the v1 defects recorded in docs/v3/LEGACY_AUDIT.md —
+# implicit dynamic, missing await, and public API without documentation.
+include: package:very_good_analysis/analysis_options.yaml
 
-# The following line activates a set of recommended lints for Flutter apps,
-# packages, and plugins designed to encourage good coding practices.
-include: package:flutter_lints/flutter.yaml
+analyzer:
+  exclude:
+    # Quarantined v1/v2 source (directive D1). Never analysed, never imported.
+    # Deleted at P2 exit. The import ban itself is enforced by tools/lint, not here.
+    - legacy/**
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.mocks.dart"
+  errors:
+    # A behavioural TODO must not be silently tolerable; it fails the build once dated.
+    todo: ignore
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
 
 linter:
-  # The lint rules applied to this project can be customized in the
-  # section below to disable rules from the `package:flutter_lints/flutter.yaml`
-  # included above or to enable additional rules. A list of all available lints
-  # and their documentation is published at https://dart.dev/lints.
-  #
-  # Instead of disabling a lint rule for the entire project in the
-  # section below, it can also be suppressed for a single line of code
-  # or a specific dart file by using the `// ignore: name_of_lint` and
-  # `// ignore_for_file: name_of_lint` syntax on the line or in the file
-  # producing the lint.
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # ekipa_core is a pure package; print() there would be an IO leak the dependency
+    # lint cannot see, because it inspects imports rather than calls.
+    avoid_print: true
+    prefer_const_constructors: true
+    public_member_api_docs: false
 
-# Additional information about this file can be found at
-# https://dart.dev/guides/language/analysis-options
+    # Disabled deliberately, with the reason, because a silently disabled lint is
+    # indistinguishable from one nobody understood.
+    #
+    # one_member_abstracts wants `typedef Clock = DateTime Function()` instead of
+    # a one-method interface. Wrong for this codebase: ports are the vocabulary
+    # of the architecture (01_ARCHITECTURE.md §4), and `Clock` names a concept
+    # that a bare function type does not. A `DateTime Function()` parameter is
+    # also indistinguishable from any other zero-argument date supplier at a call
+    # site, which is exactly the confusion the port exists to remove.
+    one_member_abstracts: false

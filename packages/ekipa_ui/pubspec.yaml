@@ -1,0 +1,21 @@
+name: ekipa_ui
+description: >-
+  The design system: tokens, primitives and motion. No feature code, no domain
+  imports, no business rules. Direction "Zar" (proof 04) — dark slate ground,
+  ember accent, one serif reserved for people and places.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^9.0.0

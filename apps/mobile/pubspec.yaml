@@ -1,0 +1,28 @@
+name: mobile
+description: >-
+  The Flutter app. Thin: it owns no rules. Every privacy and trust decision is
+  made by the server and rendered here, never decided here.
+publish_to: none
+version: 0.1.0+1
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.44.0"
+
+dependencies:
+  # Note the absent import: this app depends on ekipa_core but never on
+  # package:ekipa_core/matching.dart. Enforced by tools/lint (MOBILE-NO-MATCHING).
+  ekipa_core: ^0.1.0
+  ekipa_data: ^0.1.0
+  ekipa_ui: ^0.1.0
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^9.0.0
+
+flutter:
+  uses-material-design: true

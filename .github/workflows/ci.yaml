@@ -1,0 +1,171 @@
+name: CI
+
+# Triggers are deliberately narrow. `pull_request_target` is NOT used and must
+# never be added: this repository is public, and `pull_request_target` runs with
+# repository secrets in scope while checking out the PR's code. That combination
+# is the single most plausible way a service-role key leaves the building
+# (docs/v3/01_ARCHITECTURE.md §2, "two traps this repository is exposed to").
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Nothing in this workflow needs write access or a token.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned, and it must match the local FVM pin. If CI and a laptop disagree on
+  # the Flutter version, golden tests fight forever and nobody can tell whether a
+  # diff is a real regression or a font-rendering change.
+  FLUTTER_VERSION: 3.44.7
+
+jobs:
+  verify:
+    name: analyse, lint, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve the workspace
+        # One resolution for every package, so a change to a matching rule is
+        # compiled against all four of its consumers in one run. That is what
+        # makes D3 a fact rather than a claim.
+        run: flutter pub get
+
+      - name: Format
+        # Scoped to the live tree on purpose. dart format does not honour the
+        # analyzer's exclude list, so a bare '.' reformats quarantined v1/v2
+        # source and fails CI on code nobody is allowed to touch.
+        run: dart format --output=none --set-exit-if-changed apps packages services tools
+
+      - name: Analyse
+        # very_good_analysis treats warnings as errors, so this is a gate and not
+        # a report.
+        run: flutter analyze
+
+      - name: Dependency rule lint
+        # SC-6. The architecture is only real if a machine enforces it:
+        # ekipa_core imports no Flutter and no IO, the mobile app imports no
+        # matcher, no service-role key reaches a client, and nothing outside
+        # legacy/ imports it.
+        run: dart run tools/lint/bin/dependency_lint.dart
+
+      - name: Test ekipa_core
+        working-directory: packages/ekipa_core
+        run: dart test --reporter=github
+
+      - name: Test ekipa_data
+        working-directory: packages/ekipa_data
+        run: dart test --reporter=github
+
+      - name: Test the dependency lint itself
+        # A lint nobody has watched fail is indistinguishable from one that
+        # passes everything, so its rules have their own tests.
+        working-directory: tools/lint
+        run: dart test --reporter=github
+
+      - name: Test ekipa_ui
+        working-directory: packages/ekipa_ui
+        run: flutter test
+
+      - name: Test the mobile app
+        working-directory: apps/mobile
+        run: flutter test
+
+      - name: Test the console
+        working-directory: apps/console
+        run: flutter test
+
+  coverage:
+    name: ekipa_core coverage floor
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Measure
+        working-directory: packages/ekipa_core
+        run: |
+          dart pub global activate coverage
+          dart test --coverage=coverage
+          dart pub global run coverage:format_coverage \
+            --lcov --in=coverage --out=coverage/lcov.info \
+            --report-on=lib --check-ignore
+
+      - name: Enforce the floor
+        # A floor on ekipa_core only, deliberately. Coverage targets on UI code
+        # produce tests written for the metric; coverage on pure policy code —
+        # the matcher, trust, eligibility — is the one place the number means
+        # something, because every line there is a rule somebody has to trust.
+        working-directory: packages/ekipa_core
+        env:
+          FLOOR: 80
+        run: |
+          hit=$(grep -c '^DA:.*,[1-9]' coverage/lcov.info || true)
+          total=$(grep -c '^DA:' coverage/lcov.info || true)
+          if [ "$total" -eq 0 ]; then
+            echo "No coverage data produced — the harness is broken, not the code."
+            exit 1
+          fi
+          pct=$(( 100 * hit / total ))
+          echo "ekipa_core line coverage: ${pct}% (${hit}/${total}), floor ${FLOOR}%"
+          if [ "$pct" -lt "$FLOOR" ]; then
+            echo "::error::Coverage ${pct}% is below the ${FLOOR}% floor."
+            exit 1
+          fi
+
+  android:
+    name: build android
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Build debug APK
+        working-directory: apps/mobile
+        run: flutter build apk --debug
+
+      - name: Keep the iOS target honest
+        # iOS is deferred, not abandoned (C-3). A macOS runner is not free, so
+        # CI cannot compile it — but analysing with the iOS target present means
+        # the project never quietly stops being an iOS project, which is the
+        # actual risk of deferring.
+        working-directory: apps/mobile
+        run: test -d ios && echo "ios/ present"
