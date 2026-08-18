@@ -11,6 +11,13 @@
 /// load-bearing privacy promise in the product.
 library;
 
+export 'src/domain/gender.dart';
+export 'src/domain/geo.dart';
+export 'src/domain/lifecycle.dart';
+export 'src/domain/pair.dart';
+export 'src/domain/person.dart';
+export 'src/domain/slot.dart';
+export 'src/domain/standing.dart';
 export 'src/foundation/clock.dart';
 export 'src/foundation/config.dart';
 export 'src/foundation/display_name.dart';
