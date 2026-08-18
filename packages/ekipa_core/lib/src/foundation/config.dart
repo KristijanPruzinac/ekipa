@@ -17,6 +17,7 @@ final class ConfigKey<T> {
     this.defaultValue,
     this._parse,
     this.description,
+    this.safetyCritical,
   );
 
   /// An integer key, e.g. `matching.starve_cap_weeks`.
@@ -24,28 +25,56 @@ final class ConfigKey<T> {
     String name, {
     required int defaultValue,
     required String description,
-  }) => ConfigKey<int>._(name, defaultValue, _parseInt, description);
+    bool safetyCritical = false,
+  }) => ConfigKey<int>._(
+    name,
+    defaultValue,
+    _parseInt,
+    description,
+    safetyCritical,
+  );
 
   /// A fractional key, e.g. `matching.ring_a_enjoyed`.
   static ConfigKey<double> decimal(
     String name, {
     required double defaultValue,
     required String description,
-  }) => ConfigKey<double>._(name, defaultValue, _parseDouble, description);
+    bool safetyCritical = false,
+  }) => ConfigKey<double>._(
+    name,
+    defaultValue,
+    _parseDouble,
+    description,
+    safetyCritical,
+  );
 
   /// A boolean flag, e.g. `dating.enabled`.
   static ConfigKey<bool> boolean(
     String name, {
     required bool defaultValue,
     required String description,
-  }) => ConfigKey<bool>._(name, defaultValue, _parseBool, description);
+    bool safetyCritical = false,
+  }) => ConfigKey<bool>._(
+    name,
+    defaultValue,
+    _parseBool,
+    description,
+    safetyCritical,
+  );
 
   /// A string key, e.g. `identity.provider`.
   static ConfigKey<String> text(
     String name, {
     required String defaultValue,
     required String description,
-  }) => ConfigKey<String>._(name, defaultValue, _parseString, description);
+    bool safetyCritical = false,
+  }) => ConfigKey<String>._(
+    name,
+    defaultValue,
+    _parseString,
+    description,
+    safetyCritical,
+  );
 
   /// A duration key. Stored as whole seconds, because a JSON number is the only
   /// representation both Postgres and Dart agree on without a parser.
@@ -53,7 +82,14 @@ final class ConfigKey<T> {
     String name, {
     required Duration defaultValue,
     required String description,
-  }) => ConfigKey<Duration>._(name, defaultValue, _parseDuration, description);
+    bool safetyCritical = false,
+  }) => ConfigKey<Duration>._(
+    name,
+    defaultValue,
+    _parseDuration,
+    description,
+    safetyCritical,
+  );
 
   /// The dotted key name as stored in `config_values`.
   final String name;
@@ -64,6 +100,16 @@ final class ConfigKey<T> {
   /// What this key controls. Rendered in the console's config editor, so it is
   /// documentation with a reader rather than a comment nobody opens.
   final String description;
+
+  /// Whether changing this key requires a typed confirmation in the console
+  /// (AC-6, `docs/v3/12_CONSOLE.md` §3.7).
+  ///
+  /// **Intention.** The safety brief, the age gate, the ban thresholds and the
+  /// composition rules are the keys where a slip is not a worse metric but a
+  /// person in a situation the product promised they would not be in. Marking
+  /// them on the key rather than in the console means the mark travels with the
+  /// key: a console screen written next year cannot forget the list.
+  final bool safetyCritical;
 
   final T? Function(Object? raw) _parse;
 

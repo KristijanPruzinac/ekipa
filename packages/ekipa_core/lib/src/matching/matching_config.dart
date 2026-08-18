@@ -1,3 +1,4 @@
+import 'package:ekipa_core/src/config/catalogue.dart';
 import 'package:ekipa_core/src/foundation/config.dart';
 import 'package:ekipa_core/src/foundation/ids.dart';
 
@@ -130,6 +131,7 @@ abstract final class MatchingKeys {
     'matching.min_group_size',
     defaultValue: 3,
     description: 'Smallest group. Three is a conversation; two is a date.',
+    safetyCritical: true,
   );
 
   /// Largest group the matcher will emit.
@@ -139,6 +141,7 @@ abstract final class MatchingKeys {
     description:
         'Largest group. Above four, one person stops talking and nobody '
         'notices.',
+    safetyCritical: true,
   );
 
   /// Fraction of a group's pairs that may already have met.
@@ -148,6 +151,7 @@ abstract final class MatchingKeys {
     description:
         'Ceiling on pairs in a group that have met before. A 2+2 gives two '
         'of six and holds by construction.',
+    safetyCritical: true,
   );
 
   /// How many times a group is rebuilt before the slot gives up.
@@ -224,6 +228,69 @@ abstract final class MatchingKeys {
     respectPriorMean,
     respectFloorFriend,
   ];
+
+  /// The console group, with the rules that hold *between* these keys.
+  ///
+  /// **Intention.** A key validates its own type; nothing validates that two
+  /// keys still agree. `ring_share_enjoyed` and `ring_share_leaf` summing above
+  /// one is the sharpest example: the draw keeps working, the derived stranger
+  /// share clamps to zero, and the ratio the operator chose silently is not the
+  /// ratio anybody is running. These live here rather than in the validator
+  /// because the validator is in `ekipa_core` proper, which the mobile app
+  /// imports and which must never learn what a ring is (D9).
+  static final ConfigGroup group = ConfigGroup(
+    name: 'Matching',
+    description:
+        'How groups are drawn, how often a pair may repeat, and how large a '
+        'group gets.',
+    keys: all,
+    invariants: [
+      ConfigInvariant(
+        name: 'the ring shares leave room for strangers',
+        explanation:
+            'R1 and R2 together must not exceed one. Above one the stranger '
+            'share clamps to zero and the draw runs a ratio nobody chose.',
+        holds: (snapshot) =>
+            snapshot.get(ringShareEnjoyed) + snapshot.get(ringShareLeaf) <= 1,
+      ),
+      ConfigInvariant(
+        name: 'the ring shares are shares',
+        explanation:
+            'Neither R1 nor R2 may be negative. A negative share is not a '
+            'smaller ring, it is an unreachable branch.',
+        holds: (snapshot) =>
+            snapshot.get(ringShareEnjoyed) >= 0 &&
+            snapshot.get(ringShareLeaf) >= 0,
+      ),
+      ConfigInvariant(
+        name: 'the group size range is non-empty',
+        explanation:
+            'The smallest group must not exceed the largest. With the range '
+            'inverted the matcher builds nothing and the night reads as a '
+            'population problem.',
+        holds: (snapshot) =>
+            snapshot.get(minGroupSize) <= snapshot.get(maxGroupSize),
+      ),
+      ConfigInvariant(
+        name: 'the smallest group is still a group',
+        explanation:
+            'Three is a conversation; two is a date. A minimum of two turns '
+            'the friend matcher into something the product has not asked '
+            'anybody to consent to.',
+        holds: (snapshot) => snapshot.get(minGroupSize) >= 3,
+      ),
+      ConfigInvariant(
+        name: 'the known-pair ceiling is a fraction',
+        explanation:
+            'Outside 0–1 the ceiling either forbids every group or permits a '
+            'group of people who have all already met.',
+        holds: (snapshot) {
+          final fraction = snapshot.get(maxKnownPairFraction);
+          return fraction >= 0 && fraction <= 1;
+        },
+      ),
+    ],
+  );
 }
 
 /// One run's resolved matcher settings.

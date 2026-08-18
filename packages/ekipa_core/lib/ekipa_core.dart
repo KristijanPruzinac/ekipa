@@ -11,6 +11,11 @@
 /// load-bearing privacy promise in the product.
 library;
 
+export 'src/config/blast_radius.dart';
+export 'src/config/catalogue.dart';
+export 'src/config/draft.dart';
+export 'src/config/schedule.dart';
+export 'src/config/scope.dart';
 export 'src/domain/gender.dart';
 export 'src/domain/geo.dart';
 export 'src/domain/lifecycle.dart';
