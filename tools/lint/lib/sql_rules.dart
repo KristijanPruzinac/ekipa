@@ -178,8 +178,17 @@ int _endOfSingleQuoted(String source, int start) {
   return source.length;
 }
 
+/// The opening `$$` or `$tag$` at [start], if there is one.
+///
+/// **No `^` in the pattern.** `matchAsPrefix` already anchors at [start], and
+/// an anchored `^` matches only at offset zero — so for eight migrations this
+/// returned `null` for every body in the file, dollar quoting never engaged,
+/// and each function was shredded into fragments by its own semicolons. Nothing
+/// failed loudly: the fragments simply did not look like a `create table` or a
+/// `revoke`, so every rule read garbage and found nothing in it. The lint's own
+/// suite passed throughout, because its fixtures are single statements.
 String? _dollarTagAt(String source, int start) {
-  final match = RegExp(r'^\$[A-Za-z_]*\$').matchAsPrefix(source, start);
+  final match = RegExp(r'\$[A-Za-z_]*\$').matchAsPrefix(source, start);
   return match?.group(0);
 }
 
@@ -267,6 +276,16 @@ List<SqlViolation> scanMigration(String path, String source) {
       final name = _bare(function.group(1)!);
       functionsDefined[name] = statement.line;
 
+      // The DP-2 shape, reused: an exception is allowed, and it has to be
+      // written where a reader looks. A function callable by no role at all is
+      // a legitimate thing — an internal helper that only another `security
+      // definer` function calls — and it is indistinguishable from a function
+      // somebody forgot to grant unless it says which it is. The marker goes in
+      // the comment above the function, with the reason.
+      if (statement.text.contains('-- internal:')) {
+        functionsGranted.add(name);
+      }
+
       if (code.contains('security definer')) {
         if (!code.contains('set search_path')) {
           found.add(
@@ -283,7 +302,7 @@ List<SqlViolation> scanMigration(String path, String source) {
             ),
           );
         }
-        if (!_looksLikeItChecksTheCaller(code)) {
+        if (!_looksLikeItChecksTheCaller(_callerCheckWindow(code))) {
           found.add(
             SqlViolation(
               id: 'DP-5-CALLER',
@@ -293,10 +312,12 @@ List<SqlViolation> scanMigration(String path, String source) {
               forbids:
                   'a security definer function with no visible caller check',
               why:
-                  'DP-5 wants the caller checked in the first statement. This '
-                  'is the one heuristic in the file: it looks for auth.uid(), '
-                  'current_person_id() or is_member(), and it is asking a '
-                  'human to look rather than claiming to have checked.',
+                  'DP-5 wants the caller checked in the first statement, and '
+                  'only the declare block and the first statement after '
+                  '`begin` are searched. This is the one heuristic in the '
+                  'file: it looks for the five ways this codebase asks who is '
+                  'calling, and it is asking a human to look rather than '
+                  'claiming to have checked.',
             ),
           );
         }
@@ -402,7 +423,9 @@ List<SqlViolation> scanMigration(String path, String source) {
           why:
               'Every function is either callable by a named role or by nobody, '
               'and which one it is should be written down. Silence here means '
-              'the answer is whatever the last revoke happened to leave.',
+              'the answer is whatever the last revoke happened to leave. A '
+              'function nobody may call says so with `-- internal:` and a '
+              'reason on its revoke line.',
         ),
       );
     }
@@ -412,7 +435,42 @@ List<SqlViolation> scanMigration(String path, String source) {
   return found;
 }
 
+/// The one heuristic in this file, and it is deliberately a small closed list.
+///
+/// Four markers, one per way the codebase asks "who is this": the raw session
+/// user, the person behind it, membership of a hangout, and the console's role
+/// gate. A function that checks its caller some fifth way has to add itself
+/// here, which is the point — the rule cannot tell a real check from a
+/// plausible-looking one, so it asks a human to look at anything it does not
+/// already recognise.
 bool _looksLikeItChecksTheCaller(String code) =>
     code.contains('auth.uid()') ||
     code.contains('current_person_id()') ||
-    code.contains('is_member(');
+    code.contains('is_member(') ||
+    code.contains('admin_role()') ||
+    code.contains('admin_at_least(');
+
+/// The part of a function the caller check has to appear in.
+///
+/// **Intention.** "Checked in the first statement" is the rule; scanning the
+/// whole body would pass a function that reads four tables and then asks who
+/// the caller is, which is a function that has already done the work.
+///
+/// The window is the declare block plus the first statement after `begin`,
+/// because plpgsql's idiom for this is
+/// `declare v_person uuid := public.current_person_id();` and that *is* the
+/// check. A `language sql` body has no `begin` and is one expression, so the
+/// whole of it is its first statement.
+String _callerCheckWindow(String code) {
+  final open = RegExp(r'\$[A-Za-z_]*\$').firstMatch(code);
+  if (open == null) return code;
+  final body = code.substring(open.end);
+
+  final begin = RegExp(r'(?:^|\s)begin(?:\s|\$)').firstMatch(body);
+  if (begin == null) return body;
+
+  final after = body.substring(begin.end);
+  final semicolon = after.indexOf(';');
+  return body.substring(0, begin.end) +
+      (semicolon == -1 ? after : after.substring(0, semicolon + 1));
+}

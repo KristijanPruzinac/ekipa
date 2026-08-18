@@ -57,6 +57,31 @@ void main() {
       expect(statements[1].code, startsWith('revoke all on function'));
     });
 
+    test('a plpgsql body with semicolons in it is still one statement', () {
+      // The case the test above did not cover, because its body has no
+      // semicolons: for eight migrations `_dollarTagAt` carried a `^` that
+      // cannot match at a non-zero offset, so dollar quoting never engaged and
+      // every function was shredded into fragments. Nothing failed loudly —
+      // the fragments simply did not look like anything a rule forbids.
+      final statements = splitStatements(r'''
+create function public.f() returns void language plpgsql
+security definer set search_path = public as $$
+declare
+  v_person uuid := public.current_person_id();
+begin
+  if v_person is null then
+    raise exception 'no' using errcode = '42501';
+  end if;
+  insert into public.t (a) values (1);
+end;
+$$;
+revoke all on function public.f() from public, anon;
+''');
+      expect(statements, hasLength(2));
+      expect(statements.first.code, contains('insert into public.t'));
+      expect(statements[1].code, startsWith('revoke all on function'));
+    });
+
     test('a semicolon inside a string literal is not a terminator', () {
       final statements = splitStatements(
         "insert into t (a) values ('one; two');\n",
@@ -139,6 +164,102 @@ revoke all on function public.everyone() from public, anon;
 grant execute on function public.everyone() to authenticated;
 '''),
         contains('DP-5-CALLER'),
+      );
+    });
+
+    test('DP-5-CALLER — the console role gate counts as a caller check', () {
+      // The console's functions do not ask who the person is, they ask what
+      // the operator is allowed to do. Without this the whole console surface
+      // would have to suppress the rule, which is how a rule stops being read.
+      expect(
+        idsFor(r'''
+create function public.console_cities() returns setof public.cities
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.admin_at_least('viewer') then
+    raise exception 'not permitted' using errcode = '42501';
+  end if;
+  return query select * from public.cities;
+end;
+$$;
+revoke all on function public.console_cities() from public, anon;
+grant execute on function public.console_cities() to authenticated;
+'''),
+        isNot(contains('DP-5-CALLER')),
+      );
+    });
+
+    test('DP-5-CALLER — a check buried after the work does not count', () {
+      // The window is the declare block and the first statement after `begin`.
+      // A function that reads a table and *then* asks who is calling has
+      // already done the thing the check was supposed to prevent.
+      expect(
+        idsFor(r'''
+create function public.late() returns setof public.people
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_rows integer;
+begin
+  select count(*) into v_rows from public.people;
+  if not public.admin_at_least('viewer') then
+    raise exception 'not permitted' using errcode = '42501';
+  end if;
+  return query select * from public.people;
+end;
+$$;
+revoke all on function public.late() from public, anon;
+grant execute on function public.late() to authenticated;
+'''),
+        contains('DP-5-CALLER'),
+      );
+    });
+
+    test(
+      'DP-5-CALLER — the plpgsql idiom of checking in the declare block',
+      () {
+        expect(
+          idsFor(r'''
+create function public.ok() returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_person uuid := public.current_person_id();
+begin
+  if v_person is null then
+    raise exception 'no' using errcode = '42501';
+  end if;
+end;
+$$;
+revoke all on function public.ok() from public, anon;
+grant execute on function public.ok() to authenticated;
+'''),
+          isNot(contains('DP-5-CALLER')),
+        );
+      },
+    );
+
+    test('DP-5-GRANT — a function nobody may call says so, with a reason', () {
+      const internal = r'''
+-- internal: called only by the definer functions in this file, inside the
+-- transaction that performs the action being logged.
+create function public.helper() returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.admin_at_least('viewer') then
+    raise exception 'no' using errcode = '42501';
+  end if;
+end;
+$$;
+revoke all on function public.helper() from public, anon, authenticated;
+''';
+      expect(idsFor(internal), isNot(contains('DP-5-GRANT')));
+      // …and without the marker it is indistinguishable from a forgotten grant.
+      expect(
+        idsFor(internal.replaceAll('-- internal:', '-- note:')),
+        contains('DP-5-GRANT'),
       );
     });
 

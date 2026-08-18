@@ -98,8 +98,8 @@ the app works, and the only thing that changed is who can read what.
 | `DP-1` | a `create table` with no `enable row level security` in the same file |
 | `DP-2` | a permissive `using (true)` policy with no `-- catalogue:` reason on the line |
 | `DP-5` | a `security definer` function with a mutable `search_path` |
-| `DP-5-CALLER` | …with no visible caller check. The one heuristic: it looks for `auth.uid()`, `current_person_id()` or `is_member(`, and it is asking a human to look |
-| `DP-5-REVOKE` / `DP-5-GRANT` | a function left with its default `PUBLIC` grant, or with nobody named who may call it |
+| `DP-5-CALLER` | …with no visible caller check **in its first statement**. The one heuristic: it looks for the five ways this codebase asks who is calling — `auth.uid()`, `current_person_id()`, `is_member(`, `admin_role()`, `admin_at_least(` — inside the declare block and the first statement after `begin`, and it is asking a human to look |
+| `DP-5-REVOKE` / `DP-5-GRANT` | a function left with its default `PUBLIC` grant, or with nobody named who may call it. A function nobody may call says so with `-- internal:` and a reason in the comment above it — the `-- catalogue:` shape, reused |
 | `DP-6` | `revoke … from public` without naming `anon` — the v1 silent no-op |
 | `EVIDENCE` | dropping, truncating or shortening a trust or audit table (rule 10) |
 

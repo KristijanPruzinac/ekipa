@@ -19,11 +19,18 @@ create schema tap;
 -- the JWT claims and switches to the `authenticated` role. That is the whole of
 -- the client's privilege. If a test can read something from inside `become`,
 -- so can a user with a proxy (T1).
-create function tap.become(p_auth uuid) returns void language plpgsql as $fn$
+-- `p_aal` is the assurance level Supabase writes into the JWT after a second
+-- factor. It defaults to `aal2` so that every existing assertion is unchanged
+-- — no client RPC reads it — and so that a console test has to *opt in* to
+-- being unauthenticated, which is the direction that fails safe.
+create function tap.become(p_auth uuid, p_aal text default 'aal2')
+returns void language plpgsql as $fn$
 begin
   perform set_config(
     'request.jwt.claims',
-    json_build_object('sub', p_auth, 'role', 'authenticated')::text,
+    json_build_object(
+      'sub', p_auth, 'role', 'authenticated', 'aal', p_aal
+    )::text,
     true
   );
   execute 'set local role authenticated';
@@ -52,7 +59,7 @@ $fn$;
 -- The role is always restored before returning. pgTAP's result tables belong to
 -- the session user, so an assertion made while still wearing `authenticated`
 -- fails on a permission error and reads like a privacy pass.
-create function tap.count_as(p_auth uuid, p_sql text)
+create function tap.count_as(p_auth uuid, p_sql text, p_aal text default 'aal2')
 returns text language plpgsql as $fn$
 declare
   v_n bigint;
@@ -60,7 +67,7 @@ begin
   if p_auth is null then
     perform tap.become_anon();
   else
-    perform tap.become(p_auth);
+    perform tap.become(p_auth, p_aal);
   end if;
   begin
     execute 'select count(*) from (' || p_sql || ') q' into v_n;
@@ -79,13 +86,13 @@ $fn$;
 
 -- Same contract for a statement whose success is the thing under test: a write
 -- that must be refused, an RPC that must raise. Returns 'ok' or 'ERR:<state>'.
-create function tap.exec_as(p_auth uuid, p_sql text)
+create function tap.exec_as(p_auth uuid, p_sql text, p_aal text default 'aal2')
 returns text language plpgsql as $fn$
 begin
   if p_auth is null then
     perform tap.become_anon();
   else
-    perform tap.become(p_auth);
+    perform tap.become(p_auth, p_aal);
   end if;
   begin
     execute p_sql;
@@ -100,7 +107,7 @@ end;
 $fn$;
 
 -- Scalar form, for an RPC whose *answer* matters.
-create function tap.value_as(p_auth uuid, p_sql text)
+create function tap.value_as(p_auth uuid, p_sql text, p_aal text default 'aal2')
 returns text language plpgsql as $fn$
 declare
   v_out text;
@@ -108,7 +115,7 @@ begin
   if p_auth is null then
     perform tap.become_anon();
   else
-    perform tap.become(p_auth);
+    perform tap.become(p_auth, p_aal);
   end if;
   begin
     execute p_sql into v_out;
@@ -154,6 +161,17 @@ create function tap.dario()  returns uuid language sql immutable as
 
 create function tap.auth_of(p_person uuid) returns uuid language sql stable as
   $fn$ select auth_user_id from public.people where id = p_person $fn$;
+
+-- The console cast. These are auth users with **no `people` row**, which is the
+-- shape an operator actually has: running the city is not the same account as
+-- being in a hangout, and a console test that borrowed Ana's session would
+-- silently be testing the wrong thing.
+create function tap.viewer()   returns uuid language sql immutable as
+  $fn$ select 'dddddddd-dddd-4ddd-8ddd-dddddddddd01'::uuid $fn$;
+create function tap.operator() returns uuid language sql immutable as
+  $fn$ select 'dddddddd-dddd-4ddd-8ddd-dddddddddd02'::uuid $fn$;
+create function tap.owner()    returns uuid language sql immutable as
+  $fn$ select 'dddddddd-dddd-4ddd-8ddd-dddddddddd03'::uuid $fn$;
 
 -- The three hangouts, one per lifecycle question.
 create function tap.h_before() returns uuid language sql immutable as
@@ -237,6 +255,17 @@ begin
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa03'::uuid,
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa04'::uuid
   ]) as u;
+
+  -- The console cast: auth users with an admin role and no person behind them.
+  insert into auth.users (id, instance_id, aud, role, created_at, updated_at)
+  select u, '00000000-0000-0000-0000-000000000000',
+         'authenticated', 'authenticated', now(), now()
+  from unnest(array[tap.viewer(), tap.operator(), tap.owner()]) as u;
+
+  insert into public.admin_roles (auth_user_id, role) values
+    (tap.viewer(), 'viewer'),
+    (tap.operator(), 'operator'),
+    (tap.owner(), 'owner');
 
   insert into public.identities (id, identity_hash, provider)
   values
