@@ -48,7 +48,9 @@ something to point at in review.
 | --- | --- | --- |
 | Format | `dart format --set-exit-if-changed .` | diff noise |
 | Analyse | `flutter analyze` | warnings, as errors |
-| **Dependency rule** | `dart run tools/lint/bin/dependency_lint.dart` | the eleven rules below |
+| **Dependency rule** | `dart run tools/lint/bin/dependency_lint.dart` | the thirteen rules below |
+| **Migration lint** | `dart run tools/lint/bin/migration_lint.dart` | the migration rules below that |
+| **pgTAP** | `supabase test db` | the seven privacy invariants |
 | Tests | `dart test` / `flutter test` per package | behaviour |
 | Coverage floor | 80% on `ekipa_core` only | untested policy |
 
@@ -69,11 +71,33 @@ it prevents; read that before working around one.
 | `MOBILE-NO-MATCHING` | `package:ekipa_core/matching.dart` in a user build (D9) |
 | `MOBILE-NO-SERVICE-ROLE` | the service-role credential in a user build |
 | `CONSOLE-NO-SERVICE-ROLE` | the service-role credential in the browser (AC-4) |
+| `UI-NO-DATA` | infrastructure in the design system — it takes value objects only |
+| `UI-NO-MATCHING` | the matcher in `ekipa_ui`, which ships inside the mobile binary (D9) |
 | `PLATFORM-BRANCH-CONFINED` | `Platform.is*` outside `apps/mobile/lib/platform/` |
 
 Adding a rule means adding a test that proves it fires. `rules_test.dart` asserts
 that the rule table and the tested-rule set are equal, so a rule without a test
 fails the build.
+
+### The migration rules
+
+Defined and tested in [`tools/lint/lib/sql_rules.dart`](tools/lint/lib/sql_rules.dart).
+Every one of them catches a mistake that is **silent** — the migration succeeds,
+the app works, and the only thing that changed is who can read what.
+
+| ID | Refuses |
+| --- | --- |
+| `DP-1` | a `create table` with no `enable row level security` in the same file |
+| `DP-2` | a permissive `using (true)` policy with no `-- catalogue:` reason on the line |
+| `DP-5` | a `security definer` function with a mutable `search_path` |
+| `DP-5-CALLER` | …with no visible caller check. The one heuristic: it looks for `auth.uid()`, `current_person_id()` or `is_member(`, and it is asking a human to look |
+| `DP-5-REVOKE` / `DP-5-GRANT` | a function left with its default `PUBLIC` grant, or with nobody named who may call it |
+| `DP-6` | `revoke … from public` without naming `anon` — the v1 silent no-op |
+| `EVIDENCE` | dropping, truncating or shortening a trust or audit table (rule 10) |
+
+The pgTAP suite in [`supabase/tests/`](supabase/tests/) is the other half, and
+`00_harness_is_honest.sql` is why the rest of it can be believed: it breaks an
+invariant on purpose and checks that the break is visible.
 
 ---
 

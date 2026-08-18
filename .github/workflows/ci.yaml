@@ -64,6 +64,12 @@ jobs:
         # legacy/ imports it.
         run: dart run tools/lint/bin/dependency_lint.dart
 
+      - name: Migration lint
+        # DP-1, DP-2, DP-5, DP-6 and rule 10. Every rule here catches a mistake
+        # that is silent: a table without RLS serves rows and looks fine, and
+        # `revoke ... from public` reports success while changing nothing.
+        run: dart run tools/lint/bin/migration_lint.dart
+
       - name: Test ekipa_core
         working-directory: packages/ekipa_core
         run: dart test --reporter=github
@@ -89,6 +95,37 @@ jobs:
       - name: Test the console
         working-directory: apps/console
         run: flutter test
+
+  database:
+    name: pgTAP — the seven privacy invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # A separate job because it shares nothing with the Dart one: no SDK, no
+    # pub cache, just Postgres. It is also the job that must never be made
+    # optional. The seven invariants in docs/v3/02_DOMAIN.md §6 are acceptance
+    # criteria, not tests: a release that fails one does not ship, regardless of
+    # what else is in it.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start a local stack
+        # Only the containers the tests need. The full stack starts ten
+        # services and none of realtime, storage or studio is involved in
+        # asking "can this role read that row".
+        run: >-
+          supabase start
+          -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit
+
+      - name: Run the suite
+        # `supabase test db` runs pg_prove over supabase/tests. Each file opens
+        # a transaction, builds its world, and rolls back — so the files are
+        # order-independent and leave nothing behind.
+        run: supabase test db
 
   coverage:
     name: ekipa_core coverage floor
