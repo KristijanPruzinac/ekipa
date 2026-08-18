@@ -84,6 +84,23 @@ jobs:
         working-directory: tools/lint
         run: dart test --reporter=github
 
+      - name: Test the simulator
+        # The harness has its own tests because it is the only place the
+        # matcher is run twelve times in a row against its own output. A bug
+        # here does not break the app; it produces a plausible metric table that
+        # sends a config change the wrong way, which is worse.
+        working-directory: tools/simulator
+        run: dart test --reporter=github
+
+      - name: Twelve weeks of a synthetic city
+        # Smoke, not assertion — the assertions are in the suite above. This
+        # step exists so the metric table is in the log of every build: a
+        # reviewer opening a PR that moves a ring ratio or a cooldown can read
+        # what it did to newcomer wait time without running anything. Add
+        # `--set key=value --compare` locally to see the delta against defaults.
+        working-directory: tools/simulator
+        run: dart run bin/simulate.dart
+
       - name: Test ekipa_ui
         working-directory: packages/ekipa_ui
         run: flutter test

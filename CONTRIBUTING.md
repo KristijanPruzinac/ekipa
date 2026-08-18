@@ -53,6 +53,14 @@ something to point at in review.
 | **pgTAP** | `supabase test db` | the seven privacy invariants |
 | Tests | `dart test` / `flutter test` per package | behaviour |
 | Coverage floor | 80% on `ekipa_core` only | untested policy |
+| Simulation | `dart run bin/simulate.dart` in `tools/simulator` | prints twelve weeks of metrics into the build log |
+
+The simulation step asserts nothing — its assertions live in the simulator's own
+suite. It is there so that a PR touching a ring ratio, a cooldown or a group
+size arrives with the metric table attached. If you are changing one of those,
+run `--set key=value --compare` locally and paste the delta into the PR: the
+matcher's failure modes are statistical, and a diff of the code cannot show
+them.
 
 ### The dependency rules
 
