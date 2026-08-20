@@ -1,9 +1,14 @@
 -- 03 · The RPC surface (DP-4, DP-5, DP-6, DP-7).
 --
--- Every consequential write in this product goes through one of seven
+-- Every consequential write in this product goes through one of eighteen
 -- functions, and each of them is `security definer` — which means each of them
 -- is a hole in RLS that behaves itself only because it was written to. This
 -- file is the check that it still is.
+--
+-- Eighteen, not seven: `0011` added the rest of the surface the app had always
+-- needed and never had — signup, arrival, attestation, ratings, reports, venue
+-- feedback. The number is in the assertion below on purpose. It is allowed to
+-- grow; it is not allowed to grow *quietly*.
 --
 -- The most valuable assertion here is the dullest one: **no function has a null
 -- ACL.** A `security definer` function that nobody remembered to grant is
@@ -121,9 +126,12 @@ begin
 
   return next is(
     v_app,
-    'confirm_hangout, current_city_id, current_person_id, hangout_reveal, '
-    || 'is_member, my_hangouts, set_availability',
-    'DP-5: a phone can call exactly these seven functions');
+    'attest_member, confirm_hangout, create_profile, current_city_id, '
+    || 'current_person_id, hangout_reveal, is_member, mark_arrived, '
+    || 'my_hangouts, my_slots, my_state, register_device, repeat_last_week, '
+    || 'report_member, report_venue, set_availability, set_bringing, '
+    || 'submit_ratings',
+    'DP-5: a phone can call exactly these eighteen functions');
 
   return next is(
     v_console,
