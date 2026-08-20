@@ -83,7 +83,7 @@ class EkipaScreen extends StatelessWidget {
                 ),
               Expanded(
                 child: LayoutBuilder(
-                  builder: (context, constraints) => SingleChildScrollView(
+                  builder: (context, constraints) => _FadingScroll(
                     padding: EdgeInsets.only(
                       top: leading == null ? ZarSpace.xl : ZarSpace.md,
                       bottom: ZarSpace.xl,
@@ -145,5 +145,95 @@ class EkipaScreen extends StatelessWidget {
         ),
       ),
     ),
+  );
+}
+
+/// A scroll view that says so when there is more below.
+///
+/// **Intention — a hard clip at the fold reads as a bug, not as a scroll.** The
+/// availability picker ends in a one-line legend, and on a short viewport that
+/// line was sliced through the middle of a word by the edge of the scroll area.
+/// Nothing about it suggested scrolling; it looked like text that had failed to
+/// lay out. A short fade to the ground colour turns the same pixels into an
+/// affordance.
+///
+/// It appears only when something is actually cut off, and fades out over the
+/// last few pixels of travel, so a screen that fits shows nothing at all —
+/// a permanent gradient would be decoration lying about the content.
+///
+/// *Rejected — a scrollbar:* it is the platform answer and it is the wrong one
+/// here. A scrollbar is a control for *moving* through a long document; this is
+/// one sentence of state about a short one, and every reference app in
+/// `docs/reference/` uses the fade.
+class _FadingScroll extends StatefulWidget {
+  const _FadingScroll({required this.child, required this.padding});
+
+  final Widget child;
+  final EdgeInsets padding;
+
+  @override
+  State<_FadingScroll> createState() => _FadingScrollState();
+}
+
+class _FadingScrollState extends State<_FadingScroll> {
+  final ScrollController _controller = ScrollController();
+  double _fade = 0;
+
+  /// How much travel the fade covers, in logical pixels.
+  static const double _height = 32;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_update);
+    // The first measurement cannot happen until there are dimensions, and
+    // `initState` has none. Without this the fade is missing on arrival and
+    // appears on the first touch, which is the one moment it is not needed.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _update());
+  }
+
+  void _update() {
+    if (!mounted || !_controller.hasClients) return;
+    final position = _controller.position;
+    final remaining = position.maxScrollExtent - position.pixels;
+    final next = (remaining / _height).clamp(0.0, 1.0);
+    if ((next - _fade).abs() > 0.01) setState(() => _fade = next);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      SingleChildScrollView(
+        controller: _controller,
+        padding: widget.padding,
+        child: widget.child,
+      ),
+      Positioned(
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: _height,
+        child: IgnorePointer(
+          child: Opacity(
+            opacity: _fade,
+            child: const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x00131719), ZarColors.ground],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
   );
 }

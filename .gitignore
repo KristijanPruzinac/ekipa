@@ -68,3 +68,18 @@ design/preview/.cache/
 
 # Coverage output
 coverage/
+
+# ── Strays the Flutter tool writes to the repo root ──────────────────────────
+# Running a Flutter command from the workspace root instead of from
+# `apps/mobile` makes the tool treat the root as the app and emit an
+# `android/` tree here. It is generated, it is machine-specific
+# (`local.properties` holds absolute SDK paths), and the real Android project
+# lives at `apps/mobile/android`. Ignored rather than deleted-and-forgotten,
+# because the mistake is one keystroke away and the folder is easy to commit
+# without noticing.
+/android/
+/ios/
+/linux/
+/macos/
+/windows/
+/web/

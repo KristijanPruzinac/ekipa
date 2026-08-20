@@ -19,6 +19,22 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # SC-2 justification. Same package, same reasoning as apps/console, and
+  # approved in the same breath (2026-08-19).
+  #
+  # flutter_riverpod — what it does: holds state that outlives one widget and
+  # tells every listener when it changes. Why the standard library will not do:
+  # every screen in this app reads from a server call that can fail, refuse, or
+  # arrive late, so loading / error / refresh is the common case rather than
+  # the exception; InheritedWidget propagates a value and has no answer for any
+  # of the three. Rolling it per screen is how the three drift. It also gives
+  # the app a single override point for its two ports, which is what keeps a
+  # widget test from reaching the network.
+  # Maintenance: actively released. Transitive count: 2 (riverpod,
+  # state_notifier) — already resolved in this workspace for the console, so
+  # this line adds nothing new to the lockfile.
+  flutter_riverpod: ^3.4.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -26,3 +42,13 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # The city's geometry, drawn by us. 23 KB of simplified OpenStreetMap
+  # polylines per city, built by tools/cartography/build_basemap.py. See
+  # packages/ekipa_core/lib/src/domain/basemap.dart for why a map is an asset
+  # here rather than a tile service: no API key, no billing account, no network
+  # round-trip at the moment somebody is walking somewhere with bad signal.
+  #
+  # Data © OpenStreetMap contributors, ODbL. Attribution renders on the map.
+  assets:
+    - assets/basemap/

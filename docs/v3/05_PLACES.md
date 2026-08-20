@@ -38,8 +38,21 @@ seeded by a one-shot coarse location fix.
 - Never displayed to anyone. Matching input only.
 - Location permission is optional and never a gate — a pin is as good and cheaper in
   trust. Denial paths are first-class.
-- Plus one control: **how far are you willing to go** (walk / short ride / anywhere in
-  town) → the person's `max_travel`.
+- **No travel-radius question.** Corrected 2026-08-20: an earlier draft of this
+  section added a *"how far are you willing to go"* control, and it was invention —
+  no line of the Bible asks for it. The requirement is **match anywhere in town,
+  ranked by closest distance**. The anchor is the distance signal; the person is not
+  asked to bound it.
+
+  `max_travel_m` survives as a **city config value** (`geo.max_travel_m`, D5), not as
+  a person's answer. The matcher's shape is unchanged — it still computes reachable
+  clusters per person — it just reads the bound from the city. *Why keep a bound at
+  all:* "anywhere in town" **is** a bound, and an unbounded reachability query
+  eventually proposes a hangout in the next county.
+
+  *Rejected — asking, but defaulting to "anywhere":* a question with an obvious answer
+  is a question that should not be asked, and every screen before a first hangout is a
+  place the signup dissolves.
 
 **Rejected — background location:** far more sensitive, store-justification burden,
 battery cost, and it buys nothing, because hangouts are planned days ahead from where a

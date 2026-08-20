@@ -13,7 +13,7 @@
 /// as physically uncomfortable during the proof rounds, which makes it a
 /// product requirement, and product requirements get tests.
 ///
-/// The package holds tokens, six primitives and the motion vocabulary. It holds
+/// The package holds tokens, the primitives and the motion vocabulary. It holds
 /// no feature code, no rules, and no infrastructure. It does depend on
 /// `ekipa_core` — for value objects only, so that `PersonName` can refuse to
 /// accept a raw string. That dependency points inward and is enforced by
@@ -25,7 +25,14 @@ export 'src/primitives/ekipa_button.dart' show EkipaButton, EkipaButtonTone;
 export 'src/primitives/ekipa_card.dart' show EkipaCard, EkipaCardTone;
 export 'src/primitives/ekipa_screen.dart' show EkipaScreen;
 export 'src/primitives/fact_strip.dart' show Fact, FactStrip;
+export 'src/primitives/hold_to_continue.dart' show HoldToContinue;
+export 'src/primitives/map_surface.dart' show MapSurface;
 export 'src/primitives/person_name.dart' show PersonName, VenueName;
+export 'src/primitives/segmented.dart' show Segment, SegmentedTabs;
+export 'src/primitives/sigil.dart' show Sigil;
+export 'src/primitives/zar_calendar.dart' show CalendarDay, ZarCalendar;
+export 'src/primitives/zar_chip.dart'
+    show ZarChip, ZarChipTone, ZarChoice, ZarTimeChip;
 export 'src/theme/ekipa_theme.dart' show EkipaTheme;
 export 'src/tokens/colors.dart' show ZarColors;
 export 'src/tokens/motion.dart' show ZarMotion;

@@ -11,11 +11,15 @@
 /// load-bearing privacy promise in the product.
 library;
 
+export 'src/activities/activity.dart';
+export 'src/activities/cards_activity.dart';
+export 'src/activities/conversation_deck.dart';
 export 'src/config/blast_radius.dart';
 export 'src/config/catalogue.dart';
 export 'src/config/draft.dart';
 export 'src/config/schedule.dart';
 export 'src/config/scope.dart';
+export 'src/domain/basemap.dart';
 export 'src/domain/gender.dart';
 export 'src/domain/geo.dart';
 export 'src/domain/lifecycle.dart';
@@ -29,3 +33,4 @@ export 'src/foundation/display_name.dart';
 export 'src/foundation/ids.dart';
 export 'src/foundation/random_source.dart';
 export 'src/foundation/result.dart';
+export 'src/identity/academic_address.dart';

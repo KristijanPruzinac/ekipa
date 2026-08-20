@@ -42,10 +42,30 @@ class FactStrip extends StatelessWidget {
   final List<Fact> facts;
 
   @override
-  Widget build(BuildContext context) {
-    final base = ZarType.mono.fontSize!;
-    final scaled = MediaQuery.textScalerOf(context).scale(base);
-    final stacked = facts.length > 2 && scaled > base * 1.3;
+  Widget build(BuildContext context) => LayoutBuilder(builder: _lay);
+
+  Widget _lay(BuildContext context, BoxConstraints constraints) {
+    final scaler = MediaQuery.textScalerOf(context);
+
+    // **Measure, do not guess.** The first version stacked on text scale alone,
+    // which caught the accessibility case and missed the ordinary one: a
+    // three-column strip at default scale with `Questions` in the last cell
+    // rendered it as `Question` / `s`. Mono has no narrow glyphs to give back
+    // and a single word has nowhere to break, so the engine breaks it mid-word
+    // — the exact defect the class comment says a fact must never suffer.
+    //
+    // Ellipsis was the other option and it is worse: a fact that has been
+    // ellipsised is not a fact, it is a hint that one exists.
+    const gap = ZarSpace.md * 2 + ZarLayout.hairline;
+    final column =
+        (constraints.maxWidth - gap * (facts.length - 1)) / facts.length;
+    final stacked =
+        constraints.maxWidth.isFinite &&
+        facts.any(
+          (fact) =>
+              _widest(fact.value, ZarType.mono, scaler) > column ||
+              _widest(fact.key.toUpperCase(), ZarType.monoKey, scaler) > column,
+        );
 
     if (stacked) {
       return Column(
@@ -75,6 +95,17 @@ class FactStrip extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  /// The width [text] wants on one line, at the viewer's text scale.
+  static double _widest(String text, TextStyle style, TextScaler scaler) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    return painter.width;
   }
 }
 
