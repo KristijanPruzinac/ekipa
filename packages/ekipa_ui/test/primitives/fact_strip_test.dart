@@ -73,16 +73,24 @@ void main() {
     // A fact that has been cut off is not a fact. Below the threshold it is a
     // row; above it, a column — because the alternative is "Thu 17…" on the one
     // screen someone reads while deciding whether they can make it.
-    await tester.pumpWidget(
-      harness(
-        textScale: 2,
-        const Padding(
-          padding: EdgeInsets.all(ZarSpace.xl),
-          child: FactStrip(facts),
+    //
+    // The strip measures real space rather than reacting to scale alone (see
+    // the class comment on `FactStrip`), so this has to give it real space to
+    // measure: `harness` alone renders on the 800-wide default test surface,
+    // where three short facts still fit even doubled. The narrow phone from
+    // "three facts fit" above is what actually runs out of room.
+    await onSurface(tester, const Size(320, 568), () async {
+      await tester.pumpWidget(
+        harness(
+          textScale: 2,
+          const Padding(
+            padding: EdgeInsets.all(ZarSpace.xl),
+            child: FactStrip(facts),
+          ),
         ),
-      ),
-    );
-    expect(tester.takeException(), isNull);
-    expect(find.byType(Row), findsNothing);
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byType(Row), findsNothing);
+    });
   });
 }

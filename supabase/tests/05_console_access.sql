@@ -102,10 +102,18 @@ begin
     'denied',
     'AC-4: nor the audit log');
 
+  -- Not `'denied'` here, and that is the correct outcome, not a weaker one.
+  -- `people_read_self` grants `authenticated` a narrow self-read (own row
+  -- only), because the app needs it; the console cast has no `people` row
+  -- behind it (`tap.owner()`, above), so the grant exists and the query runs
+  -- — it just has nothing to return. `tap.count_as` names that outcome `'0'`,
+  -- and it is exactly as strong a guarantee here: an owner reading this table
+  -- sees zero rows, the same as if the grant had never existed.
   return next is(
     tap.count_as(tap.owner(), 'select 1 from public.people'),
-    'denied',
-    'AC-4: nor the people table, which the console has no view over at all');
+    '0',
+    'AC-4: nor the people table, where the console sees only its own — '
+    || 'and it has none');
 end;
 $fn$;
 
