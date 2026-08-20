@@ -30,7 +30,10 @@ void main() {
       expect(snapshot.cityId.value, _city);
       expect(snapshot.populationSize, 10);
       expect(snapshot.slots, hasLength(2));
-      expect(snapshot.availableFor(SlotId('${_slotPrefix}1')), hasLength(10));
+      expect(
+        snapshot.availableFor(const SlotId('${_slotPrefix}1')),
+        hasLength(10),
+      );
     });
 
     test('a person with no reachable clusters gets an empty set', () {
@@ -39,12 +42,12 @@ void main() {
       // everybody else who has none", and the matcher would happily put four
       // people who cannot reach any venue into a group.
       final snapshot = readSnapshot(_payload());
-      final stranded = snapshot.person(PersonId('${_personPrefix}6'))!;
+      final stranded = snapshot.person(const PersonId('${_personPrefix}6'))!;
 
       expect(stranded.reachableClusters, isEmpty);
       expect(
         stranded.sharesClusterWith(
-          snapshot.person(PersonId('${_personPrefix}1'))!,
+          snapshot.person(const PersonId('${_personPrefix}1'))!,
         ),
         isFalse,
       );
@@ -57,11 +60,11 @@ void main() {
       final snapshot = readSnapshot(_payload());
 
       expect(
-        snapshot.person(PersonId('${_personPrefix}5'))!.standing.tier,
+        snapshot.person(const PersonId('${_personPrefix}5'))!.standing.tier,
         StandingTier.suspended,
       );
       expect(
-        snapshot.person(PersonId('${_personPrefix}1'))!.standing.tier,
+        snapshot.person(const PersonId('${_personPrefix}1'))!.standing.tier,
         StandingTier.good,
       );
     });
@@ -73,15 +76,24 @@ void main() {
       final snapshot = readSnapshot(_payload());
 
       expect(
-        snapshot.person(PersonId('${_personPrefix}1'))!.standing.remainingQuota,
+        snapshot
+            .person(const PersonId('${_personPrefix}1'))!
+            .standing
+            .remainingQuota,
         isNull,
       );
       expect(
-        snapshot.person(PersonId('${_personPrefix}4'))!.standing.remainingQuota,
+        snapshot
+            .person(const PersonId('${_personPrefix}4'))!
+            .standing
+            .remainingQuota,
         0,
       );
       expect(
-        snapshot.person(PersonId('${_personPrefix}4'))!.standing.mayBeMatched,
+        snapshot
+            .person(const PersonId('${_personPrefix}4'))!
+            .standing
+            .mayBeMatched,
         isFalse,
         reason: 'a zero quota is what the rating gate is made of',
       );
@@ -89,8 +101,8 @@ void main() {
 
     test('edges and exclusions come back symmetric', () {
       final snapshot = readSnapshot(_payload());
-      final one = PersonId('${_personPrefix}1');
-      final two = PersonId('${_personPrefix}2');
+      const one = PersonId('${_personPrefix}1');
+      const two = PersonId('${_personPrefix}2');
 
       expect(snapshot.edgeBetween(one, two)?.weight, 1.0);
       expect(
@@ -100,8 +112,8 @@ void main() {
       );
       expect(
         snapshot.isExcluded(
-          PersonId('${_personPrefix}2'),
-          PersonId('${_personPrefix}3'),
+          const PersonId('${_personPrefix}2'),
+          const PersonId('${_personPrefix}3'),
         ),
         isTrue,
       );
