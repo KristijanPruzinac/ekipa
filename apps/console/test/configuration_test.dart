@@ -1,7 +1,7 @@
+import 'package:console/src/catalogue.dart';
 import 'package:console/src/data/console_gateway.dart';
 import 'package:console/src/screens/configuration.dart';
 import 'package:ekipa_core/ekipa_core.dart';
-import 'package:ekipa_core/matching.dart';
 import 'package:ekipa_ui/ekipa_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -121,9 +121,12 @@ void main() {
         ),
       );
 
-      // Three keys carry the mark in `MatchingKeys`; the screen must not carry
-      // its own list of which ones.
-      final marked = MatchingKeys.all.where((key) => key.safetyCritical).length;
+      // The mark is carried on the key, in every group the console assembles
+      // — not just `MatchingKeys` — and the screen must not carry its own
+      // list of which ones. `buildConsoleCatalogue()` is the same call
+      // `catalogueProvider` makes in production, so this counts exactly what
+      // the screen above was built from, rather than one group's guess at it.
+      final marked = buildConsoleCatalogue().safetyCritical.length;
       expect(
         find.byTooltip('Safety-critical. Changing this needs a typed reason.'),
         findsNWidgets(marked),
