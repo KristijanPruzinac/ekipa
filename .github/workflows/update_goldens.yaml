@@ -1,0 +1,48 @@
+name: Update goldens
+
+# Golden PNGs are only bit-comparable on the machine that renders them: font
+# hinting and antialiasing differ by OS even with the exact same font files
+# loaded and the exact same Flutter version pinned, so a golden generated on
+# a contributor's laptop reliably fails CI's `ubuntu-latest` runner by a small
+# percentage — not a real regression, just a different rasteriser.
+#
+# **So goldens are never hand-committed from a local run.** This workflow
+# renders them on the same image CI judges them against and hands the result
+# back as a download, which is the only way a `--update-goldens` run means
+# anything here. Manual dispatch only — it rewrites test fixtures, so it must
+# never fire unattended the way `mill.yaml`'s jobs do.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.44.7
+
+jobs:
+  render:
+    name: render on the CI image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Render every golden
+        working-directory: apps/mobile
+        run: flutter test test/screenshots_test.dart --update-goldens
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: goldens
+          path: apps/mobile/test/goldens/*.png
+          retention-days: 7
