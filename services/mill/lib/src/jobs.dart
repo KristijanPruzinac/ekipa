@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:ekipa_core/ekipa_core.dart';
 import 'package:ekipa_core/matching.dart';
 import 'package:mill/src/postgrest.dart';
@@ -22,6 +24,48 @@ final class Mill {
   final Clock _clock;
 
   // ── The match run ──────────────────────────────────────────────────────────
+
+  /// Forms groups for every city that is open.
+  ///
+  /// **Intention — launching a second city must be a row, not a deploy.** The
+  /// nightly job names no city; it asks which are `active` and matches those.
+  /// D11 says the product must not need ongoing per-city labour, and a city
+  /// list in a workflow file is exactly that labour, arriving once per city and
+  /// forever afterwards whenever the list is wrong.
+  ///
+  /// **One city's failure does not cancel another city's evening.** The two
+  /// runs share nothing — different people, different slots, different venues —
+  /// so a snapshot that will not decode in one is not a reason to leave the
+  /// other unmatched. A refusal is different and rethrows: it means the key is
+  /// not `service_role`, and every remaining city would fail the same way.
+  Future<List<RunReport>> matchAll({
+    required ConfigSnapshot config,
+    int? seed,
+  }) async {
+    final raw = await _db.rpc('worker_cities');
+    final cities = raw as List<Object?>? ?? const [];
+    final reports = <RunReport>[];
+
+    for (final entry in cities) {
+      final row = entry! as Map<String, Object?>;
+      try {
+        reports.add(
+          await matchCity(
+            CityId(row['id']! as String),
+            config: config,
+            seed: seed,
+          ),
+        );
+      } on PostgrestFailure catch (failure) {
+        if (failure.isRefusal) rethrow;
+        // Named, because a city that silently produced no groups looks exactly
+        // like a city where nobody was free — and those need different
+        // responses from whoever reads the log.
+        stderr.writeln('mill: ${row['name']} failed: $failure');
+      }
+    }
+    return reports;
+  }
 
   /// Forms groups for one city.
   ///

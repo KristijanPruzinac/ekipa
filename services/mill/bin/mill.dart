@@ -67,18 +67,24 @@ Future<void> main(List<String> args) async {
         stdout.writeln(await mill.sweep(config: config));
       case 'match':
         final city = flags['city'];
+        final seed = int.tryParse(flags['seed'] ?? '');
+        // **No `--city` means every open city**, which is what the nightly
+        // schedule runs. Naming one is for a launch or a repair, when
+        // somebody is watching a specific place.
         if (city == null) {
-          stderr.writeln('mill: match needs --city <uuid>');
-          exitCode = 64; // EX_USAGE
-          return;
+          final reports = await mill.matchAll(config: config, seed: seed);
+          if (reports.isEmpty) {
+            // Not an error. A project with no active city is the normal state
+            // of a fresh deployment, and exiting non-zero would turn every
+            // nightly run into a red cross until the first city opened.
+            stdout.writeln('match: no active cities');
+          }
+          reports.forEach(stdout.writeln);
+        } else {
+          stdout.writeln(
+            await mill.matchCity(CityId(city), config: config, seed: seed),
+          );
         }
-        stdout.writeln(
-          await mill.matchCity(
-            CityId(city),
-            config: config,
-            seed: int.tryParse(flags['seed'] ?? ''),
-          ),
-        );
       default:
         stderr.writeln('mill: no job called "$job"');
         stderr.writeln(_usage);
@@ -114,6 +120,7 @@ const String _usage = '''
 mill — the ekipa worker
 
   sweep                     advance every hangout the clock says is due
+  match                     form groups for every active city
   match --city <uuid>       form groups for one city
         [--seed <int>]      override the derived seed, for a replay
 

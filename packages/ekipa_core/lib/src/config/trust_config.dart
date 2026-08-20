@@ -189,8 +189,7 @@ abstract final class TrustKeys {
         explanation:
             'Otherwise "really enjoyed" is worth less than "enjoyed", and the '
             'ring draw prefers the weaker signal.',
-        holds: (snapshot) =>
-            snapshot.get(edgeStrong) > snapshot.get(edgeWarm),
+        holds: (snapshot) => snapshot.get(edgeStrong) > snapshot.get(edgeWarm),
       ),
       ConfigInvariant(
         name: 'an evening needs at least two people to have happened',

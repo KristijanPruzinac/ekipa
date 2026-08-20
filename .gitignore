@@ -83,3 +83,14 @@ coverage/
 /macos/
 /windows/
 /web/
+
+# flutter_test's golden-mismatch dump. Written next to the test on any
+# `matchesGoldenFile` failure (masked/isolated diffs, both images); useful on
+# the machine that failed, meaningless anywhere else.
+/apps/mobile/test/failures/
+
+# Downloaded OSM extracts, cached by tools/cartography/add_city.py. Megabytes
+# of upstream data that the generated .sql and .ekmap already carry forward —
+# checking it in would put the input and the output of the same pipeline in
+# the repository, and only one of them is reviewable.
+/.cache/

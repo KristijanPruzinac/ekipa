@@ -1,0 +1,108 @@
+name: Mill
+
+# The matchmaker, on a clock.
+#
+# **Intention — a matcher nobody runs is a matcher that does not exist.** Every
+# other piece of this product waits on two jobs: a nightly pass that builds the
+# week's groups, and a sweep that moves each one through its lifecycle as its
+# deadlines pass. Until both run unattended, "confirm by 07:00" is a sentence in
+# a document rather than a thing that happens.
+#
+# **Why GitHub Actions and not a server.** The locked constraints are no company
+# and no paid infrastructure. A scheduled workflow on a public repository is
+# free, has a secret store, and leaves an audit trail of every run — which is
+# worth more here than the few minutes of scheduling jitter it costs. Rejected:
+# a VPS (a bill, and a machine somebody has to patch), Supabase `pg_cron` (the
+# matcher is Dart and the whole point of D9 is that it does not live in the
+# database), and a laptop (the evening stops when the lid closes).
+#
+# **The jitter is affordable, and that is a design property rather than luck.**
+# Actions can delay a scheduled run by several minutes under load. Every
+# deadline in this product is an absolute timestamp written into the row at
+# creation (`0003`), so a sweep that arrives late acts on exactly the same
+# instants it would have acted on if it had been punctual. Nothing here reads
+# "now" to decide what a deadline is; it reads it only to ask which have passed.
+
+on:
+  schedule:
+    # Every fifteen minutes. The tightest window in the lifecycle is the
+    # fifteen-minute arrival grace, so a coarser sweep would leave somebody
+    # marked late for a quarter of an hour after they were not.
+    - cron: '*/15 * * * *'
+    # 03:10 UTC, daily: the nightly match. Deliberately not on the hour —
+    # Actions' scheduler is busiest at :00 and the delay there is worst.
+    - cron: '10 3 * * *'
+  # Manual runs, for the first launch of a city and for the morning something
+  # has gone wrong. `workflow_dispatch` is safe here in a way
+  # `pull_request_target` never is: it runs this repository's own code.
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'sweep or match'
+        required: true
+        default: sweep
+        type: choice
+        options: [sweep, match]
+
+# The mill talks to Supabase and to nothing in GitHub. No token, no writes.
+permissions:
+  contents: read
+
+# **Never two sweeps at once.** `worker_advance` derives its target state from
+# the row it is looking at, so a second concurrent run would race the first
+# through the same transition — and `cancel-in-progress` is wrong here for the
+# same reason: a half-finished sweep that gets killed has already committed some
+# groups. Queue, do not cancel.
+concurrency:
+  group: mill
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: ${{ github.event.schedule == '10 3 * * *' && 'match' || 'sweep' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.12.2
+
+      - name: Resolve
+        run: dart pub get
+        working-directory: services/mill
+
+      - name: Sweep
+        # The 15-minute schedule and every manual `sweep`. Advances every
+        # hangout whose next deadline has passed: opens confirmation, locks or
+        # backfills, allocates a venue and a sigil, reveals, settles attendance,
+        # closes.
+        if: >-
+          github.event.schedule == '*/15 * * * *' ||
+          inputs.job == 'sweep'
+        run: dart run bin/mill.dart sweep
+        working-directory: services/mill
+        env:
+          # **The service-role key, in the one place it is allowed to be.** It
+          # is never in a Flutter build, never in the console, never in a
+          # `--dart-define`, and never printed: `Postgrest.toString()` returns
+          # the base URL and not the key, precisely so an exception in a log
+          # cannot spill it.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Match
+        # The nightly pass and every manual `match`. Reads a snapshot per active
+        # city, runs the matcher, commits a plan.
+        if: >-
+          github.event.schedule == '10 3 * * *' ||
+          inputs.job == 'match'
+        # `--city` is omitted, so the mill matches every active city. That is
+        # what makes a second city a database row rather than a change here.
+        run: dart run bin/mill.dart match
+        working-directory: services/mill
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

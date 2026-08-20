@@ -35,6 +35,32 @@ dependencies:
   # this line adds nothing new to the lockfile.
   flutter_riverpod: ^3.4.2
 
+  # SC-2 justification. Same package as apps/console, added here 2026-08-20.
+  #
+  # supabase_flutter — what it does: holds the auth session and calls the RPCs.
+  # Why the standard library will not do: `package:http` would carry the calls
+  # and not the part that matters, which is **refreshing a JWT before it
+  # expires**. On a phone that is not a nicety. A person opens this app on a
+  # Thursday evening, having last opened it on Monday; a stale token there is a
+  # confirmation screen that refuses, at the exact moment three other people
+  # are waiting for an answer. Rolling that by hand means writing an auth
+  # client with a refresh race in it, and the highest-value target in the
+  # system is the one place that should not be hand-written (T7).
+  #
+  # It also carries anonymous sign-in, which this product's identity design
+  # depends on: the university address never reaches `auth.users`, so the
+  # session a person holds is bound to an *anonymous* auth user that the worker
+  # links to a peppered identity hash (`0002_v3_people.sql`).
+  #
+  # Maintenance: first-party, actively released. Transitive count: 46, and it
+  # is already resolved in this workspace for the console — so this line adds
+  # nothing new to the lockfile, only to this binary.
+  #
+  # What it must never be given: the service-role key. The only key compiled
+  # into this app is the publishable one, and `tools/lint` fails the build if
+  # anything else appears in a `--dart-define`.
+  supabase_flutter: ^2.17.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
