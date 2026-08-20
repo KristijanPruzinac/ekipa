@@ -48,6 +48,14 @@ declare
   v_size   integer;
   v_venue  uuid;
 begin
+  -- The grant is not the control (DP-5). This function is only reachable by
+  -- `service_role` today, but a `security definer` function whose safety rests
+  -- on nobody having granted it is one `grant execute` away from handing a
+  -- phone the ability to reassign a group's meeting point.
+  if auth.role() is distinct from 'service_role' then
+    raise exception 'worker only' using errcode = '42501';
+  end if;
+
   select h.city_id into v_city from public.hangouts h where h.id = p_hangout_id;
 
   -- The group's centre of gravity, which is what "closest" is measured from.
@@ -122,12 +130,23 @@ create or replace function public.worker_pick_sigil(
   p_slot_id  uuid
 )
 returns uuid
-language sql
+language plpgsql
 volatile
 security definer
 set search_path = public
 as $$
-  select sg.id
+declare
+  v_sigil uuid;
+begin
+  -- plpgsql rather than `language sql`, only so this line can exist: a `sql`
+  -- body is one expression and cannot refuse anybody. The grant already limits
+  -- this to the worker; DP-5 says the check is the control and the grant is
+  -- the belt.
+  if auth.role() is distinct from 'service_role' then
+    raise exception 'worker only' using errcode = '42501';
+  end if;
+
+  select sg.id into v_sigil
   from public.sigils sg
   where sg.active
     and not exists (
@@ -139,7 +158,10 @@ as $$
   -- Random rather than sequential: a city where every Thursday's first group is
   -- the red circle is a city where the mark stops being a mark.
   order by random()
-  limit 1
+  limit 1;
+
+  return v_sigil;
+end;
 $$;
 
 revoke all on function public.worker_pick_sigil(uuid, uuid)

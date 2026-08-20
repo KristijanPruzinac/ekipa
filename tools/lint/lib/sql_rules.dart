@@ -437,18 +437,28 @@ List<SqlViolation> scanMigration(String path, String source) {
 
 /// The one heuristic in this file, and it is deliberately a small closed list.
 ///
-/// Four markers, one per way the codebase asks "who is this": the raw session
-/// user, the person behind it, membership of a hangout, and the console's role
-/// gate. A function that checks its caller some fifth way has to add itself
-/// here, which is the point — the rule cannot tell a real check from a
-/// plausible-looking one, so it asks a human to look at anything it does not
-/// already recognise.
+/// Five markers, one per way the codebase asks "who is this": the raw session
+/// user, the person behind it, membership of a hangout, the console's role
+/// gate, and the worker's. A function that checks its caller some sixth way has
+/// to add itself here, which is the point — the rule cannot tell a real check
+/// from a plausible-looking one, so it asks a human to look at anything it does
+/// not already recognise.
+///
+/// **`auth.role()` was added when `0012` arrived**, and it is worth saying why
+/// that is a widening rather than a weakening. The worker's functions open with
+/// `if auth.role() is distinct from 'service_role' then raise`, which is a
+/// *stronger* check than the four above it: those ask which person is calling,
+/// this one asks which realm the request came from at all. The lint flagged six
+/// functions; four were this form and two genuinely had no check, and both of
+/// those were fixed rather than exempted. That is the rule working — it asked a
+/// human to look, and looking found something.
 bool _looksLikeItChecksTheCaller(String code) =>
     code.contains('auth.uid()') ||
     code.contains('current_person_id()') ||
     code.contains('is_member(') ||
     code.contains('admin_role()') ||
-    code.contains('admin_at_least(');
+    code.contains('admin_at_least(') ||
+    code.contains('auth.role()');
 
 /// The part of a function the caller check has to appear in.
 ///
