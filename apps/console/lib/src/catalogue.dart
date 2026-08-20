@@ -26,6 +26,8 @@ import 'package:ekipa_core/matching.dart';
 ConfigCatalogue buildConsoleCatalogue() => ConfigCatalogue([
   MatchingKeys.group,
   ScheduleKeys.group,
+  LifecycleKeys.group,
+  TrustKeys.group,
 ]);
 
 /// The layers the console publishes to, for the cities it knows about.
