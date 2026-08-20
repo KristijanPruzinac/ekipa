@@ -15,7 +15,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-\ir fixture.sql
+\ir ../fixtures/world.sql
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- DP-5. Structural, over every function that exists rather than the ones this
@@ -81,21 +81,58 @@ begin
 end;
 $fn$;
 
--- The whole client API, in one string. Adding an RPC means editing this line,
--- which is the point: the surface is small enough to review, so it should be
--- impossible to grow without saying so.
+-- The whole client-callable API, in one string.
+--
+-- **Why this list is longer than the app's.** The console shares one auth realm
+-- with the app (Bible amendment, 2026-08-18), so an operator arrives as
+-- `authenticated` exactly like a phone does, and every `console_*` function has
+-- to carry an `execute` grant to that role or the operator cannot call it at
+-- all. The grant is not the control. `admin_role()` returning nothing without
+-- `aal2` and a row in `admin_roles` is the control, and 05_console_access.sql
+-- is where that is proved, function by function.
+--
+-- So the surface is asserted in two named halves rather than one flat list. A
+-- new `console_*` function that forgets its caller check now shows up here as a
+-- name in the wrong half, instead of disappearing into a longer string.
+--
+-- Adding an RPC means editing this test, which is the point: the surface is
+-- small enough to review, so it should be impossible to grow without saying so.
 create function tap.test_client_callable_allowlist()
 returns setof text language plpgsql as $fn$
+declare
+  v_app     text;
+  v_console text;
 begin
+  select coalesce(string_agg(p.proname, ', ' order by p.proname), '')
+    into v_app
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.prokind = 'f'
+     and p.proname not like 'console\_%' and p.proname not like 'admin\_%'
+     and has_function_privilege('authenticated', p.oid, 'execute');
+
+  select coalesce(string_agg(p.proname, ', ' order by p.proname), '')
+    into v_console
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.prokind = 'f'
+     and (p.proname like 'console\_%' or p.proname like 'admin\_%')
+     and has_function_privilege('authenticated', p.oid, 'execute');
+
   return next is(
-    (select coalesce(string_agg(p.proname, ', ' order by p.proname), '')
-       from pg_proc p
-       join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'public' and p.prokind = 'f'
-        and has_function_privilege('authenticated', p.oid, 'execute')),
+    v_app,
     'confirm_hangout, current_city_id, current_person_id, hangout_reveal, '
     || 'is_member, my_hangouts, set_availability',
-    'DP-5: the client can call exactly these seven functions');
+    'DP-5: a phone can call exactly these seven functions');
+
+  return next is(
+    v_console,
+    'admin_at_least, admin_role, console_audit, console_cities, '
+    || 'console_config_values, console_config_versions, '
+    || 'console_generate_slots, console_in_flight, console_mark_published, '
+    || 'console_publish_config, console_slots',
+    'AC-2: and the console adds exactly these eleven, every one of them '
+    || 'gated on admin_role() rather than on the grant');
 end;
 $fn$;
 

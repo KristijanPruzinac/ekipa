@@ -138,11 +138,30 @@ jobs:
           supabase start
           -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit
 
+      - name: Install pg_prove
+        # Debian ships the TAP harness pgTAP needs; `cpan` would work and takes
+        # four minutes.
+        run: sudo apt-get install -y --no-install-recommends libtap-parser-sourcehandler-pgtap-perl
+
       - name: Run the suite
-        # `supabase test db` runs pg_prove over supabase/tests. Each file opens
-        # a transaction, builds its world, and rolls back — so the files are
-        # order-independent and leave nothing behind.
-        run: supabase test db
+        # pg_prove directly rather than `supabase test db`, for two reasons.
+        #
+        # **The glob is explicit.** `supabase test db` hands pg_prove every .sql
+        # file under supabase/tests, including shared fixtures, which declare no
+        # plan and so fail the run by existing. The numbered prefix is the
+        # contract: a file that runs is a file that numbers itself.
+        #
+        # **`--verbose` prints the assertion, not the subtest.** pgTAP's
+        # `runtests()` reports one line per test *function*, so a failure inside
+        # a seven-assertion function says only "failed 1 of 7" and the sentence
+        # naming what broke is never emitted. On a suite whose whole purpose is
+        # to be believed, a failure that cannot be read is barely a test.
+        run: >-
+          pg_prove --verbose --failures
+          -h 127.0.0.1 -p 54322 -U postgres -d postgres
+          supabase/tests/[0-9]*.sql
+        env:
+          PGPASSWORD: postgres
 
   coverage:
     name: ekipa_core coverage floor

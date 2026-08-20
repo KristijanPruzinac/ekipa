@@ -15,7 +15,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-\ir fixture.sql
+\ir ../fixtures/world.sql
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 1. A person can read only their own availability, confirmations, ratings,

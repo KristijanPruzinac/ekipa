@@ -10,7 +10,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-\ir fixture.sql
+\ir ../fixtures/world.sql
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- DP-1. Not "we reviewed the policy" — the property itself, over every table

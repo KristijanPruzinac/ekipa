@@ -1,10 +1,16 @@
 -- The world every privacy test runs against, plus the two helpers that make a
 -- test able to *be* somebody.
 --
--- Included by each test file with `\ir fixture.sql`, so there is one world and
--- it is described in one place. A privacy test whose fixture lives somewhere
--- else is a test nobody can read, and a test nobody reads is a test that gets
--- weakened to make a feature pass (11_SECURITY.md §8 rule 9).
+-- Included by each test file with `\ir ../fixtures/world.sql`, so there is one
+-- world and it is described in one place. A privacy test whose fixture lives
+-- somewhere else is a test nobody can read, and a test nobody reads is a test
+-- that gets weakened to make a feature pass (11_SECURITY.md §8 rule 9).
+--
+-- **Why it lives outside `supabase/tests/`.** pg_prove treats every file it is
+-- handed as a test, and this one declares no plan, so sitting beside the tests
+-- it reported `No plan found in TAP output` and failed the run on its own.
+-- One directory up is the whole fix: the runner's glob cannot see it, and the
+-- `\ir` path says out loud that it is shared rather than standalone.
 --
 -- Everything below is created inside the test file's transaction and rolled
 -- back with it. Nothing here reaches a real database.
