@@ -242,3 +242,30 @@ jobs:
         # actual risk of deferring.
         working-directory: apps/mobile
         run: test -d ios && echo "ios/ present"
+
+  temp_render_goldens:
+    # TEMPORARY — one-time extraction, to be deleted the moment its artifact is
+    # downloaded. Not a real job: it renders the mobile goldens on this runner
+    # and uploads them so they can be committed from the platform that will
+    # actually judge them (see .github/workflows/update_goldens.yaml, which
+    # does this properly by manual dispatch — but that trigger only becomes
+    # reachable once its workflow file is on the default branch, which this PR
+    # has not reached yet).
+    name: TEMP render goldens
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - working-directory: apps/mobile
+        run: flutter test test/screenshots_test.dart --update-goldens
+      - uses: actions/upload-artifact@v4
+        with:
+          name: goldens
+          path: apps/mobile/test/goldens/*.png
+          retention-days: 1
