@@ -1,0 +1,123 @@
+# CodeRabbit configuration for ekipa.
+# The canonical rules live in docs/v3/. This file teaches the reviewer the ones that
+# are cheap to violate and expensive to discover later.
+# Reference: https://docs.coderabbit.ai/reference/configuration
+
+language: en-GB
+tone_instructions: >-
+  Direct and specific. Name the failure mode and the input that triggers it. Skip praise,
+  skip style opinions the linter already covers. Flag a missing test as loudly as a bug.
+
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  collapse_walkthrough: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_filters:
+    - "!legacy/**"
+    - "!docs/reference/**"
+    - "!**/*.g.dart"
+    - "!**/*.freezed.dart"
+    - "!**/*.mocks.dart"
+    - "!**/build/**"
+    - "!**/.dart_tool/**"
+
+  path_instructions:
+    - path: "packages/ekipa_core/**"
+      instructions: |
+        This package is pure Dart domain logic. It is the only place rules may live.
+        Reject on sight:
+        - any import of dart:io, dart:ui, flutter, supabase, http, or any package that
+          performs IO. This package must compile and test with no platform.
+        - DateTime.now(), Random() without a seed, or any other ambient nondeterminism.
+          Time comes from the injected Clock, randomness from the injected RandomSource.
+        - any behavioural number written as a literal (thresholds, weights, deadlines,
+          ratios, cooldowns, probabilities). If it could plausibly change next month it
+          belongs in MatchConfig / ConfigSnapshot and must be read from there.
+        - a new rule added to an if-chain where a Specification composition already exists.
+        Require: pure functions, value objects with value equality, sealed unions switched
+        exhaustively, and a unit test that pins the behaviour for the boundary values, not
+        just the happy path.
+
+    - path: "packages/ekipa_core/lib/matching/**"
+      instructions: |
+        The matchmaker. Additionally enforce:
+        - run() must remain a pure function of (snapshot, config, seed). No IO, no writes,
+          no clock reads. It returns a plan; the worker persists it.
+        - two runs with the same snapshot, config and seed must produce identical output.
+          Flag any iteration over an unordered collection whose order can affect the result.
+        - hard constraints (exclusions, cooldown, standing, availability, composition) are
+          never expressed as a score or a penalty. They filter.
+        - every proposed group must carry its explanation (which ring each member was drawn
+          from, which constraint filtered the alternatives). An unexplainable match is a bug.
+
+    - path: "packages/ekipa_data/**"
+      instructions: |
+        Repository adapters. Enforce:
+        - no domain rules here; this layer maps rows to domain types and back.
+        - never expose a raw DTO to the app layer.
+        - every query that reads another person's data must be justified in a comment
+          against the privacy invariants in docs/v3/02_DOMAIN.md. Flag any query that could
+          let a caller infer how someone rated them, who declined, or that a report exists.
+
+    - path: "supabase/migrations/**"
+      instructions: |
+        Refuse to approve a migration that:
+        - creates a table without enabling row level security in the same migration.
+        - creates a `security definer` function without ALL of: an explicit check that the
+          caller is the subject, `set search_path = ''` (or a pinned schema), and a
+          revoke-from-public / grant-to-authenticated pair.
+        - grants any privilege to `anon` beyond what a signed-out screen genuinely needs.
+        - weakens, deletes or renames an existing pgTAP privacy test.
+        - stores free text written by a user in a column the matcher or the worker reads.
+        Also flag: missing index on a column the sweeper filters on, and any column that
+        could hold personally identifying data beyond first name + last initial.
+
+    - path: "services/mill/**"
+      instructions: |
+        The isolated worker. It holds the service-role credential. Enforce:
+        - no HTTP handler that can be reached without OIDC verification; no route that a
+          client could call to trigger a match run. Matching is time-triggered only.
+        - never log a person id, name, email, coordinate, rating value or report body.
+          Log the run id, counts and durations.
+        - every write path is idempotent and keyed, because the scheduler will double-fire.
+
+    - path: "apps/mobile/**"
+      instructions: |
+        The client is a hostile display surface. Enforce:
+        - no privacy or trust decision made here. The client renders what the server sends;
+          it never filters a list to hide something the server should not have sent.
+        - no service-role key, no admin endpoint, no matching library import.
+        - never render, cache or log another person's rating of anyone, the direction of an
+          edge, who declined, or the existence of a report.
+        - widgets contain no business rules. If a condition decides an outcome rather than a
+          pixel, it belongs in ekipa_core.
+        - every user-visible string goes through localisation; Croatian is the primary locale.
+
+    - path: "apps/console/**"
+      instructions: |
+        Admin console. Enforce: analytical views show stable pseudonyms, never names, and
+        must not join identity data with rating data. Identity reveal requires a typed
+        reason and an audit-log write in the same transaction.
+
+    - path: "**/*_test.dart"
+      instructions: |
+        Flag tests that assert on implementation detail rather than behaviour, tests with no
+        failing case, and any test that was weakened rather than fixed in this diff.
+
+  tools:
+    ast-grep:
+      essential_rules: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  learnings:
+    scope: local

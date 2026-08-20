@@ -1,0 +1,19 @@
+name: mill
+description: >-
+  The worker. Loads a snapshot, calls the pure matcher, writes the plan through
+  transactional RPCs. Stateless and disposable: if it dies mid-run, the next run
+  recomputes from the database. Runs on GitHub Actions cron at tier 0.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  ekipa_core: ^0.1.0
+  ekipa_data: ^0.1.0
+
+dev_dependencies:
+  test: ^1.25.0
+  very_good_analysis: ^9.0.0

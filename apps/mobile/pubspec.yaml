@@ -1,0 +1,80 @@
+name: mobile
+description: >-
+  The Flutter app. Thin: it owns no rules. Every privacy and trust decision is
+  made by the server and rendered here, never decided here.
+publish_to: none
+version: 0.1.0+1
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.44.0"
+
+dependencies:
+  # Note the absent import: this app depends on ekipa_core but never on
+  # package:ekipa_core/matching.dart. Enforced by tools/lint (MOBILE-NO-MATCHING).
+  ekipa_core: ^0.1.0
+  ekipa_data: ^0.1.0
+  ekipa_ui: ^0.1.0
+  flutter:
+    sdk: flutter
+
+  # SC-2 justification. Same package, same reasoning as apps/console, and
+  # approved in the same breath (2026-08-19).
+  #
+  # flutter_riverpod — what it does: holds state that outlives one widget and
+  # tells every listener when it changes. Why the standard library will not do:
+  # every screen in this app reads from a server call that can fail, refuse, or
+  # arrive late, so loading / error / refresh is the common case rather than
+  # the exception; InheritedWidget propagates a value and has no answer for any
+  # of the three. Rolling it per screen is how the three drift. It also gives
+  # the app a single override point for its two ports, which is what keeps a
+  # widget test from reaching the network.
+  # Maintenance: actively released. Transitive count: 2 (riverpod,
+  # state_notifier) — already resolved in this workspace for the console, so
+  # this line adds nothing new to the lockfile.
+  flutter_riverpod: ^3.4.2
+
+  # SC-2 justification. Same package as apps/console, added here 2026-08-20.
+  #
+  # supabase_flutter — what it does: holds the auth session and calls the RPCs.
+  # Why the standard library will not do: `package:http` would carry the calls
+  # and not the part that matters, which is **refreshing a JWT before it
+  # expires**. On a phone that is not a nicety. A person opens this app on a
+  # Thursday evening, having last opened it on Monday; a stale token there is a
+  # confirmation screen that refuses, at the exact moment three other people
+  # are waiting for an answer. Rolling that by hand means writing an auth
+  # client with a refresh race in it, and the highest-value target in the
+  # system is the one place that should not be hand-written (T7).
+  #
+  # It also carries anonymous sign-in, which this product's identity design
+  # depends on: the university address never reaches `auth.users`, so the
+  # session a person holds is bound to an *anonymous* auth user that the worker
+  # links to a peppered identity hash (`0002_v3_people.sql`).
+  #
+  # Maintenance: first-party, actively released. Transitive count: 46, and it
+  # is already resolved in this workspace for the console — so this line adds
+  # nothing new to the lockfile, only to this binary.
+  #
+  # What it must never be given: the service-role key. The only key compiled
+  # into this app is the publishable one, and `tools/lint` fails the build if
+  # anything else appears in a `--dart-define`.
+  supabase_flutter: ^2.17.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^9.0.0
+
+flutter:
+  uses-material-design: true
+
+  # The city's geometry, drawn by us. 23 KB of simplified OpenStreetMap
+  # polylines per city, built by tools/cartography/build_basemap.py. See
+  # packages/ekipa_core/lib/src/domain/basemap.dart for why a map is an asset
+  # here rather than a tile service: no API key, no billing account, no network
+  # round-trip at the moment somebody is walking somewhere with bad signal.
+  #
+  # Data © OpenStreetMap contributors, ODbL. Attribution renders on the map.
+  assets:
+    - assets/basemap/

@@ -1,0 +1,244 @@
+name: CI
+
+# Triggers are deliberately narrow. `pull_request_target` is NOT used and must
+# never be added: this repository is public, and `pull_request_target` runs with
+# repository secrets in scope while checking out the PR's code. That combination
+# is the single most plausible way a service-role key leaves the building
+# (docs/v3/01_ARCHITECTURE.md §2, "two traps this repository is exposed to").
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Nothing in this workflow needs write access or a token.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned, and it must match the local FVM pin. If CI and a laptop disagree on
+  # the Flutter version, golden tests fight forever and nobody can tell whether a
+  # diff is a real regression or a font-rendering change.
+  FLUTTER_VERSION: 3.44.7
+
+jobs:
+  verify:
+    name: analyse, lint, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve the workspace
+        # One resolution for every package, so a change to a matching rule is
+        # compiled against all four of its consumers in one run. That is what
+        # makes D3 a fact rather than a claim.
+        run: flutter pub get
+
+      - name: Format
+        # Scoped to the live tree on purpose. dart format does not honour the
+        # analyzer's exclude list, so a bare '.' reformats quarantined v1/v2
+        # source and fails CI on code nobody is allowed to touch.
+        run: dart format --output=none --set-exit-if-changed apps packages services tools
+
+      - name: Analyse
+        # very_good_analysis treats warnings as errors, so this is a gate and not
+        # a report.
+        run: flutter analyze
+
+      - name: Dependency rule lint
+        # SC-6. The architecture is only real if a machine enforces it:
+        # ekipa_core imports no Flutter and no IO, the mobile app imports no
+        # matcher, no service-role key reaches a client, and nothing outside
+        # legacy/ imports it.
+        run: dart run tools/lint/bin/dependency_lint.dart
+
+      - name: Migration lint
+        # DP-1, DP-2, DP-5, DP-6 and rule 10. Every rule here catches a mistake
+        # that is silent: a table without RLS serves rows and looks fine, and
+        # `revoke ... from public` reports success while changing nothing.
+        run: dart run tools/lint/bin/migration_lint.dart
+
+      - name: Test ekipa_core
+        working-directory: packages/ekipa_core
+        run: dart test --reporter=github
+
+      - name: Test ekipa_data
+        working-directory: packages/ekipa_data
+        run: dart test --reporter=github
+
+      - name: Test the dependency lint itself
+        # A lint nobody has watched fail is indistinguishable from one that
+        # passes everything, so its rules have their own tests.
+        working-directory: tools/lint
+        run: dart test --reporter=github
+
+      - name: Test the simulator
+        # The harness has its own tests because it is the only place the
+        # matcher is run twelve times in a row against its own output. A bug
+        # here does not break the app; it produces a plausible metric table that
+        # sends a config change the wrong way, which is worse.
+        working-directory: tools/simulator
+        run: dart test --reporter=github
+
+      - name: Twelve weeks of a synthetic city
+        # Smoke, not assertion — the assertions are in the suite above. This
+        # step exists so the metric table is in the log of every build: a
+        # reviewer opening a PR that moves a ring ratio or a cooldown can read
+        # what it did to newcomer wait time without running anything. Add
+        # `--set key=value --compare` locally to see the delta against defaults.
+        working-directory: tools/simulator
+        run: dart run bin/simulate.dart
+
+      - name: Test ekipa_ui
+        working-directory: packages/ekipa_ui
+        run: flutter test
+
+      - name: Test the mobile app
+        working-directory: apps/mobile
+        run: flutter test
+
+      - name: Test the console
+        working-directory: apps/console
+        run: flutter test
+
+  database:
+    name: pgTAP — the seven privacy invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # A separate job because it shares nothing with the Dart one: no SDK, no
+    # pub cache, just Postgres. It is also the job that must never be made
+    # optional. The seven invariants in docs/v3/02_DOMAIN.md §6 are acceptance
+    # criteria, not tests: a release that fails one does not ship, regardless of
+    # what else is in it.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start a local stack
+        # Only the containers the tests need. The full stack starts ten
+        # services and none of realtime, storage or studio is involved in
+        # asking "can this role read that row".
+        run: >-
+          supabase start
+          -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit
+
+      - name: Install pg_prove
+        # Debian ships the TAP harness pgTAP needs; `cpan` would work and takes
+        # four minutes.
+        run: sudo apt-get install -y --no-install-recommends libtap-parser-sourcehandler-pgtap-perl
+
+      - name: Run the suite
+        # pg_prove directly rather than `supabase test db`, for two reasons.
+        #
+        # **The glob is explicit.** `supabase test db` hands pg_prove every .sql
+        # file under supabase/tests, including shared fixtures, which declare no
+        # plan and so fail the run by existing. The numbered prefix is the
+        # contract: a file that runs is a file that numbers itself.
+        #
+        # **`--verbose` prints the assertion, not the subtest.** pgTAP's
+        # `runtests()` reports one line per test *function*, so a failure inside
+        # a seven-assertion function says only "failed 1 of 7" and the sentence
+        # naming what broke is never emitted. On a suite whose whole purpose is
+        # to be believed, a failure that cannot be read is barely a test.
+        run: >-
+          pg_prove --verbose --failures
+          -h 127.0.0.1 -p 54322 -U postgres -d postgres
+          supabase/tests/[0-9]*.sql
+        env:
+          PGPASSWORD: postgres
+
+  coverage:
+    name: ekipa_core coverage floor
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Measure
+        working-directory: packages/ekipa_core
+        run: |
+          dart pub global activate coverage
+          dart test --coverage=coverage
+          dart pub global run coverage:format_coverage \
+            --lcov --in=coverage --out=coverage/lcov.info \
+            --report-on=lib --check-ignore
+
+      - name: Enforce the floor
+        # A floor on ekipa_core only, deliberately. Coverage targets on UI code
+        # produce tests written for the metric; coverage on pure policy code —
+        # the matcher, trust, eligibility — is the one place the number means
+        # something, because every line there is a rule somebody has to trust.
+        working-directory: packages/ekipa_core
+        env:
+          FLOOR: 80
+        run: |
+          hit=$(grep -c '^DA:.*,[1-9]' coverage/lcov.info || true)
+          total=$(grep -c '^DA:' coverage/lcov.info || true)
+          if [ "$total" -eq 0 ]; then
+            echo "No coverage data produced — the harness is broken, not the code."
+            exit 1
+          fi
+          pct=$(( 100 * hit / total ))
+          echo "ekipa_core line coverage: ${pct}% (${hit}/${total}), floor ${FLOOR}%"
+          if [ "$pct" -lt "$FLOOR" ]; then
+            echo "::error::Coverage ${pct}% is below the ${FLOOR}% floor."
+            exit 1
+          fi
+
+  android:
+    name: build android
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Build debug APK
+        working-directory: apps/mobile
+        run: flutter build apk --debug
+
+      - name: Keep the iOS target honest
+        # iOS is deferred, not abandoned (C-3). A macOS runner is not free, so
+        # CI cannot compile it — but analysing with the iOS target present means
+        # the project never quietly stops being an iOS project, which is the
+        # actual risk of deferring.
+        working-directory: apps/mobile
+        run: test -d ios && echo "ios/ present"

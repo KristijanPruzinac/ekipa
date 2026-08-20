@@ -1,0 +1,18 @@
+name: ekipa_data
+description: >-
+  Adapters. Implements the ports declared in ekipa_core against Supabase,
+  Overpass and FCM, and maps rows to domain values. The domain never parses a
+  database row (legacy defect S4).
+publish_to: none
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  ekipa_core: ^0.1.0
+
+dev_dependencies:
+  test: ^1.25.0
+  very_good_analysis: ^9.0.0

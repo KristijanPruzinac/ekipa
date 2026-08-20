@@ -1,0 +1,54 @@
+name: console
+description: >-
+  The master console (Flutter Web). Separate app, separate auth realm, separate
+  deployment. Holds no service-role key: every action is an audited RPC that
+  re-checks the caller's role server-side (AC-4).
+publish_to: none
+version: 0.1.0+1
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.44.0"
+
+dependencies:
+  ekipa_core: ^0.1.0
+  ekipa_data: ^0.1.0
+  ekipa_ui: ^0.1.0
+  flutter:
+    sdk: flutter
+
+  # SC-2 justification. Both approved 2026-08-19. Recorded here rather than only
+  # in the pull request, because a reader asking "why is this here" is reading
+  # this file, not a merged PR from months ago.
+  #
+  # flutter_riverpod — what it does: holds state that outlives one widget and
+  # tells every listener when it changes. Why the standard library will not do:
+  # Flutter ships InheritedWidget, which propagates a value down the tree but
+  # has no answer for loading, error and refresh. Every screen here loads from
+  # an RPC that can fail or refuse, so those three states are the common case
+  # rather than the exception, and hand-rolling them per screen is how they
+  # drift. Maintenance: actively released, the de-facto standard for this job.
+  # Transitive count: 2 (riverpod, state_notifier).
+  flutter_riverpod: ^3.4.2
+
+  # supabase_flutter — what it does: the auth session and the PostgREST client.
+  # Why the standard library will not do: `package:http` would carry the RPC
+  # calls, but not the part that matters — refreshing a JWT before it expires
+  # and carrying the `aal` claim that migration 0009 gates every console
+  # function on. Rolling that by hand means writing an auth client, which is the
+  # last thing this project should own. Maintenance: first-party, actively
+  # released. Transitive count: 46, and that is the honest cost of this line —
+  # most of it is url_launcher / shared_preferences / path_provider platform
+  # shims that the web build tree-shakes but that CI still resolves. Accepted
+  # because the alternative is a hand-written token refresh on the highest-value
+  # target in the system (T7).
+  supabase_flutter: ^2.17.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^9.0.0
+
+flutter:
+  uses-material-design: true

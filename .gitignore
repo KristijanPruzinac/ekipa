@@ -52,3 +52,45 @@ app.*.map.json
 # Supabase local
 supabase/.branches/
 supabase/.temp/
+
+# Tooling scratch
+.appium-screenshots/
+design/preview/.cache/
+
+# ── Pub workspace ────────────────────────────────────────────────────────────
+# One lockfile at the root; member packages must not carry their own.
+/packages/*/pubspec.lock
+/apps/*/pubspec.lock
+/services/*/pubspec.lock
+/tools/*/pubspec.lock
+**/.dart_tool/
+*.iml
+
+# Coverage output
+coverage/
+
+# ── Strays the Flutter tool writes to the repo root ──────────────────────────
+# Running a Flutter command from the workspace root instead of from
+# `apps/mobile` makes the tool treat the root as the app and emit an
+# `android/` tree here. It is generated, it is machine-specific
+# (`local.properties` holds absolute SDK paths), and the real Android project
+# lives at `apps/mobile/android`. Ignored rather than deleted-and-forgotten,
+# because the mistake is one keystroke away and the folder is easy to commit
+# without noticing.
+/android/
+/ios/
+/linux/
+/macos/
+/windows/
+/web/
+
+# flutter_test's golden-mismatch dump. Written next to the test on any
+# `matchesGoldenFile` failure (masked/isolated diffs, both images); useful on
+# the machine that failed, meaningless anywhere else.
+/apps/mobile/test/failures/
+
+# Downloaded OSM extracts, cached by tools/cartography/add_city.py. Megabytes
+# of upstream data that the generated .sql and .ekmap already carry forward —
+# checking it in would put the input and the output of the same pipeline in
+# the repository, and only one of them is reviewable.
+/.cache/

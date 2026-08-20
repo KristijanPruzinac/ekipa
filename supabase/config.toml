@@ -1,0 +1,18 @@
+# Local development stack only. Nothing here configures the hosted project —
+# that lives in the Supabase dashboard, and the schema lives in migrations/.
+#
+# Deliberately minimal: every key the CLI does not find here it fills from its
+# own defaults, and a config file that restates defaults is a file that drifts
+# from them silently on the next CLI upgrade. The two settings below are the
+# ones the pgTAP job actually depends on.
+
+project_id = "ekipa-v3"
+
+[db]
+port = 54322
+# Match the hosted project, so a constraint that behaves differently across
+# major versions is caught in CI rather than on the pilot database.
+major_version = 17
+
+[db.pooler]
+enabled = false

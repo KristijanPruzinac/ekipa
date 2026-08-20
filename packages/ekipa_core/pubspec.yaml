@@ -1,0 +1,26 @@
+name: ekipa_core
+description: >-
+  Pure domain, policies and algorithms for ekipa. No IO, no Flutter, no clock, no
+  ambient randomness. Consumed identically by the mobile app, the console, the
+  worker and the simulator (directive D3).
+publish_to: none
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+
+# Near-empty on purpose. Every dependency here is compiled into four runtimes,
+# so SC-2's written justification applies with particular force. dart:math and
+# dart:collection are the only other libraries this package may reach for.
+dependencies:
+  # SC-2 justification. package:meta is first-party (dart.dev), contains no
+  # runtime code at all — only annotations the analyzer reads — and has zero
+  # transitive dependencies. It buys @immutable, which turns "this value type is
+  # safe to use as a map key and to compare by value" from a comment into a
+  # checked property. Without it the analyzer rejects every == override here.
+  meta: ^1.16.0
+
+dev_dependencies:
+  test: ^1.25.0
+  very_good_analysis: ^9.0.0
