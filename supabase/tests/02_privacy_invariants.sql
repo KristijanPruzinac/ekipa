@@ -119,7 +119,8 @@ begin
       where n.nspname = 'public' and p.proname = 'hangout_reveal'
         and a.mode = 't'),
     'person_id,first_name,last_initial,gender_code,is_me,arrived,venue_name,'
-    || 'venue_lat,venue_lon,sigil_symbol,sigil_colour',
+    || 'venue_street,standing_spot,opening_hours,step_free,outdoor,'
+    || 'walk_minutes,venue_lat,venue_lon,sigil_symbol,sigil_colour,sigil_label',
     'invariant 2: the reveal returns exactly these columns and no diagnostics');
 end;
 $fn$;
@@ -154,6 +155,13 @@ begin
 
   -- No client-callable function reads the table on their behalf. This is the
   -- assertion that survives someone adding a helpful RPC next month.
+  --
+  -- The match is `from`/`join ratings`, not the bare word: `submit_ratings`
+  -- is exactly the client-callable function that must exist, and it only ever
+  -- writes (`insert into public.ratings ... on conflict do nothing`). A regex
+  -- on the word alone would fail permanently the day that function was
+  -- written, which is not this invariant — the invariant is that nobody can
+  -- read a rating back, not that the table's name may never appear.
   return next is(
     (select coalesce(string_agg(p.proname, ', ' order by p.proname), '')
        from pg_proc p
@@ -161,7 +169,8 @@ begin
       where n.nspname = 'public'
         and p.prokind = 'f'
         and has_function_privilege('authenticated', p.oid, 'execute')
-        and pg_get_functiondef(p.oid) ~* '\mratings\M'),
+        and pg_get_functiondef(p.oid)
+              ~* '\m(from|join)\M\s+(public\.)?ratings\M'),
     '',
     'invariant 3: no function the client may call reads the ratings table');
 end;
@@ -257,9 +266,10 @@ begin
             with ordinality as a (attname, mode, attnum) on true
       where n.nspname = 'public' and p.proname = 'my_hangouts'
         and a.mode = 't'),
-    'hangout_id,state,starts_at,ends_at,activity_id,is_dating,member_count,'
-    || 'gender_mix,my_confirmation,confirm_opens_at,confirm_deadline_at,'
-    || 'reveal_at,rating_due_at,names_visible,cancel_reason',
+    'hangout_id,state,starts_at,ends_at,activity_id,activity_label,'
+    || 'is_dating,member_count,gender_mix,my_confirmation,i_arrived,'
+    || 'confirm_opens_at,confirm_deadline_at,reveal_at,rating_due_at,'
+    || 'names_visible,cancel_reason',
     'invariant 5: my_hangouts returns exactly these columns');
 end;
 $fn$;

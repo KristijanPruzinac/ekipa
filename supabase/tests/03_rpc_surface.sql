@@ -128,10 +128,10 @@ begin
     v_app,
     'attest_member, confirm_hangout, create_profile, current_city_id, '
     || 'current_person_id, hangout_reveal, is_member, mark_arrived, '
-    || 'my_hangouts, my_slots, my_state, register_device, repeat_last_week, '
-    || 'report_member, report_venue, set_availability, set_bringing, '
-    || 'submit_ratings',
-    'DP-5: a phone can call exactly these eighteen functions');
+    || 'my_hangouts, my_profile, my_sanction, my_slots, my_state, '
+    || 'register_device, repeat_last_week, report_member, report_venue, '
+    || 'set_availability, set_bringing, submit_ratings',
+    'DP-5: a phone can call exactly these twenty functions');
 
   return next is(
     v_console,
