@@ -224,16 +224,32 @@ void main() {
         tester.getBottomLeft(endWeekday).dy,
         lessThan(tester.getTopLeft(find.text('4. 10.').last).dy),
       );
+      final endpoint = find.byKey(const ValueKey('timeline-end-festival'));
+      expect(endpoint, findsOneWidget);
+      expect(find.text('HeadOnEast festival'), findsOneWidget);
+      expect(find.text('ZAVRŠETAK'), findsNothing);
+      expect(find.text('Detalji'), findsNWidgets(2));
       expect(
-        find.byKey(const ValueKey('timeline-end-festival')),
-        findsOneWidget,
+        find.descendant(of: endpoint, matching: find.byType(InkWell)),
+        findsNothing,
       );
-      for (final endpoint in ['end', 'event']) {
-        final marker = find.byKey(ValueKey('timeline-$endpoint-festival'));
-        await tester.ensureVisible(marker);
-        await tester.tap(marker);
-        expect(opened?.id, 'festival');
-      }
+      expect(
+        tester.widget<Semantics>(endpoint).properties.label,
+        'Završetak: HeadOnEast festival.',
+      );
+      expect(tester.widget<Semantics>(endpoint).properties.onTap, isNull);
+      expect(
+        tester.getBottomLeft(find.text('sat nije naveden')).dy,
+        lessThanOrEqualTo(tester.getBottomLeft(endpoint).dy),
+      );
+      final start = find.byKey(const ValueKey('timeline-event-festival'));
+      expect(
+        tester.getSize(endpoint).height,
+        lessThan(tester.getSize(start).height),
+      );
+      await tester.ensureVisible(start);
+      await tester.tap(start);
+      expect(opened?.id, 'festival');
       expect(tester.takeException(), isNull);
     },
   );

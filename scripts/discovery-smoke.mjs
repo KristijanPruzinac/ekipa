@@ -226,9 +226,22 @@ try {
     expect((await timeline.locator('.timeline-scale-note').boundingBox()).y).toBeLessThan(
       (await timeline.locator('.timeline-track').boundingBox()).y,
     );
-    await expect(timeline.locator('.station-open')).toHaveCount(
-      timelineFor(visible).moments.length,
+    await expect(timeline.locator('.station-open')).toHaveCount(visible.length);
+    const endings = timeline.locator('.station-ending');
+    await expect(endings.locator('button, a, [tabindex]')).toHaveCount(0);
+    await expect(
+      endings.locator('.station-end-title, .station-end-label, .station-open'),
+    ).toHaveCount(0);
+    await expect(endings.locator('.station-end-context')).toHaveText(
+      timelineFor(visible)
+        .moments.filter((moment) => moment.ending)
+        .map((moment) => `Završetak: ${moment.event.title}.`),
     );
+    for (const ending of await endings.all()) {
+      const row = await ending.boundingBox(),
+        date = await ending.locator('time').boundingBox();
+      expect(date.y + date.height).toBeLessThanOrEqual(row.y + row.height);
+    }
   }
   async function noOverflow(width) {
     await page.setViewportSize({ width, height: width > 760 ? 1100 : 844 });
@@ -259,21 +272,20 @@ try {
   await cards.first().getByRole('button').click();
   await expect(page.locator('.detail-ongoing')).toHaveCount(0);
   await page.keyboard.press('Escape');
-  // Both ends of one branch must open the same detail and restore keyboard focus.
+  // Starts still open details; the return endpoint is an informational date marker.
   const rangeEvent = chronological()
     .slice(0, 6)
     .find((event) => event.endsAt);
   if (rangeEvent) {
-    for (const prefix of ['Na vremenskoj crti', 'Završetak']) {
-      const station = button(`${prefix}: ${rangeEvent.title}`);
-      await station.focus();
-      await page.keyboard.press('Enter');
-      await expect(page.getByRole('dialog')).toContainText(rangeEvent.title);
-      await expect(page.getByRole('dialog')).toContainText('Do ');
-      await page.keyboard.press('Escape');
-      await expect(page.getByRole('dialog')).toHaveCount(0);
-      await expect(station).toBeFocused();
-    }
+    const station = button(`Na vremenskoj crti: ${rangeEvent.title}`);
+    await station.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog')).toContainText(rangeEvent.title);
+    await expect(page.getByRole('dialog')).toContainText('Do ');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(station).toBeFocused();
+    await expect(button(`Završetak: ${rangeEvent.title}`)).toHaveCount(0);
   }
   await expect(page.locator('.audience-picker')).toHaveCount(0);
   await expect(page.getByRole('textbox')).toHaveCount(0);
@@ -331,13 +343,6 @@ try {
       await button('Otvori vremensku crtu').focus();
       await page.keyboard.press('Enter');
       await expectTimeline(3);
-      if (rangeEvent) {
-        const endButton = button(`Završetak: ${rangeEvent.title}`);
-        await endButton.click();
-        await expect(page.getByRole('dialog')).toContainText(rangeEvent.title);
-        await page.keyboard.press('Escape');
-        await expect(endButton).toBeFocused();
-      }
     }
     if (tagged) {
       const card = cards.filter({
@@ -350,6 +355,8 @@ try {
         .screenshot({ path: resolve(directory, `audience-detail-${width}.png`) });
       await page.keyboard.press('Escape');
     }
+    await page.evaluate(() => document.activeElement?.blur());
+    await page.mouse.move(0, 0);
     await timeline.screenshot({
       path: resolve(directory, `${live ? 'live' : 'fixture'}-timeline-${width}.png`),
     });
@@ -358,6 +365,14 @@ try {
     await page.keyboard.press('Enter');
     await expectTimeline(currentFeed.events.length);
     await noOverflow(width);
+    if (width === 320) {
+      const largerLabels = await page.addStyleTag({
+        content: '.station-ending .station-time > * { font-size: 160%; }',
+      });
+      await expectTimeline(currentFeed.events.length);
+      await noOverflow(width);
+      await largerLabels.evaluate((element) => element.remove());
+    }
     await button('Prikaži manje').click();
     if (width <= 760) {
       await button('Zatvori vremensku crtu').click();

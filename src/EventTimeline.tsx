@@ -116,6 +116,9 @@ export function EventTimeline({
                     style={{ gridRow: index + 1 }}
                     className={`timeline-station theme-${themeForCategory(event.category) ?? 'other'} ${ending ? 'station-ending' : 'station-start'} ${event.status !== 'scheduled' ? 'station-inactive' : ''}`}
                   >
+                    {ending && (
+                      <span className="station-end-context">Završetak: {event.title}.</span>
+                    )}
                     <time dateTime={value} className="station-time">
                       <span className="station-weekday">
                         {dateFormat(value, { weekday: 'short' })}
@@ -124,42 +127,35 @@ export function EventTimeline({
                       <span>{value.length === 10 ? 'sat nije naveden' : timeFormat(value)}</span>
                     </time>
                     <span className="station-dot" aria-hidden="true" />
-                    <button
-                      onClick={() => onSelect(event)}
-                      aria-label={`${ending ? 'Završetak' : 'Na vremenskoj crti'}: ${event.title}`}
-                    >
-                      {ending ? (
-                        <>
-                          <span className="station-end-label">ZAVRŠETAK</span>
-                          <span className="station-end-title">{event.title}</span>
-                        </>
-                      ) : (
-                        <>
-                          {isOngoing(event, now) && <span className="station-live">U TIJEKU</span>}
-                          <strong>{event.title}</strong>
-                          <span className="station-category">{categoryNames[event.category]}</span>
-                          <span className={`station-duration ${end ? 'has-end' : ''}`}>
-                            {end ? (
-                              <>
-                                <span aria-hidden="true">↳ </span>
-                                {duration ??
-                                  `${dateFormat(event.startsAt, { day: 'numeric', month: 'numeric' })} – ${dateFormat(end, { day: 'numeric', month: 'numeric' })}`}
-                              </>
-                            ) : (
-                              'Kraj nije naveden'
-                            )}
-                          </span>
-                          {event.status !== 'scheduled' && (
-                            <span className="station-status">
-                              {event.status === 'cancelled' ? 'Otkazano' : 'Odgođeno'}
-                            </span>
+                    {!ending && (
+                      <button
+                        onClick={() => onSelect(event)}
+                        aria-label={`Na vremenskoj crti: ${event.title}`}
+                      >
+                        {isOngoing(event, now) && <span className="station-live">U TIJEKU</span>}
+                        <strong>{event.title}</strong>
+                        <span className="station-category">{categoryNames[event.category]}</span>
+                        <span className={`station-duration ${end ? 'has-end' : ''}`}>
+                          {end ? (
+                            <>
+                              <span aria-hidden="true">↳ </span>
+                              {duration ??
+                                `${dateFormat(event.startsAt, { day: 'numeric', month: 'numeric' })} – ${dateFormat(end, { day: 'numeric', month: 'numeric' })}`}
+                            </>
+                          ) : (
+                            'Kraj nije naveden'
                           )}
-                        </>
-                      )}
-                      <span className="station-open">
-                        Detalji <span aria-hidden="true">›</span>
-                      </span>
-                    </button>
+                        </span>
+                        {event.status !== 'scheduled' && (
+                          <span className="station-status">
+                            {event.status === 'cancelled' ? 'Otkazano' : 'Odgođeno'}
+                          </span>
+                        )}
+                        <span className="station-open">
+                          Detalji <span aria-hidden="true">›</span>
+                        </span>
+                      </button>
+                    )}
                   </li>
                 );
               })}

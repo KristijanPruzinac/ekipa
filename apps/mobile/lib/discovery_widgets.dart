@@ -347,8 +347,9 @@ class _TimelineStation extends StatelessWidget {
     final end = knownEnd(event);
     final duration = durationLabel(event);
     final color = themeColor(themeForCategory(event.category));
-    return CustomPaint(
-      painter: _SpinePainter(timeline, index),
+    final dateWidth = 43 * MediaQuery.textScalerOf(context).scale(11) / 11;
+    final station = CustomPaint(
+      painter: _SpinePainter(timeline, index, dateWidth + 11),
       child: Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Row(
@@ -357,7 +358,7 @@ class _TimelineStation extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: SizedBox(
-                width: 43,
+                width: dateWidth,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -399,50 +400,25 @@ class _TimelineStation extends StatelessWidget {
               ),
             ),
             SizedBox(width: 29 + lanes * 7),
-            Expanded(
-              child: Material(
-                color: ending ? Colors.transparent : paper,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(7),
-                  side: ending
-                      ? BorderSide.none
-                      : const BorderSide(color: Color(0xffcfd5c4)),
-                ),
-                child: InkWell(
-                  key: ValueKey(
-                    'timeline-${ending ? 'end' : 'event'}-${event.id}',
+            if (!ending)
+              Expanded(
+                child: Material(
+                  color: paper,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(7),
+                    side: const BorderSide(color: Color(0xffcfd5c4)),
                   ),
-                  borderRadius: BorderRadius.circular(7),
-                  onTap: onTap,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 70),
-                    child: Padding(
-                      padding: const EdgeInsets.all(11),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (ending) ...[
-                            Text(
-                              'ZAVRŠETAK',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.9,
-                                color: color,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              event.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: muted,
-                                height: 1.4,
-                              ),
-                            ),
-                          ] else ...[
+                  child: InkWell(
+                    key: ValueKey('timeline-event-${event.id}'),
+                    borderRadius: BorderRadius.circular(7),
+                    onTap: onTap,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 70),
+                      child: Padding(
+                        padding: const EdgeInsets.all(11),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             if (now != null && isOngoing(event, now!)) ...[
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -502,51 +478,60 @@ class _TimelineStation extends StatelessWidget {
                                 ),
                               ),
                             ],
-                          ],
-                          const SizedBox(height: 5),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Detalji',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
+                            const SizedBox(height: 5),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Detalji',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: color,
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.chevron_right,
+                                    size: 14,
                                     color: color,
                                   ),
-                                ),
-                                Icon(
-                                  Icons.chevron_right,
-                                  size: 14,
-                                  color: color,
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
     );
+    return ending
+        ? Semantics(
+            key: ValueKey('timeline-end-${event.id}'),
+            container: true,
+            label: 'Završetak: ${event.title}.',
+            child: station,
+          )
+        : station;
   }
 }
 
 /// One neutral spine and event-specific ranges. Every bend ends at a real endpoint.
 class _SpinePainter extends CustomPainter {
-  const _SpinePainter(this.timeline, this.index);
+  const _SpinePainter(this.timeline, this.index, this.spine);
   final EventTimelineData timeline;
   final int index;
+  final double spine;
   @override
   void paint(Canvas canvas, Size size) {
-    const x = 54.0, y = 24.0;
+    final x = spine;
+    const y = 24.0;
     canvas.drawLine(
       Offset(x, index == 0 ? y : 0),
       Offset(x, size.height),
@@ -583,7 +568,7 @@ class _SpinePainter extends CustomPainter {
     final moment = timeline.moments[index];
     final color = themeColor(themeForCategory(moment.event.category));
     canvas.drawCircle(
-      const Offset(x, y),
+      Offset(x, y),
       moment.ending ? 4 : 5,
       Paint()
         ..color = moment.ending || moment.event.status != 'scheduled'
@@ -591,7 +576,7 @@ class _SpinePainter extends CustomPainter {
             : color,
     );
     canvas.drawCircle(
-      const Offset(x, y),
+      Offset(x, y),
       moment.ending ? 4 : 5,
       Paint()
         ..color = color
