@@ -39,19 +39,20 @@ npm start
 
 Run `npm run test:review -- --dev` to repeat these checks with React StrictMode, including modal Back/Forward, rapid close/reopen, focus restoration and keyboard navigation.
 
-`npm run collect` performs a collection run from the terminal. Local development uses SQLite; the hosted API and scheduled collector share Neon Postgres through `DATABASE_URL`. The local server collects on startup and every 24 hours while running by default (`WAGZ_FETCH_INTERVAL_MINUTES=1440`). Hosted collection runs through GitHub Actions daily at 05:23 UTC (06:23 in Croatia in winter, 07:23 in summer), with manual refresh available in the admin screen.
+`npm run collect` performs a collection run from the terminal. Local development uses SQLite; the hosted API and scheduled collector share Neon Postgres through `DATABASE_URL`. The local server collects on startup and every 24 hours while running by default (`WAGZ_FETCH_INTERVAL_MINUTES=1440`). Hosted collection runs through GitHub Actions on Tuesday and Friday at 18:00 Europe/Zagreb (branch `claude/post-release-work`; previously daily at 05:23 UTC), with manual refresh available in the admin screen. See [deployment](docs/DEPLOYMENT.md#collection).
 
 ## What v1 does
 
-- Public event cards with pastel category illustrations, a single chronological timeline with colored duration branches, details and source links. Known ends connect back to the spine; unknown ends stay unknown.
+- Public event cards with pastel category illustrations, a single chronological timeline with colored duration branches, details and source links. Known ends connect back to the spine; unknown ends stay unknown. On branch `claude/post-release-work` the timeline is desktop-only: phone-width web (≤760px) and the Flutter home screen show cards without it.
 - All events stay chronological. Single-select activity filters show present categories with counts and apply to cards, ongoing events and the timeline together. Audience labels and controls are hidden; original event descriptions and source data remain intact.
 - A Flutter Android/iOS client uses the same public API. See [mobile setup and Android builds](apps/mobile/README.md).
 - Dates follow `Europe/Zagreb`. Missing times and prices remain unknown.
 - Source-backed imports with a title, valid date and venue can publish automatically. Incomplete imports can publish when their missing facts arrive. An operator's decision to hold or reject an event always survives re-fetching; drafts collected with the toggle off stay held.
 - Repeated collection updates existing source records. Exact cross-source matches share an event; different performances remain separate. Human edits and publication decisions survive refetching.
 - Source failures remain visible. Events never disappear just because an upstream site failed or removed a listing; explicit cancellation data can update their status.
-- Tips are saved immediately and checked with the daily collection, after source imports. Valid upcoming, sourced events become drafts for owner approval; completed spam/no-event/past-event checks archive with a reason and restore action. Provider, source, validation or budget failures remain queued for retry. The admin inbox separates ready drafts from queued submissions and archives; manual source checking remains available.
+- Tips are saved immediately and checked with the next collection run, after source imports. Valid upcoming, sourced events become drafts for owner approval; completed spam/no-event/past-event checks archive with a reason and restore action. Provider, source, validation or budget failures remain queued for retry. The admin inbox separates ready drafts from queued submissions and archives; manual source checking remains available.
 - AI output is untrusted input. Invalid dates or fields are rejected, missing evidence stays unverified, and no AI tip publishes itself.
+- With an OpenRouter key, branch `claude/post-release-work` assigns each collected event's category against written criteria; uncertain results keep the last known AI category or `other`, never a guess. See [AI](docs/AI.md#event-categorisation).
 
 ## Data and hosting
 
