@@ -7,7 +7,7 @@ import { tipDates, upcoming } from '../validation.ts';
 export const EXTRACTION_VERSION = 7;
 // Tip prompts, response envelopes and source evidence are part of the cache contract.
 export const TIP_PREPARATION_VERSION = 7;
-export const CLASSIFICATION_VERSION = 2;
+export const CLASSIFICATION_VERSION = 3;
 export const MAX_CLASSIFICATION_BATCH = 8;
 export const MAX_CLASSIFICATION_TEXT = 16_000;
 /**
@@ -28,7 +28,7 @@ nightlife: DJ, club and party nights where the party itself is the event.
 sport: attendees compete in or watch organised sport, or take part in organised physical recreation.
 community: career fairs/days, general open days, civic, family and neighbourhood gatherings.
 culture: exhibitions, lectures, guided tours and other cultural events not covered above.
-other: the evidence does not clearly establish the primary activity, or none of the above fits. Never guess.
+There is no "other" category: always choose the single category above that best fits the primary activity, even when the evidence is thin.
 When an event combines activities, choose the main announced activity, not a side programme, an after-party, an incidental mention or a performer biography.
 Screening kind applies only to film: routine means affirmative source evidence of an ordinary cinema programme, including at least three independently bookable showtimes on three distinct dates for the same film. Ticket tiers, duplicate rows or one continuous date range are not separate screenings. special means the current screening is outdoor/open-air/courtyard/rooftop, festival, retrospective, premiere, special presentation or a weather-relocated special event. Special evidence overrides repeated dates. A historical festival award in a plot synopsis does not make the current screening a festival. Unknown screening format stays unknown and visible in Featured; never infer routine merely from a venue/domain/city name or absent special wording.
 Do not expand weekly lessons, registration deadlines or recap dates into events. Preserve the original source facts and distinguish primary activity from incidental programme items or performer biographies.`;
@@ -209,9 +209,11 @@ const extractionSchema = {
   required: ['events', 'reason'],
   additionalProperties: false,
 };
+/** The classifier must always choose a real category; `other` is never an allowed answer. */
+export const CLASSIFIABLE_CATEGORIES = categories.filter((item) => item !== 'other');
 const classificationProperties = {
   id: { type: 'string' },
-  category: { type: 'string', enum: [...categories] },
+  category: { type: 'string', enum: [...CLASSIFIABLE_CATEGORIES] },
   reason: { type: 'string' },
   evidence: { type: 'array', items: { type: 'string' }, maxItems: 3 },
   screening: { type: 'string', enum: ['routine', 'special', 'unknown'] },
@@ -816,30 +818,37 @@ export function validateSemanticClassification(
   exactKeys(value, Object.keys(classificationProperties));
   if (
     value.id !== input.id ||
-    !categories.includes(value.category as never) ||
-    !['routine', 'special', 'unknown'].includes(value.screening as string) ||
-    (value.category !== 'film' && value.screening !== 'unknown')
+    !CLASSIFIABLE_CATEGORIES.includes(value.category as never) ||
+    !['routine', 'special', 'unknown'].includes(value.screening as string)
   )
     throw new Error('invalid classification labels');
   const source = [input.title, input.venue ?? '', input.text].map(normalizedEvidence);
-  const quotes = (items: unknown, required: boolean): string[] => {
-    if (!Array.isArray(items) || items.length > 3 || (required && !items.length))
-      throw new Error('missing classification evidence');
-    return items.map((item) => {
-      const quote = string(item, 500);
-      if (quote.length < 4 || !source.some((text) => text.includes(normalizedEvidence(quote))))
-        throw new Error('unsupported classification evidence');
-      return quote;
+  // Quotes are kept only when they occur in the source. A category stands without them; the
+  // screening claim (which can move a film out of Featured) needs at least one supported quote.
+  const supported = (items: unknown): string[] =>
+    (Array.isArray(items) ? items.slice(0, 3) : []).flatMap((item) => {
+      if (typeof item !== 'string' || item.length > 500) return [];
+      const quote = item.trim();
+      return quote.length >= 4 && source.some((text) => text.includes(normalizedEvidence(quote)))
+        ? [quote]
+        : [];
     });
-  };
+  const screeningEvidence = value.category === 'film' ? supported(value.screeningEvidence) : [];
+  const screening =
+    value.category === 'film' && value.screening !== 'unknown' && screeningEvidence.length
+      ? (value.screening as SemanticClassification['screening'])
+      : 'unknown';
   return {
     id: input.id,
     category: value.category as SemanticClassification['category'],
-    reason: string(value.reason, 300),
-    evidence: quotes(value.evidence, value.category !== 'other'),
-    screening: value.screening as SemanticClassification['screening'],
-    screeningReason: string(value.screeningReason, 300, value.screening === 'unknown'),
-    screeningEvidence: quotes(value.screeningEvidence, value.screening !== 'unknown'),
+    reason: typeof value.reason === 'string' ? value.reason.slice(0, 300) : '',
+    evidence: supported(value.evidence),
+    screening,
+    screeningReason:
+      screening === 'unknown' || typeof value.screeningReason !== 'string'
+        ? ''
+        : value.screeningReason.slice(0, 300),
+    screeningEvidence: screening === 'unknown' ? [] : screeningEvidence,
   };
 }
 
@@ -879,16 +888,23 @@ export async function classifyEvents(
     const row = completion.content;
     if (!object(row)) throw new Error();
     exactKeys(row, ['classifications']);
-    if (!Array.isArray(row.classifications) || row.classifications.length !== records.length)
+    if (!Array.isArray(row.classifications) || row.classifications.length > records.length)
       throw new Error();
     const seen = new Set<string>();
-    const classifications = row.classifications.map((value) => {
-      if (!object(value) || typeof value.id !== 'string' || seen.has(value.id)) throw new Error();
+    const classifications: SemanticClassification[] = [];
+    // One unsupported or malformed item must not discard the rest of the batch: it is dropped
+    // (its event stays `other`, uncached) while every validated item is kept.
+    for (const value of row.classifications) {
+      if (!object(value) || typeof value.id !== 'string' || seen.has(value.id)) continue;
       seen.add(value.id);
       const input = records.find((record) => record.id === value.id);
-      if (!input) throw new Error();
-      return validateSemanticClassification(value, input);
-    });
+      if (!input) continue;
+      try {
+        classifications.push(validateSemanticClassification(value, input));
+      } catch {
+        /* Unsupported evidence for this record only. */
+      }
+    }
     return {
       classifications,
       complete: true,

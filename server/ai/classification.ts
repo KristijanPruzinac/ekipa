@@ -99,7 +99,8 @@ export async function classifyCandidates(
       event.discovery ?? inferDiscovery(event.title, '', event.sourceUrl, event.price);
     const next: EventCandidate = {
       ...event,
-      category: result?.category ?? 'other',
+      // Never `other`: without a verdict keep the source's own category, else the broadest one.
+      category: result?.category ?? (event.category !== 'other' ? event.category : 'culture'),
       discovery: {
         ...discovery,
         ...(result && result.category === 'film' && result.screening !== 'unknown'
