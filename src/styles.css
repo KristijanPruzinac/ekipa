@@ -691,11 +691,6 @@ summary:focus-visible {
   border-color: #d6cba8;
   box-shadow: inset 0 3px 0 #c8b882;
 }
-.event-card.card-personal {
-  background: #ebf0e3;
-  border-color: #bdcbb0;
-  box-shadow: inset 0 3px 0 #9aac82;
-}
 .event-card.card-inactive {
   background: #f0efea;
   border-color: #d8d9cd;
@@ -767,18 +762,6 @@ summary:focus-visible {
   font-size: 14.5px;
   font-weight: 600;
   line-height: 1.4;
-}
-.card-reason-personal {
-  border-color: #b8c8a9;
-  background: #f6f9efcc;
-  color: #405335;
-}
-.card-personal-reason {
-  margin-top: 11px;
-  color: #4f5b44;
-  font-size: 14.5px;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
 }
 .status-label {
   display: inline-block;
@@ -1034,12 +1017,36 @@ summary:focus-visible {
   background: #151a14a8;
   backdrop-filter: blur(4px);
 }
+.skip-to-events {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.skip-to-events:focus {
+  position: relative;
+  display: block;
+  width: fit-content;
+  height: auto;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: var(--ink);
+  color: var(--paper);
+  clip-path: none;
+  white-space: normal;
+}
+#upcoming-events:focus {
+  outline: 3px solid #536500;
+  outline-offset: 4px;
+}
 .modal-content {
   position: relative;
   padding: 40px;
 }
 .modal .eyebrow {
-  padding-right: 30px;
+  padding-right: 52px;
   margin-bottom: 15px;
   font-size: 14.5px;
 }
@@ -1053,14 +1060,24 @@ summary:focus-visible {
   overflow-wrap: anywhere;
   margin-bottom: 22px;
 }
+.modal-close-rail {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 0;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
 .close-button {
-  position: absolute;
-  right: 14px;
-  top: 14px;
-  width: 33px;
-  height: 33px;
+  position: relative;
+  flex-shrink: 0;
+  margin: 14px 14px 0 0;
+  width: 44px;
+  height: 44px;
   border: 1px solid #c0c6b2;
-  background: transparent;
+  background: var(--paper);
+  pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1164,6 +1181,21 @@ summary:focus-visible {
 .detail-sources {
   margin-top: 28px;
 }
+.detail-ongoing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.detail-ongoing strong {
+  background: #e1ecc8;
+  color: #425124;
+  border-radius: 3px;
+  padding: 4px 8px;
+}
 .detail-sources > .eyebrow {
   margin-bottom: 10px;
 }
@@ -1172,14 +1204,28 @@ summary:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  border: 1px solid var(--line);
+  border: 1px solid #aab581;
+  background: #eef2d4;
+  border-radius: 4px;
+  min-height: 52px;
   padding: 14px 16px;
   margin-top: 7px;
   font-size: 14.5px;
   font-weight: 650;
 }
 .source-link:hover {
-  background: var(--lime);
+  background: #e3eab8;
+  border-color: #728400;
+}
+.source-link:active {
+  background: #d8e294;
+}
+.source-link > svg {
+  flex-shrink: 0;
+}
+.source-link > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .source-link small {
   display: block;
@@ -2352,10 +2398,7 @@ summary:focus-visible {
     margin-bottom: 14px;
   }
   .close-button {
-    right: 10px;
-    top: 10px;
-    width: 28px;
-    height: 28px;
+    margin: 10px 10px 0 0;
     font-size: 23px;
   }
   .event-facts dd {
@@ -3003,7 +3046,7 @@ summary:focus-visible {
     text-align: left;
   }
   .modal-content > .eyebrow {
-    padding-right: 30px;
+    padding-right: 52px;
   }
   .empty-state {
     padding-inline: 21px;

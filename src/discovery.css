@@ -1,47 +1,3 @@
-.audience-picker {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 22px 0;
-  margin-bottom: 28px;
-  border-block: 1px solid var(--line);
-}
-.audience-heading {
-  display: grid;
-  gap: 5px;
-}
-.audience-heading > span:last-child {
-  font-size: 14px;
-  color: var(--muted);
-  line-height: 1.5;
-}
-.audience-segments {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  min-width: 420px;
-}
-.audience-segments button {
-  min-height: 52px;
-  padding: 12px 15px;
-  border: 1px solid #bfc3b2;
-  border-radius: 5px;
-  background: #faf9f4;
-  font-weight: 700;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-}
-.audience-segments button:hover {
-  border-color: var(--ink);
-  background: #e9ebdf;
-}
-.audience-segments button[aria-pressed='true'] {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--lime);
-}
 .discovery-layout {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
@@ -192,6 +148,39 @@
 .event-card-button:focus-visible {
   outline-offset: -5px;
 }
+.event-card .card-reason {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 700;
+}
+.event-card .card-reason + .card-reason::before {
+  content: '·';
+  padding-right: 8px;
+}
+.event-card .card-open {
+  display: inline-flex;
+  width: auto;
+  min-height: 36px;
+  height: auto;
+  padding: 7px 10px;
+  gap: 7px;
+  border: 1px solid #b9c3ad;
+  background: #e8eedf;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+.event-card .card-open svg {
+  width: 16px;
+  height: 16px;
+}
+.event-card-button:hover .card-open,
+.event-card-button:focus-visible .card-open {
+  background: var(--lime);
+  border-color: var(--ink);
+}
 .card-visual {
   width: calc(100% + 44px);
   margin: 0 -22px 18px;
@@ -219,13 +208,9 @@
   font-size: clamp(23px, 2vw, 28px);
   line-height: 1.15;
 }
-.event-card.card-prominent,
-.event-card.card-personal {
+.event-card.card-prominent {
   background: #faf9f4;
   box-shadow: none;
-}
-.event-card.card-personal {
-  border: 2px solid #697e45;
 }
 .event-card.card-inactive .card-visual {
   filter: grayscale(1);
@@ -442,10 +427,40 @@
   border-style: dashed;
 }
 .timeline-scale-note {
-  margin: 4px 0 8px;
+  margin: 7px 0 14px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.5;
+}
+.timeline-symbols {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.timeline-symbols span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.timeline-symbols i {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--ink);
+}
+.timeline-symbols i.symbol-end {
+  background: transparent;
+}
+.station-open {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 4px;
+  color: var(--theme-ink);
+  font-size: 10px;
+  font-weight: 600;
 }
 .station-status {
   font-size: 11px;
@@ -486,8 +501,25 @@
   font-weight: 700;
   text-align: left;
 }
-.timeline-mobile-toggle span {
+.timeline-mobile-toggle > span:last-child {
   font-size: 20px;
+}
+.timeline-toggle-copy {
+  display: grid;
+  gap: 3px;
+}
+.timeline-toggle-copy small {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  line-height: 1.4;
+}
+.event-timeline.timeline-collapsed {
+  padding: 6px 16px;
+}
+.timeline-collapsed .timeline-mobile-toggle {
+  margin: 0;
+  padding: 7px 0;
 }
 .timeline-collapsed .timeline-heading h3 {
   font-size: 20px;
@@ -509,18 +541,6 @@
   }
 }
 @media (max-width: 760px) {
-  .audience-picker {
-    display: block;
-    margin-bottom: 22px;
-  }
-  .audience-segments {
-    min-width: 0;
-    margin-top: 15px;
-  }
-  .audience-segments button {
-    padding: 12px 4px;
-    font-size: 13px;
-  }
   .discovery-layout {
     grid-template-columns: 1fr;
     gap: 25px;
@@ -540,4 +560,16 @@
   .event-card .card-title-area h3 {
     font-size: 26px;
   }
+}
+
+/* Informational source audience label; never a control or a personal recommendation. */
+.card-audience {
+  display: inline-block;
+  margin: 10px 0 0;
+  padding: 3px 6px;
+  background: #e8eddf;
+  color: #4c6037;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
 }

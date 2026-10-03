@@ -1,4 +1,4 @@
-﻿# WagZ mobile
+# WagZ mobile
 
 Native Flutter client for the same WagZ public API as the web app. Android and iOS project scaffolds are included. There is no separate mobile database or admin login.
 
@@ -10,7 +10,7 @@ The workflow uses Flutter **3.44.7 / Dart 3.12.2** and Java 17, installs the loc
 
 Pushes and pull requests affecting mobile code run analysis and tests only. APK builds require a manual run with the deployed API address. The workflow does not run an emulator. This keeps Gradle, the Android SDK, and emulator RAM/disk use off the development computer; prefer this path on a machine that has run out of memory or disk during a native build. The API must be reachable from the phone when the app runs.
 
-This APK is for device testing and uses a development signing key. Store signing and distribution remain separate work. A later build may have a different development key and require uninstalling the older debug app first, which removes its saved on-device preferences.
+This APK is for device testing and uses a development signing key. Store signing and distribution remain separate work. A later build may have a different development key and require uninstalling the older debug app first, which clears its local app data.
 
 ## Run
 
@@ -36,9 +36,9 @@ Never supply the admin key, OpenRouter key, or any other secret in a Dart define
 - `GET /api/events` powers illustrated event cards, the chronological timeline, details, refresh, cancellation notices, and source links. Unknown times and prices stay unknown.
 - `POST /api/tips` sends only a note, optional URL and an empty honeypot field. A success message appears after the server acknowledges the save. Failed submissions retain the entered text and never retry automatically.
 - Dates and times use `Europe/Zagreb`, including daylight-saving transitions, independent of the device timezone. The full IANA database is bundled because the smaller timezone package database omits the Zagreb alias.
-- The only discovery control is **Svi · Studenti · Odrasli · Stariji**, saved only on this device. Svi is chronological. Source audience evidence leads, then transparent recommendations based on published category, named program format and explicit free entry. Every event remains visible. Cancelled/postponed events receive no boost; legacy category interests are ignored. Score ties are chronological, then preserve feed order. Weights, explanations and the highlight threshold match `shared/discovery.ts`; suggestions are distinct from source audience evidence and make no eligibility/accessibility claim.
-- Pastel illustrations distinguish categories without adding controls. The timeline starts collapsed behind “Otvori vremensku crtu” so upcoming cards appear sooner. Opening it previews three events on one chronological spine; users can close the chart or expand all events. Category-colored branches connect real start/end markers, with separate overlap lanes only as needed. Exact timestamp ranges show duration; date-only ends show a calendar range without invented hours, and unknown ends stay unknown. Spacing serves readability, not elapsed-time scale. Ongoing state uses API feed time. Timeline entries and cards open the same details.
-- Ongoing events use a compact two-row section with an explicit total and expansion; the main cards show upcoming plans. Both groups keep the selected ranking. Cards show supported duration or known end, and unknown ends remain unknown. Refresh runs every 60 seconds only while resumed, avoids overlap, refreshes on return and retains the last feed if a request fails.
+- Discovery is always chronological, with every event retained. There is no audience selector or personal scoring; legacy preferences are ignored. Small flat audience labels may show Studenti, Odrasli and/or Stariji only when explicit nonblank audience evidence references a safe URL in that event’s sources. Category, price and bare audience arrays cannot create labels. Details show the source wording as “Publika navedena u najavi”, without claiming exclusive eligibility.
+- Pastel illustrations distinguish categories without adding controls. The timeline starts collapsed into a compact row behind “Otvori vremensku crtu” so upcoming cards appear sooner. Opening it previews three events on one chronological spine; users can close the chart or expand all events. Category-colored branches connect real start/end markers, with separate overlap lanes only as needed. Exact timestamp ranges show duration; date-only ends show a calendar range without invented hours, and unknown ends stay unknown. Spacing serves readability, not elapsed-time scale. Ongoing state uses API feed time. Timeline entries and cards open the same details.
+- Ongoing events use a compact two-row section with an explicit total and expansion; the main cards show upcoming plans. Both groups stay chronological. Cards show supported duration or known end, and unknown ends remain unknown. Refresh runs every 60 seconds only while resumed, avoids overlap, refreshes on return and retains the last feed if a request fails.
 - Metadata in `event.discovery` is optional for compatibility with older public feeds. No ages, genres or popularity are inferred on the phone.
 
 The interface, bundled DM Sans / Space Grotesk fonts, and cream/ink/lime colors match WagZ. Font licenses live in `assets/fonts/`. The geometric launcher mark is in `assets/icon.svg`; `tool/generate-icons.ps1` regenerates native PNG sizes on Windows.
@@ -54,7 +54,7 @@ flutter test
 
 For an optional local Android build, use `flutter build apk --debug --dart-define=WAGZ_API_BASE_URL=http://10.0.2.2:3000`. The debug APK is written to `build/app/outputs/flutter-apk/app-debug.apk`. The generated release signing configuration is also for local development only.
 
-Tests cover HTTP contracts and errors, Zagreb midnight/DST boundaries, safe source links, source evidence versus recommendations, retained unmatched events, ignored legacy interests, local preferences, 320px large-text layouts, chronological range endpoints/overlap/ongoing durations, event details and successful/failed tips.
+Tests cover HTTP contracts and errors, Zagreb midnight/DST boundaries, safe source links, source-backed audience labels, retained events, ignored legacy preferences, 320px large-text layouts, chronological range endpoints/overlap/ongoing durations, event details and successful/failed tips.
 
 An optional native smoke test starts its own loopback HTTP fixture server inside the test process. It exercises real sockets without touching your WagZ database or submitting a live tip:
 

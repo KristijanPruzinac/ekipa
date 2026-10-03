@@ -33,6 +33,7 @@ npm run build
 npm run test:browser
 npm run test:discovery
 npm run test:review
+npm run test:review -- --dev
 vercel deploy --prod --yes
 ```
 

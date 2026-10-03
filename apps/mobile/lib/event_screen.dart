@@ -2,23 +2,19 @@ import 'package:flutter/material.dart';
 import 'design.dart';
 import 'discovery.dart';
 import 'models.dart';
-import 'preferences.dart';
 
 class EventScreen extends StatelessWidget {
-  const EventScreen({super.key, required this.event, required this.profile});
+  const EventScreen({super.key, required this.event, this.now});
   final WagzEvent event;
-  final DiscoveryProfile profile;
+  final String? now;
 
   @override
   Widget build(BuildContext context) {
-    final match = recommendation(event, profile);
     final sources = event.sources.where(
       (source) => safeLink(source.url) != null,
     );
     final evidence = [
-      ...event.discovery.audienceEvidence.where(
-        (evidence) => evidence.audience == profile.audience,
-      ),
+      ...sourceAudienceEvidence(event),
       if (event.discovery.prominenceEvidence != null)
         event.discovery.prominenceEvidence!,
     ];
@@ -54,11 +50,37 @@ class EventScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
               ],
-              if (match.reasons.isNotEmpty) ...[
-                Notice(
-                  '${match.kind == 'source' ? 'Publika iz najave' : 'Prijedlog za tebe'}\n${match.reasons.join('\n')}\n\nPrijedlog prema odabiru „${audienceNames[profile.audience]}” i podacima iz najave. Nije dobno ograničenje ni potvrda pristupačnosti.',
+              if (now != null && isOngoing(event, now!)) ...[
+                Wrap(
+                  key: const ValueKey('detail-ongoing'),
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xffe1ecc8),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: const Text(
+                        'U tijeku',
+                        style: TextStyle(
+                          color: Color(0xff425124),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${eventDurationText(event, now)}${event.endsAt!.length == 10 ? ' · završni sat nije naveden' : ''}',
+                      style: const TextStyle(fontSize: 14, height: 1.5),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
               ],
               _fact(
                 'KADA',
@@ -88,8 +110,8 @@ class EventScreen extends StatelessWidget {
               ...sources.map(
                 (source) => _source(
                   context,
-                  source.name,
                   'Otvori izvornu najavu',
+                  source.name,
                   source.url,
                 ),
               ),
@@ -98,7 +120,9 @@ class EventScreen extends StatelessWidget {
               ))
                 _source(
                   context,
-                  'Zašto je istaknuto?',
+                  item.audience == null
+                      ? 'Zašto je istaknuto?'
+                      : 'Publika navedena u najavi: ${audienceNames[item.audience]}',
                   item.reason,
                   item.sourceUrl,
                 ),
@@ -136,13 +160,22 @@ class EventScreen extends StatelessWidget {
     String url,
   ) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      shape: const RoundedRectangleBorder(side: BorderSide(color: line)),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.north_east),
-      onTap: () => openSource(context, url),
+    child: Material(
+      color: const Color(0xffeef2d4),
+      borderRadius: BorderRadius.circular(4),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(
+          side: const BorderSide(color: Color(0xffaab581)),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        focusColor: const Color(0xffd8e294),
+        hoverColor: const Color(0xffe3eab8),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.north_east),
+        onTap: () => openSource(context, url),
+      ),
     ),
   );
 }

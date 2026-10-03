@@ -1,4 +1,10 @@
-import { eventDurationText, isOngoing, rankForAudience, timelineFor } from '../shared/discovery.ts';
+import {
+  eventDurationText,
+  isOngoing,
+  rankForAudience,
+  sourceAudienceLabels,
+  timelineFor,
+} from '../shared/discovery.ts';
 import { chromium, expect } from '@playwright/test';
 import { createServer } from 'vite';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -15,7 +21,14 @@ const audienceDiscovery = (audience, reason) => ({
   audiences: [audience],
   audienceEvidence: [{ audience, reason, sourceUrl }],
 });
-const studentDiscovery = audienceDiscovery('students', 'Program je namijenjen studentima.');
+const studentDiscovery = {
+  ...audienceDiscovery('students', 'Program je namijenjen studentima.'),
+  audiences: ['students', 'seniors'],
+  audienceEvidence: [
+    ...audienceDiscovery('students', 'Program je namijenjen studentima.').audienceEvidence,
+    ...audienceDiscovery('seniors', 'Najava poziva i starije osobe.').audienceEvidence,
+  ],
+};
 const prominence = {
   kind: 'festival',
   label: 'Festival',
@@ -49,8 +62,7 @@ const fixture = (id, title, startsAt, category, discovery = blankDiscovery, extr
   ],
   ...extra,
 });
-// A sparse feed: each audience has just one confirmed match, across different categories.
-// Selecting an audience must retain all 23 cards, including unknown-audience and cancelled events.
+// Source audience tags never alter chronology or hide unknown-audience/cancelled events.
 const events = [
   fixture('first', 'Izložba bez dobne oznake', '2026-10-03T08:00:00Z', 'culture'),
   fixture(
@@ -128,12 +140,6 @@ let currentFeed = live
   ? await (await fetch('https://wagz.vercel.app/api/events')).json()
   : fixtureFeed;
 const baseFeed = currentFeed;
-const options = [
-  ['all', 'Svi'],
-  ['students', 'Studenti'],
-  ['adults', 'Odrasli'],
-  ['seniors', 'Stariji'],
-];
 const server = await createServer({ envDir: false, server: { host: '127.0.0.1', port: 0 } });
 let browser;
 const failures = [];
@@ -177,8 +183,8 @@ try {
   const stations = timeline.locator('.station-start');
   const button = (name) => page.getByRole('button', { name, exact: true });
   const chronological = () => rankForAudience(currentFeed.events).map((row) => row.event);
-  async function expectCards(audience) {
-    const ranked = rankForAudience(currentFeed.events, audience);
+  async function expectCards() {
+    const ranked = rankForAudience(currentFeed.events);
     const ongoing = ranked.filter((row) => isOngoing(row.event, currentFeed.meta.now));
     const upcoming = ranked.filter((row) => !isOngoing(row.event, currentFeed.meta.now));
     await expect(cards).toHaveCount(upcoming.length);
@@ -186,8 +192,12 @@ try {
     await expect(page.locator('.card-duration')).toHaveText(
       upcoming.map((row) => eventDurationText(row.event)),
     );
-    await expect(page.locator('.card-personal')).toHaveCount(
-      upcoming.filter((row) => row.recommendation.personal).length,
+    await expect(page.locator('.card-personal')).toHaveCount(0);
+    await expect(page.locator('.card-audience')).toHaveText(
+      upcoming.flatMap(({ event }) => {
+        const labels = sourceAudienceLabels(event);
+        return labels.length ? [labels.join(' · ')] : [];
+      }),
     );
     await expect(page.locator('.ongoing-event strong')).toHaveText(
       ongoing.slice(0, 2).map((row) => row.event.title),
@@ -211,6 +221,14 @@ try {
     await expect(timeline.locator('.station-ending')).toHaveCount(
       timelineFor(visible).ranges.length,
     );
+    await expect(timeline.locator('.timeline-symbols')).toContainText('Početak');
+    await expect(timeline.locator('.timeline-symbols')).toContainText('Kraj');
+    expect((await timeline.locator('.timeline-scale-note').boundingBox()).y).toBeLessThan(
+      (await timeline.locator('.timeline-track').boundingBox()).y,
+    );
+    await expect(timeline.locator('.station-open')).toHaveCount(
+      timelineFor(visible).moments.length,
+    );
   }
   async function noOverflow(width) {
     await page.setViewportSize({ width, height: width > 760 ? 1100 : 844 });
@@ -226,6 +244,21 @@ try {
   }
   await expectCards('all');
   await expectTimeline(6);
+  const ongoingDetail = chronological().find((event) => isOngoing(event, currentFeed.meta.now));
+  if (ongoingDetail) {
+    await button(`U tijeku: ${ongoingDetail.title}`).click();
+    await expect(page.locator('.detail-ongoing strong')).toHaveText('U tijeku');
+    await expect(page.locator('.detail-ongoing')).toContainText(
+      eventDurationText(ongoingDetail, currentFeed.meta.now),
+    );
+    if (ongoingDetail.endsAt.length === 10) {
+      await expect(page.locator('.detail-ongoing')).toContainText('završni sat nije naveden');
+    }
+    await page.keyboard.press('Escape');
+  }
+  await cards.first().getByRole('button').click();
+  await expect(page.locator('.detail-ongoing')).toHaveCount(0);
+  await page.keyboard.press('Escape');
   // Both ends of one branch must open the same detail and restore keyboard focus.
   const rangeEvent = chronological()
     .slice(0, 6)
@@ -242,34 +275,18 @@ try {
       await expect(station).toBeFocused();
     }
   }
-  await expect(page.locator('.audience-segments button')).toHaveText(
-    options.map((entry) => entry[1]),
-  );
+  await expect(page.locator('.audience-picker')).toHaveCount(0);
   await expect(page.getByRole('textbox')).toHaveCount(0);
   await expect(page.getByRole('combobox')).toHaveCount(0);
-  const orderings = [];
-  for (const [audience, label] of options) {
-    await button(label).click();
-    await expect(button(label)).toHaveAttribute('aria-pressed', 'true');
-    await expectCards(audience);
-    await expectTimeline(6);
-    orderings.push((await titles.allTextContents()).join('|'));
-    if (audience !== 'all') {
-      const ranked = rankForAudience(currentFeed.events, audience);
-      console.log(
-        `${label}: ${ranked.filter((row) => row.recommendation.personal).length}/${ranked.length} highlighted; first3: ${ranked
-          .slice(0, 3)
-          .map((row) => row.event.title)
-          .join(' / ')}`,
-      );
-      await cards.first().getByRole('button').click();
-      await expect(page.getByRole('dialog')).toContainText('Zašto je među preporukama?');
-      await expect(page.getByRole('dialog')).toContainText('Nije dobno ograničenje');
-      await page.keyboard.press('Escape');
-    }
+  const tagged = chronological().find(
+    (event) => !isOngoing(event, currentFeed.meta.now) && sourceAudienceLabels(event).length,
+  );
+  if (tagged) {
+    await button(`Detalji: ${tagged.title}`).click();
+    await expect(page.getByRole('dialog')).toContainText('Publika navedena u najavi');
+    await expect(page.getByRole('dialog')).not.toContainText('Prijedlog za tebe');
+    await page.keyboard.press('Escape');
   }
-  expect(new Set(orderings).size, 'every audience provides a different useful ordering').toBe(4);
-  await button('Svi').click();
   if (!live) {
     await expect(timeline).toContainText('U TIJEKU');
     await expect(timeline.locator('.station-duration')).toContainText([
@@ -287,12 +304,7 @@ try {
     else {
       await expect(button('Otvori vremensku crtu')).toHaveAttribute('aria-expanded', 'false');
       await expect(stations).toHaveCount(0);
-      expect((await timeline.boundingBox()).height).toBeLessThan(220);
-    }
-    for (const [, label] of options) {
-      const bounds = await button(label).boundingBox();
-      expect(bounds.height).toBeGreaterThanOrEqual(48);
-      expect(bounds.width).toBeGreaterThanOrEqual(44);
+      expect((await timeline.boundingBox()).height).toBeLessThanOrEqual(80);
     }
     await page.screenshot({
       path: resolve(directory, `${live ? 'live' : 'fixture'}-${width}.png`),
@@ -316,46 +328,53 @@ try {
         await expect(endButton).toBeFocused();
       }
     }
+    if (tagged) {
+      const card = cards.filter({
+        has: page.getByRole('heading', { name: tagged.title, exact: true }),
+      });
+      await card.screenshot({ path: resolve(directory, `audience-card-${width}.png`) });
+      await button(`Detalji: ${tagged.title}`).click();
+      await page
+        .getByRole('dialog')
+        .screenshot({ path: resolve(directory, `audience-detail-${width}.png`) });
+      await page.keyboard.press('Escape');
+    }
     await timeline.screenshot({
       path: resolve(directory, `${live ? 'live' : 'fixture'}-timeline-${width}.png`),
     });
-    await button('Stariji').focus();
-    await page.keyboard.press('Enter');
-    await expectCards('seniors');
+    await expectCards();
     await button('Cijela vremenska crta').focus();
     await page.keyboard.press('Enter');
     await expectTimeline(currentFeed.events.length);
     await noOverflow(width);
     await button('Prikaži manje').click();
-    await button('Svi').click();
     if (width <= 760) {
       await button('Zatvori vremensku crtu').click();
       await expect(stations).toHaveCount(0);
       await expect(button('Otvori vremensku crtu')).toHaveAttribute('aria-expanded', 'false');
     }
   }
-  // Saved preferences recover safely; old category interests never alter Svi.
-  for (const [saved, audience] of [
-    ['{broken', 'all'],
-    [JSON.stringify({ audience: 'students', interests: ['nightlife'] }), 'students'],
-    [JSON.stringify({ audience: 'unknown', interests: ['music'] }), 'all'],
+  // Saved legacy preferences, including malformed data, never change the feed or add controls.
+  for (const saved of [
+    '{broken',
+    JSON.stringify({ audience: 'students', interests: ['nightlife'] }),
+    JSON.stringify({ audience: 'unknown', interests: ['music'] }),
   ]) {
     await page.evaluate(({ key, saved }) => localStorage.setItem(key, saved), {
       key: storageKey,
       saved,
     });
     await page.reload();
-    await expectCards(audience);
+    await expectCards();
   }
-  // A sparse unclassified feed still renders every event and explains no recommendations.
+  // A sparse unclassified feed stays visible without fabricated audience labels.
   currentFeed = {
     ...baseFeed,
     events: [fixture('unknown', 'Bez klasifikacije', '2026-10-04', 'other')],
   };
   await page.reload();
-  await button('Studenti').click();
   await expectCards('students');
-  await expect(page.locator('.discovery-feedback')).toBeVisible();
+  await expect(page.locator('.card-audience')).toHaveCount(0);
   await expect(button('Cijela vremenska crta')).toHaveCount(0);
   await button('Otvori vremensku crtu').click();
   await expectTimeline(1);
@@ -385,7 +404,6 @@ try {
   };
   await page.clock.install();
   await page.reload();
-  await button('Svi').click();
   await expectCards('all');
   await expect(titles).toHaveText(['Kratki program']);
   await expect(page.locator('.ongoing-event')).toHaveCount(2);
@@ -395,9 +413,18 @@ try {
   await expect(page.getByRole('dialog')).toContainText('Višednevni program 3');
   await page.keyboard.press('Escape');
   await button('Sažmi događaje u tijeku').click();
-  currentFeed = { ...currentFeed, meta: { ...currentFeed.meta, now: '2026-10-03T12:01:30Z' } };
+  await button('Detalji: Kratki program').click();
+  currentFeed = {
+    ...currentFeed,
+    events: currentFeed.events.map((event) =>
+      event.id === 'timed' ? { ...event, venue: 'Novo mjesto' } : event,
+    ),
+    meta: { ...currentFeed.meta, now: '2026-10-03T12:01:30Z' },
+  };
   await page.clock.fastForward(60001);
   await expect(cards).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toContainText('Novo mjesto');
+  await expect(page.locator('.detail-ongoing')).toContainText('Danas do 14:02');
   await expect(button('Prikaži sve u tijeku (4)')).toBeVisible();
   failFeed = true;
   await page.clock.fastForward(60001);
@@ -410,6 +437,7 @@ try {
   };
   await page.clock.fastForward(60001);
   await expect(button('Prikaži sve u tijeku (3)')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   const beforeHidden = feedRequests;
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
@@ -424,7 +452,7 @@ try {
   await expect.poll(() => feedRequests).toBe(beforeHidden + 1);
   expect(failures).toEqual([]);
   console.log(
-    `Discovery passed (${live ? 'live data' : 'fixtures'}): retention, distinct presets, source reasons, exact/date-only/unknown spans, shared spine, keyboard, preferences, 320/390/1440px. Screenshots: ${directory}`,
+    `Discovery passed (${live ? 'live data' : 'fixtures'}): chronology, source-only audience tags, source reasons, exact/date-only/unknown spans, shared spine, keyboard, ignored legacy preferences, refreshed details, 320/390/1440px. Screenshots: ${directory}`,
   );
 } finally {
   await browser?.close();

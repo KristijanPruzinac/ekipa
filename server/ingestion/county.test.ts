@@ -190,7 +190,7 @@ test('county changed structure fails visibly; an explicit empty list is accepted
   );
 });
 
-test('county source fetches discovered details through Jina and reuses its cache', async () => {
+test('county source reparses audience evidence from cached HTML on each routine fetch', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'wagz-county-test-'));
   const calls: string[] = [];
   const mockFetch = (async (input: string | URL | Request) => {
@@ -199,16 +199,34 @@ test('county source fetches discovered details through Jina and reuses its cache
     if (request === `https://r.jina.ai/${COUNTY_URL}`)
       return new Response(`<html><body><div id="event-listing-view">${row()}</div></body></html>`);
     assert.equal(request, `https://r.jina.ai/${url}`);
-    return new Response(detail());
+    return new Response(
+      detail().replace(
+        'Festival u Osijeku.',
+        'Popust za studente nije dostupan. Program za umirovljenike.',
+      ),
+    );
   }) as typeof fetch;
   try {
     const options = { now, cacheDir: directory, fetch: mockFetch };
     const first = await fetchSource('tz-obz', options);
     assert.equal(first.events.length, 1);
     assert.equal(first.events[0].title, entry.title);
+    assert.deepEqual(first.events[0].discovery?.audiences, ['seniors']);
     assert.equal(first.pagesFetched, 2);
+    // Reader caches only HTML. A parsed result is never reused on a later fetch.
+    first.events[0].discovery!.audiences.push('students');
+    first.events[0].discovery!.audienceEvidence.push({
+      audience: 'students',
+      reason: 'Legacy cue',
+      sourceUrl: url,
+    });
     const second = await fetchSource('tz-obz', options);
     assert.equal(second.events.length, 1);
+    assert.deepEqual(second.events[0].discovery?.audiences, ['seniors']);
+    assert.deepEqual(
+      second.events[0].discovery?.audienceEvidence.map((item) => item.audience),
+      ['seniors'],
+    );
     assert.equal(second.pagesFetched, 0);
     assert.equal(calls.length, 2);
   } finally {

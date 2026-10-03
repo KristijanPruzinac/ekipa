@@ -1,5 +1,4 @@
 import 'models.dart';
-import 'preferences.dart';
 
 enum DiscoveryTheme { goOut, culture, joinIn }
 
@@ -17,47 +16,44 @@ DiscoveryTheme? themeForCategory(String category) => switch (category) {
 };
 
 class RankedEvent {
-  const RankedEvent({
-    required this.event,
-    required this.index,
-    required this.audienceMatch,
-    required this.recommendation,
-  });
+  const RankedEvent({required this.event, required this.index});
   final WagzEvent event;
   final int index;
-  final bool audienceMatch;
-  final Recommendation recommendation;
 }
 
-/// Source audience evidence wins, followed by transparent factual recommendations.
-/// All events stay available. Svi and the timeline remain chronological.
+/// Every event stays chronological. Legacy audience arguments are ignored.
 List<RankedEvent> rankForAudience(
   List<WagzEvent> events, {
   String audience = 'all',
+  String? now,
 }) {
-  final ranked = events.indexed.map((entry) {
-    final (index, event) = entry;
-    return RankedEvent(
-      event: event,
-      index: index,
-      recommendation: recommendation(
-        event,
-        DiscoveryProfile(audience: audience),
-      ),
-      audienceMatch: recommendation(
-        event,
-        DiscoveryProfile(audience: audience),
-      ).personal,
-    );
-  }).toList();
+  final ranked = events.indexed
+      .map((entry) => RankedEvent(event: entry.$2, index: entry.$1))
+      .toList();
   ranked.sort((a, b) {
-    final score = b.recommendation.score.compareTo(a.recommendation.score);
-    if (score != 0) return score;
     final date = _compareDates(a.event.startsAt, b.event.startsAt);
     return date != 0 ? date : a.index.compareTo(b.index);
   });
   return ranked;
 }
+
+/// Audience mentions require a safe, matching source and a nonblank reason.
+List<DiscoveryReason> sourceAudienceEvidence(WagzEvent event) => [
+  for (final audience in ['students', 'adults', 'seniors'])
+    ...event.discovery.audienceEvidence
+        .where(
+          (item) =>
+              item.audience == audience &&
+              item.reason.trim().isNotEmpty &&
+              safeLink(item.sourceUrl) != null &&
+              event.sources.any((source) => source.url == item.sourceUrl),
+        )
+        .take(1),
+];
+
+List<String> sourceAudienceLabels(WagzEvent event) => sourceAudienceEvidence(
+  event,
+).map((item) => audienceNames[item.audience]!).toList();
 
 int _compareDates(String a, String b) {
   final day = dayOnly(a).compareTo(dayOnly(b));
@@ -65,10 +61,6 @@ int _compareDates(String a, String b) {
   if ((a.length == 10) != (b.length == 10)) return a.length == 10 ? -1 : 1;
   return zagrebDate(a).compareTo(zagrebDate(b));
 }
-
-/// Keep old saved profiles readable while using only the chosen audience.
-DiscoveryProfile audienceProfile(DiscoveryProfile profile) =>
-    DiscoveryProfile(audience: profile.audience);
 
 String? knownEnd(WagzEvent event) {
   final end = event.endsAt;

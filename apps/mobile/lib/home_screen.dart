@@ -1,19 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'design.dart';
 import 'discovery.dart';
 import 'discovery_widgets.dart';
 import 'event_screen.dart';
 import 'models.dart';
-import 'preferences.dart';
 import 'tip_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.api, required this.preferences});
+  const HomeScreen({super.key, required this.api});
   final WagzApi api;
-  final SharedPreferences preferences;
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -24,11 +21,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool loading = false;
   bool refreshing = false;
   Timer? refreshTimer;
-  late DiscoveryProfile savedProfile = DiscoveryProfile.load(
-    widget.preferences,
-  );
-  DiscoveryProfile get profile => audienceProfile(savedProfile);
-
+  final detailFeed = ValueNotifier<PublicFeed?>(null);
+  Route<void>? eventRoute;
+  String? openedEventId;
   @override
   void initState() {
     super.initState();
@@ -41,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     refreshTimer?.cancel();
+    detailFeed.dispose();
     super.dispose();
   }
 
@@ -73,7 +69,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
     try {
       final result = await widget.api.events();
-      if (mounted) setState(() => feed = result);
+      if (mounted) {
+        setState(() => feed = result);
+        detailFeed.value = result;
+        if (eventRoute != null &&
+            !result.events.any((event) => event.id == openedEventId)) {
+          Navigator.of(context).removeRoute(eventRoute!);
+          eventRoute = null;
+          openedEventId = null;
+        }
+      }
     } catch (err) {
       if (mounted) setState(() => error = err.toString());
     } finally {
@@ -82,44 +87,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> selectAudience(String audience) async {
-    final value = DiscoveryProfile(audience: audience);
-    setState(() => savedProfile = value);
-    try {
-      if (await value.save(widget.preferences)) return;
-    } catch (_) {
-      // The in-memory preference still works if local storage is unavailable.
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Odabir vrijedi za ovu sesiju. Spremanje na uređaj nije uspjelo.',
-          ),
-        ),
-      );
-    }
-  }
-
   void openTip() => Navigator.push(
     context,
     MaterialPageRoute<void>(builder: (_) => TipScreen(api: widget.api)),
   );
 
-  void openEvent(WagzEvent event) => Navigator.push(
-    context,
-    MaterialPageRoute<void>(
-      builder: (_) => EventScreen(event: event, profile: profile),
-    ),
-  );
+  Future<void> openEvent(WagzEvent event) async {
+    openedEventId = event.id;
+    final route = MaterialPageRoute<void>(
+      builder: (_) => ValueListenableBuilder<PublicFeed?>(
+        valueListenable: detailFeed,
+        builder: (_, current, _) {
+          final matching = current?.events.where((item) => item.id == event.id);
+          return EventScreen(
+            event: matching?.isNotEmpty == true ? matching!.first : event,
+            now: current?.now ?? feed?.now,
+          );
+        },
+      ),
+    );
+    eventRoute = route;
+    await Navigator.push(context, route);
+    if (eventRoute == route) {
+      eventRoute = null;
+      openedEventId = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final events = rankForAudience(
-      feed?.events ?? [],
-      audience: profile.audience,
-    );
-    final matches = events.where((row) => row.recommendation.score > 0).length;
+    final events = rankForAudience(feed?.events ?? []);
     final ongoing = events
         .where((row) => isOngoing(row.event, feed!.now))
         .toList();
@@ -204,36 +201,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       const SizedBox(height: 28),
                       const Divider(height: 1, color: ink),
                       const SizedBox(height: 22),
-                      const Text(
-                        'Za koga tražiš plan?',
-                        style: TextStyle(
-                          fontFamily: 'Space Grotesk',
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.6,
-                        ),
-                      ),
-                      const SizedBox(height: 13),
-                      AudienceSelector(
-                        audience: profile.audience,
-                        onChanged: selectAudience,
-                      ),
-                      const SizedBox(height: 12),
-                      Semantics(
-                        liveRegion: true,
-                        child: Text(
-                          profile.audience == 'all'
-                              ? 'Svi događaji, po datumu. Odabir se pamti samo na ovom uređaju.'
-                              : matches > 0
-                              ? '${audienceDescriptions[profile.audience]} Svi događaji ostaju u pregledu.'
-                              : 'Još nema preporuka za ovaj odabir. Svi događaji su ovdje, po datumu.',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            height: 1.5,
-                            color: muted,
-                          ),
-                        ),
-                      ),
                       if (error != null) ...[
                         const SizedBox(height: 20),
                         Notice(
@@ -299,9 +266,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                            profile.audience == 'all'
-                                ? 'Svi planovi, od najbližeg datuma.'
-                                : 'Preporuke prema vrsti programa i podacima iz najave.',
+                            'Svi planovi, od najbližeg datuma.',
                             style: const TextStyle(
                               fontSize: 12,
                               height: 1.5,
@@ -386,7 +351,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: _EventCard(
                       key: ValueKey('event-card-${upcoming[index].event.id}'),
                       event: upcoming[index].event,
-                      profile: profile,
                       index: index,
                       onTap: () => openEvent(upcoming[index].event),
                     ),
@@ -466,22 +430,20 @@ class _EventCard extends StatelessWidget {
   const _EventCard({
     super.key,
     required this.event,
-    required this.profile,
     required this.index,
     required this.onTap,
   });
   final WagzEvent event;
-  final DiscoveryProfile profile;
   final int index;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final match = recommendation(event, profile);
+    final audiences = sourceAudienceLabels(event);
     return Material(
       color: eventPaper(event),
       shape: RoundedRectangleBorder(
-        side: BorderSide(color: match.personal ? ink : line),
+        side: const BorderSide(color: line),
         borderRadius: BorderRadius.circular(4),
       ),
       clipBehavior: Clip.antiAlias,
@@ -522,26 +484,33 @@ class _EventCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (match.personal ||
-                  event.discovery.prominenceLabel != null) ...[
+              if (audiences.isNotEmpty) ...[
                 Container(
-                  color: lime,
+                  key: ValueKey('audience-label-${event.id}'),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 5,
+                    horizontal: 6,
+                    vertical: 3,
                   ),
+                  color: const Color(0xffe8eddf),
                   child: Text(
-                    match.personal
-                        ? match.kind == 'source'
-                              ? 'PUBLIKA IZ NAJAVE'
-                              : 'PRIJEDLOG ZA TEBE'
-                        : (event.discovery.prominenceLabel ?? 'U GRADU')
-                              .toUpperCase(),
+                    audiences.join(' · '),
                     style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xff4c6037),
                     ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+              if (event.status == 'scheduled' &&
+                  event.discovery.prominenceLabel != null) ...[
+                Text(
+                  event.discovery.prominenceLabel!,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: muted,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -556,18 +525,6 @@ class _EventCard extends StatelessWidget {
                   letterSpacing: -0.6,
                 ),
               ),
-              if (match.reasons.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Text(
-                    match.reasons.first,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      height: 1.5,
-                      color: muted,
-                    ),
-                  ),
-                ),
               const SizedBox(height: 26),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -635,7 +592,31 @@ class _EventCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 12),
                     ),
                   ),
-                  const Icon(Icons.north_east, size: 24),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xffe8eedf),
+                      border: Border.all(color: const Color(0xffb9c3ad)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Detalji',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        SizedBox(width: 7),
+                        Icon(Icons.arrow_forward, size: 16),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ],

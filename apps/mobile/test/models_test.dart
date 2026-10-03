@@ -1,10 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as timezone;
 import 'package:wagz_mobile/models.dart';
 import 'package:wagz_mobile/discovery.dart';
-import 'package:wagz_mobile/preferences.dart';
 import 'fixtures.dart';
 
 void main() {
@@ -46,93 +44,72 @@ void main() {
   });
 
   test(
-    'source evidence outranks transparent recommendations and ignores legacy interests',
+    'source labels require matching evidence and ignore genres, free entry and bare audiences',
     () {
       final student = WagzEvent.fromJson(eventJson);
-      const students = DiscoveryProfile(audience: 'students');
-      expect(recommendation(student, students).score, 102);
-      expect(recommendation(student, students).kind, 'source');
-      expect(
-        recommendation(
-          student,
-          const DiscoveryProfile(audience: 'seniors'),
-        ).score,
-        1,
-      );
-      expect(
-        recommendation(
-          student,
-          const DiscoveryProfile(interests: ['music']),
-        ).score,
-        0,
-      );
-      expect(
-        recommendation(
-          student,
-          const DiscoveryProfile(audience: 'students', interests: ['music']),
-        ).score,
-        102,
-      );
-      final unverified = WagzEvent.fromJson({
+      expect(sourceAudienceLabels(student), ['Studenti']);
+      WagzEvent example(
+        List<Map<String, String>> evidence, {
+        String source = 'https://example.org/koncert',
+      }) => WagzEvent.fromJson({
         ...eventJson,
+        'sources': [
+          {'sourceName': 'Organizator', 'url': source},
+        ],
         'discovery': {
           'audiences': ['students'],
+          'free': true,
+          'audienceEvidence': evidence,
         },
       });
-      expect(recommendation(unverified, students).score, 2);
-      expect(recommendation(unverified, students).kind, 'suggestion');
-      expect(recommendation(unverified, students).personal, isFalse);
-      final cancelled = WagzEvent.fromJson({
-        ...eventJson,
-        'status': 'cancelled',
-      });
-      expect(recommendation(cancelled, students).score, 0);
-      final festival = WagzEvent.fromJson({
-        ...eventJson,
-        'discovery': {
-          'prominence': {
-            'kind': 'festival',
-            'label': 'Festival',
-            'reason': 'Najavljen festival.',
-            'sourceUrl': 'https://example.org',
-          },
-        },
-      });
-      expect(recommendation(festival, students).score, 2);
-      expect(recommendation(festival, students).personal, isFalse);
-    },
-  );
-
-  test(
-    'personal sorting reorders all events without removing unmatched ones',
-    () {
-      final feed = PublicFeed.fromJson(feedJson());
-      final dates = rankForAudience(feed.events);
-      expect(dates.first.event.id, 'theatre');
-      final personal = rankForAudience(feed.events, audience: 'students');
-      expect(personal.map((row) => row.event.id), [
-        'student-concert',
-        'theatre',
-      ]);
+      final valid = {
+        'audience': 'students',
+        'reason': 'Studentski popust.',
+        'sourceUrl': 'https://example.org/koncert',
+      };
       expect(
-        audienceProfile(
-          const DiscoveryProfile(audience: 'students', interests: ['theatre']),
-        ).interests,
-        isEmpty,
+        sourceAudienceLabels(
+          example([
+            {...valid, 'audience': 'seniors'},
+            valid,
+            valid,
+          ]),
+        ),
+        ['Studenti', 'Stariji'],
       );
+      expect(sourceAudienceLabels(example([])), isEmpty);
+      for (final invalid in [
+        {...valid, 'reason': ' '},
+        {...valid, 'audience': 'unknown'},
+        {...valid, 'sourceUrl': 'https://other.example/event'},
+      ]) {
+        expect(sourceAudienceLabels(example([invalid])), isEmpty);
+      }
+      for (final url in [
+        'javascript:alert(1)',
+        'https://user:password@example.org/event',
+        'https://example.invalid/event',
+      ]) {
+        expect(
+          sourceAudienceLabels(
+            example([
+              {...valid, 'sourceUrl': url},
+            ], source: url),
+          ),
+          isEmpty,
+        );
+      }
+      for (final audience in ['all', 'students', 'adults', 'seniors']) {
+        expect(
+          rankForAudience(
+            PublicFeed.fromJson(feedJson()).events,
+            audience: audience,
+          ).map((row) => row.event.id),
+          ['theatre', 'student-concert'],
+        );
+      }
     },
   );
-
-  test('local preferences persist and tolerate malformed storage', () async {
-    SharedPreferences.setMockInitialValues({});
-    final preferences = await SharedPreferences.getInstance();
-    const profile = DiscoveryProfile(audience: 'seniors', interests: ['sport']);
-    await profile.save(preferences);
-    expect(DiscoveryProfile.load(preferences).audience, 'seniors');
-    expect(DiscoveryProfile.load(preferences).interests, ['sport']);
-    await preferences.setString('wagz.discovery.v1', '{broken');
-    expect(DiscoveryProfile.load(preferences).isSet, isFalse);
-  });
 
   test('source links reject executable schemes and credentials', () {
     expect(safeLink('javascript:alert(1)'), isNull);

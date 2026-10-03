@@ -38,29 +38,38 @@ export function EventTimeline({
   return (
     <section
       className={`event-timeline ${chartOpen ? '' : 'timeline-collapsed'}`}
-      aria-labelledby="timeline-title"
+      aria-labelledby={chartOpen ? 'timeline-title' : undefined}
+      aria-label={chartOpen ? undefined : 'Vremenska crta događaja'}
     >
-      <div className="timeline-heading">
-        <div>
-          <p className="eyebrow">RITAM GRADA</p>
-          <h3 id="timeline-title">Sve ima svoj trenutak.</h3>
-        </div>
-        <span className="timeline-direction" aria-hidden="true">
-          ↘
-        </span>
-      </div>
-      <p className="timeline-description">Početak, kraj i sve između.</p>
+      {chartOpen && (
+        <>
+          <div className="timeline-heading">
+            <div>
+              <p className="eyebrow">RITAM GRADA</p>
+              <h3 id="timeline-title">Sve ima svoj trenutak.</h3>
+            </div>
+            <span className="timeline-direction" aria-hidden="true">
+              ↘
+            </span>
+          </div>
+          <p className="timeline-description">Početak, kraj i sve između.</p>
+        </>
+      )}
       {compact && (
         <button
           className="timeline-mobile-toggle"
           aria-expanded={mobileOpen}
           aria-controls="timeline-chart"
+          aria-label={mobileOpen ? 'Zatvori vremensku crtu' : 'Otvori vremensku crtu'}
           onClick={() => {
             setMobileOpen(!mobileOpen);
             setExpanded(false);
           }}
         >
-          {mobileOpen ? 'Zatvori vremensku crtu' : 'Otvori vremensku crtu'}{' '}
+          <span className="timeline-toggle-copy">
+            <strong>{mobileOpen ? 'Zatvori vremensku crtu' : 'Otvori vremensku crtu'}</strong>
+            {!mobileOpen && <small>Datumi i trajanja na jednom mjestu.</small>}
+          </span>
           <span aria-hidden="true">{mobileOpen ? '−' : '+'}</span>
         </button>
       )}
@@ -71,6 +80,19 @@ export function EventTimeline({
             <span className="theme-culture">Kultura</span>
             <span className="theme-join-in">Druženje</span>
           </div>
+          <div className="timeline-symbols" aria-label="Oznake na vremenskoj crti">
+            <span>
+              <i aria-hidden="true" />
+              Početak
+            </span>
+            <span>
+              <i className="symbol-end" aria-hidden="true" />
+              Kraj
+            </span>
+          </div>
+          <p className="timeline-scale-note">
+            Luk spaja početak i kraj. Razmaci nisu mjerilo trajanja.
+          </p>
           <div
             className="timeline-track"
             style={{ '--range-space': `${18 + lanes * 7}px` } as CSSProperties}
@@ -131,15 +153,15 @@ export function EventTimeline({
                           )}
                         </>
                       )}
+                      <span className="station-open">
+                        Detalji <span aria-hidden="true">›</span>
+                      </span>
                     </button>
                   </li>
                 );
               })}
             </ol>
           </div>
-          <p className="timeline-scale-note">
-            Luk spaja početak i kraj. Razmaci nisu mjerilo trajanja.
-          </p>
           {chronological.length > limit && (
             <button
               className="timeline-expand"

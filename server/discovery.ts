@@ -24,10 +24,22 @@ const audienceRules: Array<{ audience: Audience; pattern: RegExp; reason: string
   {
     audience: 'seniors',
     pattern:
-      /\b(?:za umirovljenike|umirovljenicima|za starije osobe|za osobe trece (?:zivotne )?dobi|program za seniore)/,
+      /\b(?:za umirovljenike|umirovljenicima|za starije osobe|za osobe trece (?:zivotne )?dobi)/,
     reason: 'Najava navodi program ili pogodnost za starije osobe.',
   },
 ];
+
+// These are conservative text cues, not a language model. Keep independent
+// affirmative clauses usable, but never turn a denied offer into an audience.
+// Do not split comma-separated invitees ("pozivamo inovatore, studente...").
+const audienceClauses = (text: string) =>
+  text
+    .replace(/\s+/g, ' ')
+    .split(
+      /(?<!\d)\.|[!?;]+|\s+(?:ali|nego|no|dok)\s+|,\s*a\s+|,\s*(?=(?:ne|nije|nisu|nema|program|radionica|ulaz|popust|pogodnost|za)\b)/,
+    );
+const deniedAudienceClaim =
+  /\b(?:ne|nije|nisu|nema|nemaju|nemamo|nedostup\w*|nedozvol\w*|zabranjen\w*|iskljucen\w*|ukinut\w*|otkazan\w*)\b|\bbez\s+(?:posebnog\s+)?(?:popust\w*|pogodnost\w*)/;
 
 /** Use fetched event copy, not age/genre stereotypes or the model's judgement of importance. */
 export function inferDiscovery(
@@ -37,8 +49,11 @@ export function inferDiscovery(
   price: string | null = null,
 ): EventDiscovery {
   const text = plain(`${title} ${sourceText}`);
+  const affirmative = audienceClauses(text).filter((clause) => !deniedAudienceClaim.test(clause));
   const audienceEvidence = audienceRules
-    .filter((rule) => rule.pattern.test(text))
+    // "Senior" also names sporting divisions. Only explicit older-person or
+    // retiree wording establishes this audience; genre cannot disambiguate it.
+    .filter((rule) => affirmative.some((clause) => rule.pattern.test(clause)))
     .map(({ audience, reason }) => ({ audience, reason, sourceUrl }));
   const heading = plain(title);
   // A mention of some other festival in the body does not classify this event.

@@ -1,105 +1,4 @@
-import { categories, type Audience, type Category, type WagzEvent } from './types.ts';
-
-export interface DiscoveryProfile {
-  audience: 'all' | Audience;
-  interests: Category[];
-}
-export const defaultProfile: DiscoveryProfile = { audience: 'all', interests: [] };
-const categoryLabels: Record<Category, string> = {
-  music: 'Glazba',
-  nightlife: 'Noćni život',
-  theatre: 'Kazalište',
-  culture: 'Kultura',
-  sport: 'Sport',
-  community: 'Zajednica',
-  other: 'Ostalo',
-};
-
-/** A device preference, not a collected birth date or an inferred age. */
-export function parseProfile(value: unknown): DiscoveryProfile {
-  if (!value || typeof value !== 'object') return { ...defaultProfile, interests: [] };
-  const row = value as Record<string, unknown>;
-  return {
-    audience: ['all', 'students', 'adults', 'seniors'].includes(String(row.audience))
-      ? (row.audience as DiscoveryProfile['audience'])
-      : 'all',
-    interests: Array.isArray(row.interests)
-      ? [
-          ...new Set(
-            row.interests.filter((item): item is Category => categories.includes(item as Category)),
-          ),
-        ]
-      : [],
-  };
-}
-
-export const audienceDescriptions = {
-  all: 'Svi događaji, po datumu.',
-  students: 'Prvo studentski programi, povoljniji izlasci, glazba i radionice.',
-  adults: 'Prvo programi za odrasle, kazalište, koncerti i događaji za druženje.',
-  seniors: 'Prvo programi za starije, izložbe, kazalište i koncertni ciklusi.',
-} as const;
-
-// Editorial recommendation presets, not inferred eligibility, age or accessibility.
-// Keep these weights and explanations identical in Flutter preferences.dart.
-const audienceWeights: Record<Audience, Record<Category, number>> = {
-  students: { music: 2, nightlife: 3, theatre: 1, culture: 1, sport: 1, community: 2, other: 0 },
-  adults: { music: 2, nightlife: 1, theatre: 3, culture: 2, sport: 2, community: 2, other: 0 },
-  seniors: { music: 1, nightlife: 0, theatre: 3, culture: 3, sport: 1, community: 2, other: 0 },
-};
-
-/** Local, explainable recommendations from published facts; no extra API/AI calls. */
-export function recommendationFor(event: WagzEvent, profile: DiscoveryProfile) {
-  const reasons: string[] = [];
-  let score = 0;
-  let kind: 'source' | 'suggestion' | null = null;
-  if (event.status !== 'scheduled' || profile.audience === 'all')
-    return { score, reasons, personal: false, kind };
-  const audience = profile.audience;
-  const match = event.discovery?.audienceEvidence.find((item) => item.audience === audience);
-  if (match) {
-    score += 100;
-    kind = 'source';
-    reasons.push(match.reason);
-  }
-  const title = event.title.toLocaleLowerCase('hr');
-  const format = /radionic|karijer|predavanj|kviz/.test(title)
-    ? {
-        weights: { students: 4, adults: 3, seniors: 1 },
-        reason: 'Radionica, predavanje ili susret za učenje i razmjenu.',
-      }
-    : /izložb|književ|knjig/.test(title)
-      ? {
-          weights: { students: 1, adults: 2, seniors: 3 },
-          reason: 'Izložbeni ili književni program u najavi.',
-        }
-      : event.category === 'music' && /jazz|orkest|orekstar|simfon|zbor|ciklus|klasič/.test(title)
-        ? {
-            weights: { students: 1, adults: 2, seniors: 4 },
-            reason: 'Jazz, orkestar, zbor ili koncertni ciklus u najavi.',
-          }
-        : null;
-  if (format) {
-    score += format.weights[audience];
-    reasons.push(format.reason);
-  }
-  // Only explicit price fields / source-backed metadata, never a missing price.
-  if (
-    event.discovery?.free ||
-    /^(besplatno|besplatan ulaz|ulaz slobodan|slobodan ulaz|0\s*€)[.!\s]*$/i.test(
-      event.price?.trim() ?? '',
-    )
-  ) {
-    score += audience === 'students' ? 3 : 1;
-    reasons.push('Besplatan ulaz naveden je u najavi.');
-  }
-  const categoryScore = audienceWeights[audience][event.category];
-  score += categoryScore;
-  if (categoryScore)
-    reasons.push(`Vrsta programa: ${categoryLabels[event.category].toLocaleLowerCase('hr')}.`);
-  if (!kind && score > 0) kind = 'suggestion';
-  return { score, reasons, personal: score >= 3, kind };
-}
+import { type Audience, type Category, type WagzEvent } from './types.ts';
 
 /** Display-only colors for event artwork, timeline points and duration branches. */
 export const discoveryThemes = [
@@ -133,7 +32,6 @@ export function themeForCategory(category: Category): DiscoveryTheme | null {
 export interface RankedEvent {
   event: WagzEvent;
   index: number;
-  recommendation: ReturnType<typeof recommendationFor>;
 }
 
 const zagrebDate = new Intl.DateTimeFormat('en-CA', {
@@ -159,24 +57,50 @@ function chronological(a: WagzEvent, b: WagzEvent): number {
   return Date.parse(a.startsAt) - Date.parse(b.startsAt);
 }
 
-/**
- * Explicit source matches outrank all recommendations. Factual category, format
- * and price cues make each preset useful without removing events. Exact score
- * ties are chronological; "all" is purely chronological. Legacy interests ignored.
- */
+/** Every event stays in stable Zagreb chronology. Legacy audience arguments are ignored. */
 export function rankForAudience(
   events: readonly WagzEvent[],
-  audience: DiscoveryProfile['audience'] = 'all',
+  _audience: 'all' | Audience = 'all',
+  _now?: string,
 ): RankedEvent[] {
-  const profile: DiscoveryProfile = { audience, interests: [] };
   return events
-    .map((event, index) => ({ event, index, recommendation: recommendationFor(event, profile) }))
-    .sort(
-      (a, b) =>
-        b.recommendation.score - a.recommendation.score ||
-        chronological(a.event, b.event) ||
-        a.index - b.index,
+    .map((event, index) => ({ event, index }))
+    .sort((a, b) => chronological(a.event, b.event) || a.index - b.index);
+}
+
+export const audienceLabels: Record<Audience, string> = {
+  students: 'Studenti',
+  adults: 'Odrasli',
+  seniors: 'Stariji',
+};
+
+/** Source mentions, never inferred eligibility. Require evidence from this event's sources. */
+export function sourceAudienceEvidence(event: WagzEvent) {
+  const sources = new Set(event.sources.map((source) => source.url));
+  const safeSource = (value: string) => {
+    try {
+      const url = new URL(value);
+      return (
+        ['https:', 'http:'].includes(url.protocol) &&
+        !url.hostname.endsWith('.invalid') &&
+        !url.username &&
+        !url.password &&
+        sources.has(value)
+      );
+    } catch {
+      return false;
+    }
+  };
+  return (Object.keys(audienceLabels) as Audience[]).flatMap((audience) => {
+    const evidence = event.discovery?.audienceEvidence.find(
+      (item) => item.audience === audience && item.reason.trim() && safeSource(item.sourceUrl),
     );
+    return evidence ? [evidence] : [];
+  });
+}
+
+export function sourceAudienceLabels(event: WagzEvent): string[] {
+  return sourceAudienceEvidence(event).map((item) => audienceLabels[item.audience]);
 }
 
 export function knownEnd(event: WagzEvent): string | null {

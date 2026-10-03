@@ -31,16 +31,18 @@ npm start
 
 `npm run test:browser` checks the public-to-inbox-to-publication flow and mobile layout in an isolated database copy. It uses an installed Chrome on Windows, or Playwright Chromium (`npx playwright install chromium`). Run the build first. Screenshots go under `.artifacts/`; test submissions never enter the app database.
 
-`npm run test:discovery` checks audience preferences, recommendations, source explanations and narrow-screen layouts with isolated fixtures.
+`npm run test:discovery` checks chronological discovery, source-backed audience tags, source explanations and narrow-screen layouts with isolated fixtures.
 
 `npm run test:review` uses real captured source events in an in-memory database to check submission, background refresh, preparation feedback, incomplete saves, concurrent review conflicts, source-preserving approval, duplicate prevention, archive/restore and 320px layouts. It also verifies that an actual past performance can be saved but cannot publish as upcoming. Run the build first; the server clock is fixed to the fixture capture date (2026-10-03), and no production database or paid AI is used. Reports and screenshots go under `.artifacts/review-*`.
+
+Run `npm run test:review -- --dev` to repeat these checks with React StrictMode, including modal Back/Forward, rapid close/reopen, focus restoration and keyboard navigation.
 
 `npm run collect` performs a collection run from the terminal. Local development uses SQLite; the hosted API and scheduled collector share Neon Postgres through `DATABASE_URL`. The local server collects on startup and every 24 hours while running by default (`WAGZ_FETCH_INTERVAL_MINUTES=1440`). Hosted collection runs through GitHub Actions daily at 05:23 UTC (06:23 in Croatia in winter, 07:23 in summer), with manual refresh available in the admin screen.
 
 ## What v1 does
 
 - Public event cards with pastel category illustrations, a single chronological timeline with colored duration branches, details and source links. Known ends connect back to the spine; unknown ends stay unknown.
-- One audience selector: Svi, Studenti, Odrasli, Stariji. Explicit source audience matches lead, followed by transparent recommendations from published category, program format and free entry. Every event remains visible. Selection stays on the device; recommendations do not claim demographic eligibility or accessibility. Svi remains chronological.
+- All events stay chronological. Small audience labels (Studenti, Odrasli, Stariji; multiple allowed) appear only when a matching source explicitly mentions that audience. Details show the source reason. There are no audience controls, personalized ranking or inferred demographic labels.
 - A Flutter Android/iOS client uses the same public API. See [mobile setup and Android builds](apps/mobile/README.md).
 - Dates follow `Europe/Zagreb`. Missing times and prices remain unknown.
 - Source-backed imports with a title, valid date and venue can publish automatically. Incomplete imports can publish when their missing facts arrive. An operator's decision to hold or reject an event always survives re-fetching; drafts collected with the toggle off stay held.

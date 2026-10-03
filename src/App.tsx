@@ -1,17 +1,16 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  audienceDescriptions,
+  audienceLabels,
   durationLabel,
   eventDurationText,
   isOngoing,
   rankForAudience,
-  recommendationFor,
+  sourceAudienceEvidence,
+  sourceAudienceLabels,
   themeForCategory,
-  type DiscoveryProfile,
 } from '../shared/discovery';
 import { type PublicFeed, type WagzEvent } from '../shared/types';
 import { Admin } from './Admin';
-import { AudiencePicker, readPreferences, savePreferences } from './AudiencePicker';
 import { EventArt } from './EventArt';
 import { EventTimeline } from './EventTimeline';
 import { api, categoryNames, dateFormat, errorText, safeLink, timeFormat } from './lib';
@@ -25,14 +24,9 @@ function PublicApp() {
   const [feed, setFeed] = useState<PublicFeed | null>(null),
     [error, setError] = useState(''),
     [loading, setLoading] = useState(true);
-  const [preferences, setPreferences] = useState<DiscoveryProfile>(readPreferences);
   const refreshing = useRef(false);
   const [selected, setSelected] = useState<WagzEvent | null>(null),
     [tipOpen, setTipOpen] = useState(false);
-  function changePreferences(value: DiscoveryProfile) {
-    setPreferences(value);
-    savePreferences(value);
-  }
   async function refresh(background = false) {
     if (refreshing.current) return;
     refreshing.current = true;
@@ -41,7 +35,11 @@ function PublicApp() {
       setError('');
     }
     try {
-      setFeed(await api<PublicFeed>('/api/events'));
+      const fresh = await api<PublicFeed>('/api/events');
+      setFeed(fresh);
+      setSelected((current) =>
+        current ? (fresh.events.find((event) => event.id === current.id) ?? null) : null,
+      );
       setError('');
     } catch (err) {
       if (!background) setError(errorText(err));
@@ -73,11 +71,7 @@ function PublicApp() {
       document.removeEventListener('visibilitychange', visibility);
     };
   }, []);
-  const events = useMemo(
-    () => rankForAudience(feed?.events ?? [], preferences.audience),
-    [feed, preferences.audience],
-  );
-  const hasRecommendations = events.some((row) => row.recommendation.score > 0);
+  const events = useMemo(() => rankForAudience(feed?.events ?? []), [feed]);
   const ongoing = events.filter(({ event }) => isOngoing(event, feed!.meta.now));
   const upcoming = events.filter(({ event }) => !isOngoing(event, feed!.meta.now));
   return (
@@ -139,7 +133,6 @@ function PublicApp() {
             </div>
             <p className="section-note">DOBRI PLANOVI POČINJU OVDJE.</p>
           </div>
-          <AudiencePicker value={preferences} onChange={changePreferences} />
           {loading ? (
             <div className="feed-loading">
               <Spinner label="Tražimo tvoj sljedeći plan…" />
@@ -154,11 +147,9 @@ function PublicApp() {
             </div>
           ) : events.length ? (
             <>
-              {preferences.audience !== 'all' && !hasRecommendations && (
-                <p className="discovery-feedback" role="status">
-                  Još nema preporuka za ovaj odabir. Svi događaji su ovdje, po datumu.
-                </p>
-              )}
+              <a className="skip-to-events" href="#upcoming-events">
+                Preskoči na nadolazeće događaje
+              </a>
               <div className="discovery-layout">
                 <EventTimeline events={feed!.events} now={feed!.meta.now} onSelect={setSelected} />
                 <div className="card-feed">
@@ -166,17 +157,8 @@ function PublicApp() {
                     <span>
                       {events.length} {events.length === 1 ? 'događaj' : 'događaja'} na tvom radaru
                     </span>
-                    <span>
-                      {preferences.audience === 'all' || !hasRecommendations
-                        ? 'PO DATUMU'
-                        : 'PREPORUKE PRVO'}
-                    </span>
+                    <span>PO DATUMU</span>
                   </div>
-                  {preferences.audience !== 'all' && hasRecommendations && (
-                    <p className="audience-result-note">
-                      {audienceDescriptions[preferences.audience]} Svi događaji ostaju u pregledu.
-                    </p>
-                  )}
                   {ongoing.length > 0 && (
                     <OngoingEvents
                       events={ongoing.map(({ event }) => event)}
@@ -194,14 +176,9 @@ function PublicApp() {
                       Nove najave stižu uskoro. Programi koji traju dostupni su iznad.
                     </p>
                   )}
-                  <div className="event-grid">
-                    {upcoming.map(({ event, recommendation }) => (
-                      <EventCard
-                        key={event.id}
-                        event={event}
-                        recommendation={recommendation}
-                        onSelect={() => setSelected(event)}
-                      />
+                  <div className="event-grid" id="upcoming-events" tabIndex={-1}>
+                    {upcoming.map(({ event }) => (
+                      <EventCard key={event.id} event={event} onSelect={() => setSelected(event)} />
                     ))}
                   </div>
                 </div>
@@ -260,7 +237,7 @@ function PublicApp() {
         </div>
       </footer>
       {selected && (
-        <EventDetail event={selected} preferences={preferences} onClose={() => setSelected(null)} />
+        <EventDetail event={selected} now={feed!.meta.now} onClose={() => setSelected(null)} />
       )}
       {tipOpen && <TipDialog onClose={() => setTipOpen(false)} />}
     </>
@@ -305,7 +282,7 @@ function OngoingEvents({
                 {event.endsAt!.length === 10 ? ' · završni sat nije naveden' : ''}
               </small>
             </span>
-            <Arrow diagonal />
+            <Arrow />
           </button>
         ))}
       </div>
@@ -323,19 +300,12 @@ function OngoingEvents({
   );
 }
 
-function EventCard({
-  event,
-  recommendation,
-  onSelect,
-}: {
-  event: WagzEvent;
-  recommendation: ReturnType<typeof recommendationFor>;
-  onSelect: () => void;
-}) {
+function EventCard({ event, onSelect }: { event: WagzEvent; onSelect: () => void }) {
+  const audiences = sourceAudienceLabels(event);
   const prominence = event.status === 'scheduled' ? event.discovery?.prominence : null;
   return (
     <article
-      className={`event-card theme-${themeForCategory(event.category) ?? 'other'} ${prominence ? 'card-prominent' : ''} ${recommendation.personal ? 'card-personal' : ''} ${event.status !== 'scheduled' ? 'card-inactive' : ''}`}
+      className={`event-card theme-${themeForCategory(event.category) ?? 'other'} ${prominence ? 'card-prominent' : ''} ${event.status !== 'scheduled' ? 'card-inactive' : ''}`}
     >
       <button
         className="event-card-button"
@@ -348,6 +318,7 @@ function EventCard({
         <div className="card-topline">
           <span className="category-label">{categoryNames[event.category]}</span>
         </div>
+        {audiences.length > 0 && <p className="card-audience">{audiences.join(' · ')}</p>}
         <div className="card-title-area">
           {event.status !== 'scheduled' && (
             <span className={`status-label status-${event.status}`}>
@@ -355,18 +326,10 @@ function EventCard({
             </span>
           )}
           <h3>{event.title}</h3>
-          {(recommendation.personal || prominence) && (
+          {prominence && (
             <div className="card-reasons">
-              {recommendation.personal && (
-                <span className="card-reason card-reason-personal">
-                  {recommendation.kind === 'source' ? 'Publika iz najave' : 'Prijedlog za tebe'}
-                </span>
-              )}
-              {prominence && <span className="card-reason">{prominence.label}</span>}
+              <span className="card-reason">{prominence.label}</span>
             </div>
-          )}
-          {recommendation.personal && (
-            <p className="card-personal-reason">{recommendation.reasons[0]}</p>
           )}
         </div>
         <div className="card-bottom">
@@ -390,7 +353,7 @@ function EventCard({
           <div className="card-footer">
             <span>{event.price || 'Cijena nije navedena'}</span>
             <span className="card-open">
-              <Arrow diagonal />
+              Detalji <Arrow />
             </span>
           </div>
         </div>
@@ -401,17 +364,16 @@ function EventCard({
 
 function EventDetail({
   event,
-  preferences,
+  now,
   onClose,
 }: {
   event: WagzEvent;
-  preferences: DiscoveryProfile;
+  now: string;
   onClose: () => void;
 }) {
   const sources = event.sources.filter((source) => safeLink(source.url));
-  const recommendation = recommendationFor(event, preferences);
+  const audienceEvidence = sourceAudienceEvidence(event);
   const discovery = event.discovery;
-  const audienceLabels = { students: 'Studenti', adults: 'Odrasli', seniors: 'Stariji' };
   return (
     <Modal
       title={event.title}
@@ -425,6 +387,15 @@ function EventDetail({
             ? 'Ovaj događaj je otkazan.'
             : 'Ovaj događaj je odgođen. Novi termin provjeri kod organizatora.'}
         </Message>
+      )}
+      {isOngoing(event, now) && (
+        <p className="detail-ongoing">
+          <strong>U tijeku</strong>
+          <span>
+            {eventDurationText(event, now)}
+            {event.endsAt!.length === 10 ? ' · završni sat nije naveden' : ''}
+          </span>
+        </p>
       )}
       <dl className="event-facts">
         <div>
@@ -460,24 +431,12 @@ function EventDetail({
         </div>
       </dl>
       {event.description && <div className="event-description">{event.description}</div>}
-      {Boolean(
-        recommendation.personal || discovery?.prominence || discovery?.audienceEvidence.length,
-      ) && (
+      {Boolean(discovery?.prominence || audienceEvidence.length) && (
         <section className="detail-discovery" aria-label="Razlozi oznaka">
           <h3>Dobro je znati</h3>
+          {audienceEvidence.length > 0 && <p>Publika navedena u najavi</p>}
           <ul>
-            {recommendation.personal && (
-              <li>
-                <strong>Zašto je među preporukama?</strong>
-                <p>{recommendation.reasons.join(' ')}</p>
-                <p>
-                  Prijedlog prema odabiru „
-                  {audienceLabels[preferences.audience as keyof typeof audienceLabels]}” i podacima
-                  iz najave. Nije dobno ograničenje ni potvrda pristupačnosti.
-                </p>
-              </li>
-            )}
-            {discovery?.audienceEvidence.map((evidence) => (
+            {audienceEvidence.map((evidence) => (
               <li key={`${evidence.audience}-${evidence.sourceUrl}`}>
                 <strong>{audienceLabels[evidence.audience]}</strong>
                 <p>{evidence.reason}</p>
@@ -521,8 +480,8 @@ function EventDetail({
               className="source-link"
             >
               <span>
-                {source.sourceName}
-                <small>Otvori izvornu najavu</small>
+                Otvori izvornu najavu
+                <small>{source.sourceName}</small>
               </span>
               <Arrow diagonal />
             </a>

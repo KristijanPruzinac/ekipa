@@ -32,8 +32,19 @@ const config = {
 };
 const service = new WagzService(repo, config);
 const app = createApp(service);
-app.use(express.static(resolve('dist')));
-app.get('/{*path}', (_request, response) => response.sendFile(resolve('dist/index.html')));
+let vite;
+if (process.argv.includes('--dev')) {
+  const { createServer } = await import('vite');
+  vite = await createServer({
+    server: { middlewareMode: true, hmr: false },
+    appType: 'spa',
+    logLevel: 'error',
+  });
+  app.use(vite.middlewares);
+} else {
+  app.use(express.static(resolve('dist')));
+  app.get('/{*path}', (_request, response) => response.sendFile(resolve('dist/index.html')));
+}
 const server = app.listen(0, '127.0.0.1');
 await new Promise((resolve) => server.once('listening', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -88,6 +99,107 @@ try {
   const publicPage = await context.newPage();
   publicPage.on('pageerror', (error) => errors.push(error.message));
   await publicPage.goto(base);
+  await publicPage.setViewportSize({ width: 320, height: 740 });
+  const skip = publicPage.getByRole('link', { name: 'Preskoči na nadolazeće događaje' });
+  await skip.focus();
+  await expect(skip).toBeVisible();
+  await publicPage.keyboard.press('Enter');
+  await expect(publicPage.locator('#upcoming-events')).toBeFocused();
+  const cardButton = publicPage.locator('.event-card').first().getByRole('button').first();
+  await cardButton.click();
+  const dialog = publicPage.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await dialog.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
+  const closeButton = publicPage.getByRole('button', { name: 'Zatvori', exact: true });
+  const closeBox = await closeButton.boundingBox();
+  const dialogBox = await dialog.boundingBox();
+  assert.ok(closeBox && dialogBox && closeBox.width >= 44 && closeBox.height >= 44);
+  assert.ok(
+    closeBox.y >= dialogBox.y && closeBox.y + closeBox.height <= dialogBox.y + dialogBox.height,
+  );
+  await publicPage.screenshot({ path: resolve(directory, 'modal-scrolled-320.png') });
+  await closeButton.click();
+  await expect(dialog).toHaveCount(0);
+  await expect(cardButton).toBeFocused();
+  await cardButton.click();
+  await publicPage.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(cardButton).toBeFocused();
+  await cardButton.click();
+  const pageUrl = publicPage.url();
+  await publicPage.goBack();
+  await expect(dialog).toHaveCount(0);
+  assert.equal(publicPage.url(), pageUrl);
+  await publicPage.goForward();
+  await expect(dialog).toHaveCount(0);
+  await cardButton.click();
+  await closeButton.click();
+  await expect(dialog).toHaveCount(0);
+  await publicPage.getByRole('button', { name: 'Dojavi događaj', exact: true }).first().click();
+  await expect(dialog).toBeVisible();
+  await publicPage.goBack();
+  await expect(dialog).toHaveCount(0);
+  assert.equal(publicPage.url(), pageUrl);
+  await publicPage.goForward();
+  await expect(dialog).toHaveCount(0);
+  const secondTitle = await publicPage
+    .locator('.event-card')
+    .nth(1)
+    .getByRole('heading')
+    .innerText();
+  const historyLength = await publicPage.evaluate(() => history.length);
+  for (let trial = 0; trial < 4; trial++) {
+    await cardButton.click();
+    await publicPage.evaluate(() => {
+      document.querySelector('.close-button').click();
+      setTimeout(() => document.querySelectorAll('.event-card-button')[1].click(), 0);
+    });
+    await expect(dialog).toContainText(secondTitle);
+    // A history traversal is asynchronous: detect a late close of the new dialog.
+    await publicPage.waitForTimeout(80);
+    await expect(dialog).toBeVisible();
+    await publicPage.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  }
+  assert.ok((await publicPage.evaluate(() => history.length)) <= historyLength + 1);
+  await publicPage.goBack();
+  assert.equal(
+    publicPage.url(),
+    base + '/',
+    'Repeated modal closes must not leave phantom Back stops.',
+  );
+  await publicPage.goForward();
+  await expect(dialog).toHaveCount(0);
+  await cardButton.click();
+  const sourceLink = dialog.locator('a.source-link').first();
+  const sourceUrl = await sourceLink.getAttribute('href');
+  await context.route(sourceUrl, (route) =>
+    route.fulfill({ contentType: 'text/plain', body: 'Isolated source navigation check.' }),
+  );
+  const popupPromise = publicPage.waitForEvent('popup');
+  await sourceLink.click();
+  const popup = await popupPromise;
+  await popup.waitForLoadState();
+  assert.equal(popup.url(), sourceUrl);
+  await popup.close();
+  await expect(dialog).toBeVisible();
+  await context.unroute(sourceUrl);
+  await publicPage.goto(base + '/admin');
+  await expect(publicPage.getByLabel('Admin ključ')).toBeVisible();
+  await publicPage.goBack();
+  await expect(publicPage.getByRole('dialog')).toHaveCount(0);
+  await cardButton.click();
+  await publicPage.goBack();
+  await expect(publicPage.getByRole('dialog')).toHaveCount(0);
+  record(
+    'next-tick close/reopen survives pending Back; repeated cycles add no phantom stops; source tabs and document navigation remain intact',
+  );
+  record(
+    'keyboard skip reaches upcoming cards;44px close stays visible after long320px scroll; close/Escape restore focus and Back/Forward never revive stale event or tip dialogs',
+  );
+  await publicPage.setViewportSize({ width: 1280, height: 900 });
   await publicPage.getByRole('button', { name: 'Dojavi događaj', exact: true }).first().click();
   await publicPage.getByLabel(/Tvoja dojava/).fill(actualNote);
   await publicPage.getByLabel(/Poveznica/).fill(actual.sources[0].url);
@@ -117,6 +229,14 @@ try {
   record('manual preparation shows local progress, useful result and reenables actions');
 
   await matchedRow.getByRole('button', { name: 'Pregledaj prijedlog' }).click();
+  await admin.goBack();
+  await expect(admin.getByRole('dialog')).toHaveCount(0);
+  assert.equal(admin.url(), base + '/admin');
+  await admin.goForward();
+  await expect(admin.getByRole('dialog')).toHaveCount(0);
+  await expect(admin.getByRole('heading', { name: 'Grad pod kontrolom.' })).toBeVisible();
+  await matchedRow.getByRole('button', { name: 'Pregledaj prijedlog' }).click();
+  record('Back closes the admin editor without logout and Forward never reopens stale review data');
   await expect(admin.getByLabel('Naziv događaja', { exact: true })).toHaveValue(actual.title);
   await expect(admin.getByLabel('Vrijeme ako je poznato')).toHaveValue('09:00');
   await expect(admin.locator('.original-tip a')).toHaveAttribute('href', actual.sources[0].url);
@@ -284,6 +404,7 @@ try {
   record('logout clears authentication and no browser runtime errors occurred');
 } finally {
   if (browser) await browser.close();
+  if (vite) await vite.close();
   await new Promise((resolve) => server.close(resolve));
   await repo.close();
   mock.timers.reset();

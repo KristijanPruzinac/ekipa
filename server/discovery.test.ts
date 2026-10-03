@@ -1,31 +1,85 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { inferDiscovery, mergeDiscovery, validateDiscovery } from './discovery.ts';
-import { parseProfile, recommendationFor } from '../shared/discovery.ts';
-import type { WagzEvent } from '../shared/types.ts';
 
 const url = 'https://example.org/event';
-const event = (discovery?: WagzEvent['discovery']): WagzEvent => ({
-  id: 'event',
-  title: 'Koncert',
-  description: '',
-  startsAt: '2099-10-10',
-  endsAt: null,
-  venue: 'Osijek',
-  address: null,
-  city: 'Osijek',
-  category: 'music',
-  price: null,
-  status: 'scheduled',
-  publication: 'published',
-  sources: [],
-  firstSeenAt: '',
-  updatedAt: '',
-  manuallyEdited: false,
-  discovery,
+
+test('negated audiences and unavailable benefits do not become affirmative audience tags', () => {
+  for (const text of [
+    'Program nije namijenjen studentima.',
+    'Popust za studente nije dostupan.',
+    'Popust za studente\nnije dostupan.',
+    'Popust za studente od 10. listopada nije dostupan.',
+    'Nema popusta za studente.',
+    'Studentski popust je ukinut.',
+    'Bez posebnog popusta za studente.',
+    'Ovo nije program za odrasle.',
+    'Radionica za umirovljenike je otkazana.',
+    'Program nije za starije osobe.',
+    'Ulaz studentima nije dozvoljen.',
+  ])
+    assert.deepEqual(inferDiscovery('Program', text, url).audiences, [], text);
+  assert.deepEqual(inferDiscovery('Studentski popust', 'nije dostupan.', url).audiences, []);
 });
 
-test('recommendation presets never create source eligibility, affordability or popularity claims', () => {
+test('independent positive audience clauses survive negative clauses without borrowing their subjects', () => {
+  for (const text of [
+    'Program nije za studente, nego za umirovljenike.',
+    'Program nije namijenjen studentima. Besplatno za umirovljenike.',
+    'Popust za studente nije dostupan, ali ulaz je besplatan za umirovljenike.',
+    'Besplatno za umirovljenike, ne za studente.',
+    'Nema popusta za studente, ulaz je besplatan za umirovljenike.',
+  ])
+    assert.deepEqual(inferDiscovery('Program', text, url).audiences, ['seniors'], text);
+  assert.deepEqual(
+    inferDiscovery(
+      'Program',
+      'Popust za studente nije dostupan. Radionica je namijenjena studentima.',
+      url,
+    ).audiences,
+    ['students'],
+  );
+  assert.deepEqual(
+    inferDiscovery('Program', 'Radionica za studente, a program za odrasle nije dostupan.', url)
+      .audiences,
+    ['students'],
+  );
+});
+
+test('bare senior terminology cannot identify older people, including sporting divisions', () => {
+  for (const text of [
+    'Program za seniore: prvenstvo u nogometu.',
+    'Sportski program za seniore i juniore.',
+    'Program za seniore u knjižnici.',
+  ])
+    assert.deepEqual(inferDiscovery('Program', text, url).audiences, [], text);
+  for (const text of [
+    'Program za seniore i umirovljenike. Besplatan ulaz umirovljenicima.',
+    'Radionica za starije osobe.',
+    'Radionica za osobe treće životne dobi.',
+    'Nogomet za umirovljenike.',
+  ])
+    assert.deepEqual(inferDiscovery('Program', text, url).audiences, ['seniors'], text);
+});
+
+test('affirmative invitations preserve listed students and multiple audiences', () => {
+  const body =
+    'Pozivaju sve mlade vizionare, inovatore, studente i entuzijaste na nadolazeći summit!';
+  assert.deepEqual(inferDiscovery('Summit', body, url).audiences, ['students']);
+  assert.deepEqual(
+    inferDiscovery('Program', 'Radionica za studente, za odrasle i za umirovljenike.', url)
+      .audiences,
+    ['students', 'adults', 'seniors'],
+  );
+});
+
+test('fresh conservative inference withdraws a stale claim when its source is fetched again', () => {
+  const old = inferDiscovery('Program', 'Popust za studente.', url);
+  const fresh = inferDiscovery('Program', 'Popust za studente nije dostupan.', url);
+  assert.deepEqual(mergeDiscovery(old, fresh, url, null).audiences, []);
+});
+
+test('performer identity never creates audience or affordability claims', () => {
   const discovery = inferDiscovery(
     'Koncert mladih glazbenika',
     'Na pozornici nastupaju studenti akademije.',
@@ -33,15 +87,9 @@ test('recommendation presets never create source eligibility, affordability or p
   );
   assert.deepEqual(discovery.audiences, []);
   assert.equal(discovery.free, false);
-  for (const audience of ['students', 'adults', 'seniors'] as const) {
-    const result = recommendationFor(event(discovery), { audience, interests: [] });
-    assert.equal(result.kind, 'suggestion');
-    assert.equal(result.personal, false);
-    assert.deepEqual(result.reasons, ['Vrsta programa: glazba.']);
-  }
 });
 
-test('explicit audiences retain source reasons, outrank suggestions and ignore legacy interests', () => {
+test('explicit multiple audiences retain individual source reasons', () => {
   const discovery = inferDiscovery(
     'Radionica',
     'Radionica za studente. Besplatno za umirovljenike.',
@@ -51,19 +99,7 @@ test('explicit audiences retain source reasons, outrank suggestions and ignore l
   assert.deepEqual(discovery.audiences, ['students', 'seniors']);
   assert.equal(discovery.free, true);
   assert.ok(discovery.audienceEvidence.every((item) => item.sourceUrl === url));
-  const match = recommendationFor(event(discovery), { audience: 'students', interests: ['music'] });
-  assert.equal(match.score, 105);
-  assert.equal(match.kind, 'source');
-  assert.equal(match.personal, true);
-  assert.equal(match.reasons.length, 3);
-  assert.deepEqual(
-    match,
-    recommendationFor(event(discovery), { audience: 'students', interests: [] }),
-  );
-  assert.equal(
-    recommendationFor(event(discovery), { audience: 'adults', interests: [] }).kind,
-    'suggestion',
-  );
+  assert.equal(discovery.audienceEvidence.length, 2);
 });
 
 test('student audiences require student evidence, not a general youth or pupil programme', () => {
@@ -91,20 +127,10 @@ test('student audiences require student evidence, not a general youth or pupil p
   }
 });
 
-test('festival cue states a format, not popularity; cancellation removes recommendations', () => {
+test('festival cue states an event format, not audience or another event in its description', () => {
   const discovery = inferDiscovery('Festival svjetla', 'Program.', url);
   assert.equal(discovery.prominence?.kind, 'festival');
-  assert.equal(
-    recommendationFor(event(discovery), { audience: 'all', interests: [] }).personal,
-    false,
-  );
-  assert.equal(
-    recommendationFor(
-      { ...event(discovery), status: 'cancelled' },
-      { audience: 'all', interests: ['music'] },
-    ).score,
-    0,
-  );
+  assert.deepEqual(discovery.audiences, []);
   assert.equal(
     inferDiscovery('Recital', 'Nastupao je na festivalima diljem svijeta.', url).prominence,
     null,
@@ -120,12 +146,4 @@ test('refresh withdraws stale source audience cues while preserving other eviden
   assert.deepEqual(refreshed.audiences, ['adults']);
   assert.equal(refreshed.free, false);
   assert.deepEqual(validateDiscovery(first, 'https://other.example/event')?.audiences, []);
-});
-
-test('device preferences discard corrupted or unsupported input', () => {
-  assert.deepEqual(parseProfile(null), { audience: 'all', interests: [] });
-  assert.deepEqual(
-    parseProfile({ audience: 'invented', interests: ['music', 'music', 'nonsense', 42] }),
-    { audience: 'all', interests: ['music'] },
-  );
 });

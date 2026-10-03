@@ -127,68 +127,6 @@ class _MotifPainter extends CustomPainter {
       oldDelegate.theme != theme;
 }
 
-class AudienceSelector extends StatelessWidget {
-  const AudienceSelector({
-    super.key,
-    required this.audience,
-    required this.onChanged,
-  });
-  final String audience;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final largeText = MediaQuery.textScalerOf(context).scale(13) > 18;
-      final columns = largeText && constraints.maxWidth < 500 ? 2 : 4;
-      return Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: audienceNames.entries.map((entry) {
-          final selected = audience == entry.key;
-          return SizedBox(
-            width: (constraints.maxWidth - (columns - 1) * 6) / columns,
-            child: Semantics(
-              selected: selected,
-              button: true,
-              child: Material(
-                color: selected ? ink : paper,
-                shape: RoundedRectangleBorder(
-                  side: const BorderSide(color: ink),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  key: ValueKey('audience-${entry.key}'),
-                  onTap: () => onChanged(entry.key),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 48),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 3,
-                        vertical: 13,
-                      ),
-                      child: Text(
-                        entry.value,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: selected ? lime : ink,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      );
-    },
-  );
-}
-
 class EventTimeline extends StatefulWidget {
   const EventTimeline({
     super.key,
@@ -221,7 +159,9 @@ class _EventTimelineState extends State<EventTimeline> {
     );
     return Container(
       key: const ValueKey('event-timeline'),
-      padding: const EdgeInsets.fromLTRB(12, 20, 12, 8),
+      padding: chartOpen
+          ? const EdgeInsets.fromLTRB(12, 20, 12, 8)
+          : const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: const Color(0xffeeeee5),
         border: Border.all(color: line),
@@ -230,37 +170,73 @@ class _EventTimelineState extends State<EventTimeline> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Eyebrow('RITAM GRADA'),
-          const SizedBox(height: 8),
-          Text(
-            'Sve ima svoj trenutak.',
-            style: TextStyle(
-              fontFamily: 'Space Grotesk',
-              fontWeight: FontWeight.w800,
-              fontSize: chartOpen ? 25 : 20,
-              letterSpacing: -0.6,
+          if (chartOpen) ...[
+            const Eyebrow('RITAM GRADA'),
+            const SizedBox(height: 8),
+            Text(
+              'Sve ima svoj trenutak.',
+              style: TextStyle(
+                fontFamily: 'Space Grotesk',
+                fontWeight: FontWeight.w800,
+                fontSize: chartOpen ? 25 : 20,
+                letterSpacing: -0.6,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Početak, kraj i sve između.',
-            style: TextStyle(fontSize: 12, color: muted),
-          ),
+            const SizedBox(height: 6),
+            const Text(
+              'Početak, kraj i sve između.',
+              style: TextStyle(fontSize: 12, color: muted),
+            ),
+          ],
           SizedBox(
             width: double.infinity,
             child: Semantics(
               expanded: chartOpen,
-              child: TextButton.icon(
+              child: TextButton(
                 key: const ValueKey('timeline-toggle'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 10,
+                  ),
+                  alignment: Alignment.centerLeft,
+                ),
                 onPressed: () => setState(() {
                   chartOpen = !chartOpen;
                   expanded = false;
                 }),
-                icon: Icon(chartOpen ? Icons.remove : Icons.add),
-                label: Text(
-                  chartOpen
-                      ? 'Zatvori vremensku crtu'
-                      : 'Otvori vremensku crtu',
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            chartOpen
+                                ? 'Zatvori vremensku crtu'
+                                : 'Otvori vremensku crtu',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (!chartOpen) ...[
+                            const SizedBox(height: 3),
+                            const Text(
+                              'Datumi i trajanja na jednom mjestu.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: muted,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(chartOpen ? Icons.remove : Icons.add, size: 20),
+                  ],
                 ),
               ),
             ),
@@ -279,7 +255,21 @@ class _EventTimelineState extends State<EventTimeline> {
                   _Legend(label: entry.value, color: themeColor(entry.key)),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            const Wrap(
+              spacing: 16,
+              runSpacing: 6,
+              children: [
+                _Legend(label: 'Početak', color: ink),
+                _Legend(label: 'Kraj', color: ink, hollow: true),
+              ],
+            ),
+            const SizedBox(height: 7),
+            const Text(
+              'Luk spaja početak i kraj. Razmaci nisu mjerilo trajanja.',
+              style: TextStyle(fontSize: 11, height: 1.5, color: muted),
+            ),
+            const SizedBox(height: 14),
             for (var index = 0; index < timeline.moments.length; index++)
               _TimelineStation(
                 timeline: timeline,
@@ -288,11 +278,6 @@ class _EventTimelineState extends State<EventTimeline> {
                 now: widget.now,
                 onTap: () => widget.onOpen(timeline.moments[index].event),
               ),
-            const SizedBox(height: 6),
-            const Text(
-              'Luk spaja početak i kraj. Razmaci nisu mjerilo trajanja.',
-              style: TextStyle(fontSize: 10, height: 1.5, color: muted),
-            ),
             if (ordered.length > 3)
               SizedBox(
                 width: double.infinity,
@@ -315,14 +300,23 @@ class _EventTimelineState extends State<EventTimeline> {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend({required this.label, required this.color});
+  const _Legend({
+    required this.label,
+    required this.color,
+    this.hollow = false,
+  });
   final String label;
   final Color color;
+  final bool hollow;
   @override
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Icon(Icons.circle, size: 7, color: color),
+      Icon(
+        hollow ? Icons.radio_button_unchecked : Icons.circle,
+        size: 8,
+        color: color,
+      ),
       const SizedBox(width: 5),
       Text(
         label,
@@ -487,6 +481,24 @@ class _TimelineStation extends StatelessWidget {
                             ),
                           ],
                         ],
+                        const SizedBox(height: 5),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Detalji',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: color,
+                                ),
+                              ),
+                              Icon(Icons.chevron_right, size: 14, color: color),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),

@@ -77,12 +77,8 @@ try {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
   }
-  for (const audience of ['Studenti', 'Odrasli', 'Stariji', 'Svi']) {
-    const choice = page.getByRole('button', { name: audience, exact: true });
-    await choice.click();
-    await expect(choice).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.event-card')).toHaveCount(realCount);
-  }
+  await expect(page.locator('.audience-picker')).toHaveCount(0);
+  await expect(page.locator('.event-card')).toHaveCount(realCount);
   await expect(page.getByRole('textbox')).toHaveCount(0);
   await page.getByRole('button', { name: 'Dojavi događaj', exact: true }).first().click();
   const note = `QA provjera sučelja ${runId}, bez stvarne objave u aplikaciji.`;
@@ -159,7 +155,7 @@ try {
   await expect(phone.getByRole('button', { name: 'Pošalji dojavu' })).toBeVisible();
   if (failures.length) throw new Error(`Browser errors: ${failures.join('; ')}`);
   console.log(
-    `Browser checks passed: ${realCount} real events, detail dialog, audience choices retain every event, tip, spam restore, admin auth, approval, persistent publish toggle, mobile layout. Screenshots: ${directory}`,
+    `Browser checks passed: ${realCount} real events, detail dialog, chronological feed without audience controls, tip, spam restore, admin auth, approval, persistent publish toggle, mobile layout. Screenshots: ${directory}`,
   );
 } finally {
   await browser?.close();

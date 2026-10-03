@@ -56,28 +56,17 @@ void main() {
   ];
 
   test(
-    'audience ordering retains everything, respects Zagreb days and prioritizes evidence',
+    'all legacy audience choices retain every event in stable Zagreb chronology',
     () {
-      expect(rankForAudience(events).map((row) => row.event.id), [
-        'unknown',
-        'late',
-        'unverified',
-        'cancelled',
-        'student',
-      ]);
-      final selected = rankForAudience(events, audience: 'students');
-      expect(selected.map((row) => row.event.id), [
-        'student',
-        'unverified',
-        'unknown',
-        'late',
-        'cancelled',
-      ]);
-      expect(selected.where((row) => row.recommendation.personal).length, 2);
-      expect(
-        rankForAudience(events, audience: 'seniors').map((row) => row.event.id),
-        ['student', 'unknown', 'late', 'unverified', 'cancelled'],
-      );
+      for (final audience in ['all', 'students', 'adults', 'seniors']) {
+        expect(
+          rankForAudience(
+            events,
+            audience: audience,
+          ).map((row) => row.event.id),
+          ['unknown', 'late', 'unverified', 'cancelled', 'student'],
+        );
+      }
       final tied = [
         const WagzEvent(
           id: 'first',
@@ -239,44 +228,6 @@ void main() {
     },
   );
 
-  testWidgets('all audience choices work on a 320px phone with large text', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(320, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    var audience = 'all';
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: MediaQuery(
-            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: StatefulBuilder(
-                builder: (context, setState) => AudienceSelector(
-                  audience: audience,
-                  onChanged: (value) => setState(() => audience = value),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    for (final value in ['students', 'adults', 'seniors', 'all']) {
-      final choice = find.byKey(ValueKey('audience-$value'));
-      expect(tester.getSize(choice).height, greaterThanOrEqualTo(48));
-      await tester.tap(choice);
-      await tester.pumpAndSettle();
-      expect(audience, value);
-      expect(tester.takeException(), isNull);
-    }
-    expect(find.text('Studenti'), findsOneWidget);
-    expect(find.textContaining('mladi'), findsNothing);
-  });
-
   testWidgets(
     'ongoing summary is compact, expands every entry and opens details',
     (tester) async {
@@ -333,9 +284,25 @@ void main() {
         ),
       );
       expect(find.byKey(const ValueKey('timeline-event-late')), findsNothing);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('event-timeline'))).height,
+        lessThanOrEqualTo(80),
+      );
       await tester.tap(find.byKey(const ValueKey('timeline-toggle')));
       await tester.pumpAndSettle();
       final late = find.byKey(const ValueKey('timeline-event-late'));
+      expect(find.text('Početak'), findsOneWidget);
+      expect(find.text('Kraj'), findsOneWidget);
+      expect(
+        tester
+            .getTopLeft(
+              find.text(
+                'Luk spaja početak i kraj. Razmaci nisu mjerilo trajanja.',
+              ),
+            )
+            .dy,
+        lessThan(tester.getTopLeft(late).dy),
+      );
       expect(
         find.byKey(const ValueKey('timeline-event-student')),
         findsNothing,
@@ -348,6 +315,7 @@ void main() {
       );
       await tester.tap(late);
       expect(opened?.id, 'late');
+      await tester.ensureVisible(find.byKey(const ValueKey('timeline-expand')));
       await tester.tap(find.byKey(const ValueKey('timeline-expand')));
       await tester.pumpAndSettle();
       final student = find.byKey(const ValueKey('timeline-event-student'));

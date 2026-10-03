@@ -1,5 +1,8 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 
+let modalSequence = 0;
+let pendingModalBack: Promise<void> | null = null;
+
 export function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -71,16 +74,86 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDialogElement>(null),
     titleId = useId();
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
     const dialog = ref.current!,
       previous = document.activeElement as HTMLElement | null;
+    const id = ++modalSequence;
+    const openedUrl = window.location.href;
+    let previousState: unknown;
+    let historyReady = false;
+    let disposed = false;
+    const restoreFocus = () => {
+      if (previous?.isConnected && !document.querySelector('dialog[open]'))
+        previous.focus({ preventScroll: true });
+    };
+    let navigatedBack = false;
+    const onPopState = () => {
+      if (window.history.state?.wagzModal?.id !== id) {
+        navigatedBack = true;
+        close.current();
+      }
+    };
+    const claimHistory = () => {
+      if (disposed) return;
+      if (window.location.href !== openedUrl) {
+        close.current();
+        return;
+      }
+      const existing = window.history.state?.wagzModal;
+      previousState = existing ? existing.previous : window.history.state;
+      const modalState = {
+        ...(previousState && typeof previousState === 'object' ? previousState : {}),
+        wagzModal: { id, previous: previousState },
+      };
+      // Remounting an editor or replaying StrictMode reuses one visible entry.
+      if (existing) window.history.replaceState(modalState, '');
+      else window.history.pushState(modalState, '');
+      historyReady = true;
+      window.addEventListener('popstate', onPopState);
+    };
+    // A previous dialog may have closed just before this one opened. Let its
+    // navigation finish before this dialog creates an entry or handles Back.
+    if (pendingModalBack) void pendingModalBack.then(claimHistory);
+    else claimHistory();
     dialog.showModal();
     const oldOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
+      disposed = true;
+      window.removeEventListener('popstate', onPopState);
       dialog.close();
       document.body.style.overflow = oldOverflow;
-      previous?.focus();
+      restoreFocus();
+      // Wait until a replacement dialog can claim the entry before removing it.
+      queueMicrotask(() => {
+        if (
+          historyReady &&
+          !navigatedBack &&
+          window.location.href === openedUrl &&
+          window.history.state?.wagzModal?.id === id
+        ) {
+          window.history.replaceState(previousState, '');
+          pendingModalBack = new Promise<void>((resolve) => {
+            window.addEventListener(
+              'popstate',
+              () => {
+                // Finish browser restoration before a waiting dialog pushes again.
+                window.setTimeout(() => {
+                  pendingModalBack = null;
+                  restoreFocus();
+                  resolve();
+                }, 0);
+              },
+              { once: true },
+            );
+          });
+          window.history.back();
+        } else if (navigatedBack) {
+          requestAnimationFrame(restoreFocus);
+        }
+      });
     };
   }, []);
   return (
@@ -105,10 +178,12 @@ export function Modal({
         }
       }}
     >
-      <div className="modal-content">
+      <div className="modal-close-rail">
         <button className="close-button" aria-label="Zatvori" onClick={onClose}>
           <span aria-hidden="true">×</span>
         </button>
+      </div>
+      <div className="modal-content">
         {eyebrow && <p className="eyebrow">{eyebrow}</p>}
         <h2 id={titleId}>{title}</h2>
         {children}
