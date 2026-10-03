@@ -70,7 +70,17 @@ test('HNK discovers every home performance and excludes touring cities; ticket I
     parsed.events.map((event) => event.startsAt.slice(0, 10)),
     ['2026-10-09', '2026-10-10', '2026-10-12', '2026-10-13', '2026-10-14'],
   );
-  assert.equal(parsed.events[0].category, 'dance');
+  assert.ok(parsed.events.every((event) => event.category === 'theatre'));
+  for (const [title, expected] of [
+    ['Balet za odrasle — početak tečaja', 'dance'],
+    ['Dan otvorenih vrata baletne škole', 'dance'],
+    ['Radionica izrade baletnih kostima', 'workshop'],
+    ['Projekcija filma o baletu', 'film'],
+    ['Koncert filmske glazbe', 'music'],
+  ] as const) {
+    const variation = parseHnkDetail(detail.html, [{ ...entries[0], title }], now);
+    assert.equal(variation.events[0].category, expected, title);
+  }
   assert.match(parsed.events[2].description, /pretplatničkog programa/);
   const changed = parseHnkDetail(
     detail.html,
@@ -107,6 +117,10 @@ test('DKolektiv separates two workshop occurrences and refuses image-only dates,
   );
   assert.equal(new Set(result.events.map((event) => event.externalId)).size, 2);
   assert.equal(result.events[0].venue, 'Franjevačka ulica, Tvrđa');
+  assert.ok(
+    result.events.every((event) => event.category === 'workshop'),
+    'The recorded practical learning invitation is not sport because the parent festival also offers sports.',
+  );
   const hidden = parseAnnouncement(
     'dkolektiv',
     imageOnly.html,
@@ -167,6 +181,10 @@ test('CoreEvent retains 16+ guardian conditions and splits actual cinema ticket 
     ['2026-10-03T11:00:00+02:00', '2026-10-04T17:00:00+02:00'],
   );
   assert.ok(movie.events.every((event) => event.endsAt === null && event.category === 'film'));
+  assert.ok(
+    movie.events.every((event) => !event.discovery?.screening),
+    'Two sessions do not establish routine cinema.',
+  );
   assert.equal(new Set(movie.events.map((event) => event.externalId)).size, 2);
   const otherCity = s.details[0].html.replace(
     '"addressLocality": "Osijek"',
@@ -176,6 +194,47 @@ test('CoreEvent retains 16+ guardian conditions and splits actual cinema ticket 
     parseCoreEventDetail(otherCity, { ...s.details[0], title: '' }, now).events.length,
     0,
   );
+});
+
+test('captured career/open-day announcement is community without acronym rules', async () => {
+  const page = JSON.parse(
+    await readFile(new URL('./fixtures/kc-open-day.json', import.meta.url), 'utf8'),
+  );
+  const listing = parseKcListing(page.listingHtml, now);
+  assert.equal(listing.entries.length, 1);
+  const event = parseKcDetail(page.html, listing.entries[0]).event;
+  assert.equal(event.category, 'community');
+  assert.equal(event.startsAt, '2026-10-07T09:00:00+02:00');
+  assert.equal(event.endsAt, '2026-10-08');
+  assert.equal(event.price, 'Besplatno');
+});
+
+test('recorded CoreEvent schedules pass full bookable source rows to semantic classification', async () => {
+  const recorded = JSON.parse(
+    await readFile(new URL('./fixtures/core-screening-schedules.json', import.meta.url), 'utf8'),
+  ) as { pages: { url: string; html: string }[] };
+  const events = recorded.pages.flatMap(
+    (page) => parseCoreEventDetail(page.html, { url: page.url, title: '' }, now).events,
+  );
+  assert.equal(events.length, 10);
+  assert.ok(events.every((event) => !event.discovery?.screening));
+  assert.ok(
+    events.every(
+      (event) =>
+        (event.classificationText?.match(/app.core-event.co\/events\//g)?.length ?? 0) >= 3,
+    ),
+  );
+  for (const sourceUrl of new Set(events.map((event) => event.sourceUrl))) {
+    assert.equal(
+      new Set(
+        events
+          .filter((event) => event.sourceUrl === sourceUrl)
+          .map((event) => event.classificationText),
+      ).size,
+      1,
+      'Every showing shares the same complete page evidence for stable caching.',
+    );
+  }
 });
 
 test('CoreEvent holds DST and conflicting-clock candidates without discarding the real venue or access condition', () => {

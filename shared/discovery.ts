@@ -11,7 +11,7 @@ export const discoveryThemes = [
   {
     id: 'dance',
     label: 'Ples',
-    description: 'Plesne večeri, izvedbe i radionice.',
+    description: 'Plesnjaci, plesne večeri i tečajevi.',
     categories: ['dance'],
   },
   {
@@ -51,6 +51,31 @@ export function themeForCategory(category: Category): DiscoveryTheme | null {
   return (
     discoveryThemes.find((theme) => theme.categories.some((item) => item === category))?.id ?? null
   );
+}
+
+/** Only verified routine cinema leaves Featured; Film always retains the full category. */
+export function isFeaturedEvent(event: PublicEvent): boolean {
+  const screening = event.discovery?.screening;
+  if (
+    event.category !== 'film' ||
+    screening?.kind !== 'routine' ||
+    typeof screening.reason !== 'string' ||
+    !screening.reason.trim() ||
+    typeof screening.sourceUrl !== 'string'
+  )
+    return true;
+  try {
+    const url = new URL(screening.sourceUrl);
+    return !(
+      ['https:', 'http:'].includes(url.protocol) &&
+      !url.username &&
+      !url.password &&
+      !url.hostname.endsWith('.invalid') &&
+      event.sources.some((source) => source.url === screening.sourceUrl)
+    );
+  } catch {
+    return true;
+  }
 }
 
 const categoryText = (value: string) =>

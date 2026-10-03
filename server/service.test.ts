@@ -58,6 +58,22 @@ const completion = (content: unknown) =>
     }),
     { status: 200 },
   );
+const semanticCompletion = (init: RequestInit | undefined, category = 'music') => {
+  const payload = JSON.parse(String(init?.body));
+  if (payload.response_format?.json_schema?.name !== 'event_categories') return null;
+  const { records } = JSON.parse(payload.messages[1].content);
+  return completion({
+    classifications: records.map((record: { id: string; title: string }) => ({
+      id: record.id,
+      category,
+      reason: 'Glavna aktivnost navedena je u naslovu izvora.',
+      evidence: [record.title],
+      screening: 'unknown',
+      screeningReason: '',
+      screeningEvidence: [],
+    })),
+  });
+};
 
 test('AI enrichment preserves deterministic identity, exact facts and discovery across title formatting', () => {
   const discovery = {
@@ -379,7 +395,9 @@ test('cached partial extraction retains its rejected-row warning on subsequent r
     ...fields
   } = candidate;
   const valid = { ...fields, dateEvidence: '2099-10-10' };
-  context.mock.method(globalThis, 'fetch', async () => {
+  context.mock.method(globalThis, 'fetch', async (_request: unknown, init: RequestInit) => {
+    const semantic = semanticCompletion(init);
+    if (semantic) return semantic;
     calls++;
     return completion({
       events: [valid, { ...valid, startsAt: '2099-02-30' }],
@@ -661,7 +679,9 @@ test('collection enriches one persistent deterministic event and reuses validate
     externalId: _externalId,
     ...fields
   } = candidate;
-  context.mock.method(globalThis, 'fetch', async () => {
+  context.mock.method(globalThis, 'fetch', async (_request: unknown, init: RequestInit) => {
+    const semantic = semanticCompletion(init, 'theatre');
+    if (semantic) return semantic;
     calls++;
     return completion({
       events: [
@@ -697,12 +717,81 @@ test('collection enriches one persistent deterministic event and reuses validate
     assert.equal(first.price, 'Besplatno');
     assert.equal(first.startsAt, original.startsAt);
     assert.equal(first.publication, 'published');
+    assert.equal(first.category, 'theatre');
     await service.collect();
     const events = await repo.events();
     assert.equal(events.length, 1);
     assert.equal(events[0].id, first.id);
     assert.equal(calls, 1);
     assert.ok((await repo.runs()).every((run) => run.imported === 1 && run.skipped === 0));
+  } finally {
+    await repo.close();
+  }
+});
+
+test('every source gets semantic classification before optional mixed-page extraction and new events are classified too', async (context) => {
+  const second = { ...source, id: 'second', url: 'https://other.example.org/' };
+  const repo = new Repository(':memory:', [source, second]);
+  const calls: string[] = [];
+  context.mock.method(globalThis, 'fetch', async (_request: unknown, init: RequestInit) => {
+    const payload = JSON.parse(String(init.body));
+    const semantic = semanticCompletion(init);
+    if (semantic) {
+      const { records } = JSON.parse(payload.messages[1].content);
+      calls.push(`classify:${records.map((record: { title: string }) => record.title).join(',')}`);
+      return semantic;
+    }
+    calls.push('extract');
+    const { sourceId: _source, sourceUrl: _url, externalId: _external, ...fields } = candidate;
+    return completion({
+      events: [
+        {
+          ...fields,
+          title: 'Drugi koncert',
+          startsAt: '2099-10-11T21:00:00+02:00',
+          dateEvidence: 'Drugi koncert 2099-10-11 u 21:00',
+        },
+      ],
+      reason: 'Zaseban termin na istoj stranici.',
+    });
+  });
+  const service = new WagzService(repo, settings(true), async (id) => ({
+    events: [
+      {
+        ...candidate,
+        sourceId: id,
+        title: id === source.id ? 'Prvi koncert' : 'Treći koncert',
+        classificationText: 'Koncertni program.',
+        sourceUrl: id === source.id ? candidate.sourceUrl : second.url,
+      },
+    ],
+    pagesFetched: 1,
+    discovered: 1,
+    skipped: 0,
+    warnings: [],
+    extractionPages:
+      id === source.id
+        ? [
+            {
+              url: candidate.sourceUrl,
+              text: 'Prvi koncert 2099-10-10 u 20:00. Drugi koncert 2099-10-11 u 21:00.',
+            },
+          ]
+        : [],
+  }));
+  try {
+    await service.collect();
+    assert.deepEqual(calls.slice(0, 3), [
+      'classify:Prvi koncert',
+      'classify:Treći koncert',
+      'extract',
+    ]);
+    assert.ok(calls.includes('classify:Drugi koncert'));
+    assert.equal((await repo.events()).length, 3);
+    assert.ok((await repo.events()).every((event) => event.category === 'music'));
+    const imported = new Map((await repo.runs()).map((run) => [run.sourceId, run.imported]));
+    assert.equal(imported.get(source.id), 2);
+    assert.equal(imported.get(second.id), 1);
   } finally {
     await repo.close();
   }
@@ -802,9 +891,15 @@ test('bounded collection gives all seven sources a fair remaining share after a 
   let clock = started;
   context.mock.method(Date, 'now', () => clock);
   let aiCalls = 0;
-  context.mock.method(globalThis, 'fetch', async () => {
+  context.mock.method(globalThis, 'fetch', async (_request: unknown, init: RequestInit) => {
     aiCalls++;
-    throw new Error('No AI call may take time reserved for later sources.');
+    const semantic = semanticCompletion(init);
+    assert.ok(
+      semantic,
+      'The remaining per-source slot permits mandatory labels only, not optional extraction.',
+    );
+    assert.ok(init.signal);
+    return semantic;
   });
   const fetched: Array<{ id: string; deadline: number; started: number }> = [];
   const service = new WagzService(repo, settings(true), async (id, options) => {
@@ -837,7 +932,7 @@ test('bounded collection gives all seven sources a fair remaining share after a 
       if (index > 0) assert.ok(item.deadline > fetched[index - 1].deadline);
     }
     assert.equal(fetched.at(-1)!.deadline, started + 225_000);
-    assert.equal(aiCalls, 0);
+    assert.equal(aiCalls, 7);
     assert.equal((await repo.events()).length, 7);
     assert.ok((await repo.runs()).every((run) => run.imported === 1 && run.finishedAt));
     assert.equal(await repo.isLeaseActive('collection'), false);

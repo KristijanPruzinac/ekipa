@@ -97,6 +97,16 @@ export function validateDiscovery(value: unknown, sourceUrl: string): EventDisco
       )
     : [];
   const p = row.prominence;
+  const s = row.screening;
+  const screening =
+    s &&
+    ['routine', 'special'].includes(s.kind) &&
+    s.sourceUrl === sourceUrl &&
+    typeof s.reason === 'string' &&
+    s.reason.trim().length > 0 &&
+    s.reason.length <= 300
+      ? s
+      : undefined;
   const prominence =
     p &&
     ['festival', 'city_event'].includes(p.kind) &&
@@ -108,6 +118,7 @@ export function validateDiscovery(value: unknown, sourceUrl: string): EventDisco
       ? p
       : null;
   return {
+    ...(screening ? { screening } : {}),
     audiences: [...new Set(audienceEvidence.map((item) => item.audience))],
     audienceEvidence,
     prominence,
@@ -131,7 +142,15 @@ export function mergeDiscovery(
         (other) => other.audience === item.audience && other.sourceUrl === item.sourceUrl,
       ) === index,
   );
+  const oldScreening = current?.screening?.sourceUrl !== sourceUrl ? current?.screening : undefined;
+  // Special source evidence overrides routine evidence in either arrival order.
+  // A refresh of its own source withdraws a claim that is no longer supported.
+  const screening =
+    [oldScreening, fresh?.screening].find((item) => item?.kind === 'special') ??
+    fresh?.screening ??
+    oldScreening;
   return {
+    ...(screening ? { screening } : {}),
     audiences: [...new Set(audienceEvidence.map((item) => item.audience))],
     audienceEvidence,
     prominence:

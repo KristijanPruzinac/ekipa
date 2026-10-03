@@ -9,6 +9,7 @@ import { WagzService } from '../service.ts';
 import type { Config } from '../config.ts';
 import { fetchSource, sources } from './index.ts';
 import { KC_URL, parseKcDetail, parseKcListing } from './parsers.ts';
+import { isFeaturedEvent } from '../../shared/discovery.ts';
 
 const fixture = JSON.parse(
   await readFile(new URL('./fixtures/kc-outdoor-cinema.json', import.meta.url), 'utf8'),
@@ -135,6 +136,13 @@ test('recorded cinema pages pass offline fetch, collection and public feed with 
     assert.equal(fetches, 0);
     assert.equal((await repo.events()).length, 3);
     assert.equal((await repo.publicEvents(beforeScreenings)).length, 3);
+    const screenings = await repo.publicEvents(beforeScreenings);
+    assert.ok(screenings.every((event) => event.category === 'other'));
+    assert.ok(screenings.every((event) => !event.discovery?.screening));
+    assert.ok(
+      screenings.every(isFeaturedEvent),
+      'Actual courtyard screenings and the rain relocation stay Featured.',
+    );
     assert.ok((await repo.events()).every((event) => event.publication === 'published'));
     assert.equal((await repo.runs())[0].pagesFetched, 0);
     assert.equal(await repo.aiSpent(), 0);

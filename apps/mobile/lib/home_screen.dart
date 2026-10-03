@@ -118,15 +118,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final allEvents = rankForAudience(feed?.events ?? []);
+    final featured = allEvents
+        .where((row) => isFeaturedEvent(row.event))
+        .toList();
     final activityCounts = {
       for (final category in categoryNames.keys)
-        if (allEvents.any((row) => row.event.category == category))
+        if (category != 'other' &&
+            allEvents.any((row) => row.event.category == category))
           category: allEvents
               .where((row) => row.event.category == category)
               .length,
     };
     final events = allEvents
-        .where((row) => activity == null || row.event.category == activity)
+        .where(
+          (row) => activity == null
+              ? isFeaturedEvent(row.event)
+              : row.event.category == activity,
+        )
         .toList();
     final ongoing = events
         .where((row) => isOngoing(row.event, feed!.now))
@@ -234,41 +242,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           runSpacing: 4,
                           children: [
                             for (final entry in {
-                              'all': allEvents.length,
+                              'featured': featured.length,
                               ...activityCounts,
                             }.entries)
                               ChoiceChip(
                                 key: ValueKey('activity-filter-${entry.key}'),
                                 label: Text(
-                                  '${entry.key == 'all' ? 'Sve' : categoryNames[entry.key]} · ${entry.value}',
+                                  '${entry.key == 'featured' ? 'Izdvojeno' : categoryNames[entry.key]} · ${entry.value}',
                                 ),
-                                selected: (activity ?? 'all') == entry.key,
+                                selected: (activity ?? 'featured') == entry.key,
                                 showCheckmark: false,
                                 side: BorderSide(
-                                  color: (activity ?? 'all') == entry.key
+                                  color: (activity ?? 'featured') == entry.key
                                       ? ink
                                       : line,
-                                  width: (activity ?? 'all') == entry.key
+                                  width: (activity ?? 'featured') == entry.key
                                       ? 1.5
                                       : 1,
                                 ),
                                 materialTapTargetSize:
                                     MaterialTapTargetSize.padded,
                                 onSelected: (_) => setState(() {
-                                  activity = entry.key == 'all'
+                                  activity = entry.key == 'featured'
                                       ? null
                                       : entry.key;
                                 }),
                               ),
                           ],
-                        ),
-                      ],
-                      if (events.isNotEmpty) ...[
-                        const SizedBox(height: 26),
-                        EventTimeline(
-                          events: events.map((row) => row.event).toList(),
-                          now: feed!.now,
-                          onOpen: openEvent,
                         ),
                       ],
                       const SizedBox(height: 28),
@@ -296,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               child: Text(
                                 '${events.length}',
                                 semanticsLabel: activity == null
-                                    ? '${events.length} događaja, svi prikazani'
+                                    ? 'Izdvojeno, ${events.length} događaja'
                                     : '${categoryNames[activity]}, ${events.length} od ${allEvents.length} događaja',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w800,
@@ -310,7 +310,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
                             activity == null
-                                ? 'Svi planovi, od najbližeg datuma.'
+                                ? 'Izdvojeni planovi, od najbližeg datuma.'
                                 : '${categoryNames[activity]} · ${events.length} od ${allEvents.length} planova, od najbližeg datuma.',
                             style: const TextStyle(
                               fontSize: 12,
@@ -332,7 +332,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       children: [
                         Text(
                           activity == null
-                              ? 'Novi planovi su na putu.'
+                              ? (allEvents.isEmpty
+                                    ? 'Novi planovi su na putu.'
+                                    : 'Trenutno nema izdvojenih događaja.')
                               : 'Nema događaja ove vrste.',
                           style: const TextStyle(
                             fontSize: 25,
@@ -342,19 +344,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         const SizedBox(height: 12),
                         Text(
                           activity == null
-                              ? 'Znaš što se sprema u Osijeku? Podijeli s ekipom.'
-                              : '${categoryNames[activity]} trenutačno nema najavljenih događaja. Pogledaj ostale vrste ili prikaži sve.',
+                              ? (allEvents.isEmpty
+                                    ? 'Znaš što se sprema u Osijeku? Podijeli s ekipom.'
+                                    : 'Sve filmske projekcije pronađi pod Film.')
+                              : '${categoryNames[activity]} trenutačno nema najavljenih događaja. Pogledaj ostale vrste ili prikaži izdvojeno.',
                           style: const TextStyle(color: muted, height: 1.5),
                         ),
                         const SizedBox(height: 20),
                         FilledButton(
                           onPressed: activity == null
-                              ? openTip
+                              ? (allEvents.isEmpty
+                                    ? openTip
+                                    : () => setState(() => activity = 'film'))
                               : () => setState(() => activity = null),
                           child: Text(
                             activity == null
-                                ? 'Dojavi događaj'
-                                : 'Prikaži sve događaje',
+                                ? (allEvents.isEmpty
+                                      ? 'Dojavi događaj'
+                                      : 'Prikaži filmove')
+                                : 'Prikaži izdvojeno',
                           ),
                         ),
                       ],

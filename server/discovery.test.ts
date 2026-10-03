@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { inferDiscovery, mergeDiscovery, validateDiscovery } from './discovery.ts';
 
 const url = 'https://example.org/event';
-
 test('negated audiences and unavailable benefits do not become affirmative audience tags', () => {
   for (const text of [
     'Program nije namijenjen studentima.',

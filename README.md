@@ -39,7 +39,7 @@ npm start
 
 Run `npm run test:review -- --dev` to repeat these checks with React StrictMode, including modal Back/Forward, rapid close/reopen, focus restoration and keyboard navigation.
 
-`npm run collect` performs a collection run from the terminal. Local development uses SQLite; the hosted API and scheduled collector share Neon Postgres through `DATABASE_URL`. The local server collects on startup and every 24 hours while running by default (`WAGZ_FETCH_INTERVAL_MINUTES=1440`). Hosted collection runs through GitHub Actions daily at 05:23 UTC (06:23 in Croatia in winter, 07:23 in summer), with manual refresh available in the admin screen.
+`npm run collect` performs a collection run from the terminal. Local development uses SQLite; the hosted API and scheduled collector share Neon Postgres through `DATABASE_URL`. **Hosted collection runs Tuesday and Friday at 18:00 Europe/Zagreb**, with automatic daylight-saving adjustment and manual refresh available in the admin screen or GitHub Actions. Two UTC cron entries are gated before dependency installation so only the seasonal slot collects; delayed jobs still run. The public health check permits 108 hours between successful source checks, covering the four-day Friday-to-Tuesday gap. This schedule applies to hosted collection only: the local development server still collects on startup and every 24 hours while running by default (`WAGZ_FETCH_INTERVAL_MINUTES=1440`); set `WAGZ_FETCH_ON_START=false` to disable its startup collection.
 
 ## What v1 does
 

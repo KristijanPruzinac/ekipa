@@ -419,11 +419,17 @@ export function parseHnkDetail(html: string, entries: LocalEntry[], now = new Da
       `${entry.genre}\n${body}`,
     );
     event.venue = 'Hrvatsko narodno kazalište u Osijeku';
-    event.category = /balet/i.test(entry.genre ?? '')
-      ? 'dance'
-      : /koncert|glazbena|opera/i.test(`${entry.title} ${entry.genre}`)
-        ? 'music'
-        : 'theatre';
+    // Genre is programme evidence, not a rule about every event at this venue.
+    // Keep explicit participatory titles ahead of the structured stage genre.
+    const activity = categoryFor(entry.title, entry.title);
+    event.category = ['dance', 'workshop', 'film', 'literature', 'community', 'music'].includes(
+      activity,
+    )
+      ? activity
+      : categoryFor(
+          `${entry.title} ${entry.genre ?? ''} ${body}`,
+          `${entry.title} ${entry.genre ?? ''}`,
+        );
     result.events.push(
       finish(
         event,
@@ -539,7 +545,6 @@ export function parseCoreEventDetail(
       if (!end && structuredEnd && structuredEnd.slice(0, 10) === start.slice(0, 10))
         end = structuredEnd;
     }
-    if ((end ?? start).slice(0, 10) < localDay(now)) return;
     let externalId = `${new URL(entry.url).pathname}#${start}`;
     const ticketRaw = row.find('a.single-event__buy-ticket-button').attr('href');
     if (ticketRaw) {
@@ -549,10 +554,12 @@ export function parseCoreEventDetail(
           ticket.protocol === 'https:' &&
           ticket.hostname === 'app.core-event.co' &&
           /^\/events\/[^/]+\/register$/.test(ticket.pathname)
-        )
+        ) {
           externalId = ticket.pathname;
+        }
       } catch {}
     }
+    if ((end ?? start).slice(0, 10) < localDay(now)) return;
     if (seen.has(externalId)) {
       result.warnings.push(`CoreEvent: ponovljen identitet termina „${title}”; potreban pregled.`);
       result.reviewExternalIds.push(externalId);
@@ -588,6 +595,19 @@ export function parseCoreEventDetail(
           ? 'Besplatno'
           : `Od ${String(offer.price).replace('.', ',')} €; provjerite naknade i vrstu ulaznice`;
     const genre = clean($('.single-event-cover__genre-text-wrapper').text());
+    // Keep the actual source programme and booking rows for semantic analysis;
+    // no schedule/category inference is performed in this evidence transport.
+    event.classificationText = [
+      genre,
+      body,
+      useful,
+      ...rows
+        .map(
+          (_index, element) =>
+            `${clean($(element).text())}\n${$(element).find('a.single-event__buy-ticket-button').attr('href') ?? ''}`,
+        )
+        .get(),
+    ].join('\n');
     event.category = categoryFor(`${title} ${genre} ${body}`, title);
     if (/stand.?up|comedy/i.test(title)) event.category = 'theatre';
     if (/Music/i.test(genre)) event.category = 'music';

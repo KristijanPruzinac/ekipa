@@ -9,6 +9,7 @@ import 'package:wagz_mobile/api.dart';
 import 'package:wagz_mobile/discovery_widgets.dart';
 import 'package:wagz_mobile/main.dart';
 import 'fixtures.dart';
+import 'home_assertions.dart';
 
 Map<String, dynamic> activityFeed() => {
   ...feedJson(),
@@ -61,7 +62,7 @@ void main() {
 
   for (final scale in [1.0, 2.0]) {
     testWidgets(
-      'activity filters fit 320px at ${scale}x text and apply to cards, ongoing and timeline together',
+      'activity filters fit 320px at ${scale}x text and show cards and ongoing directly without a timeline',
       (tester) async {
         tester.view.physicalSize = const Size(320, 1000);
         tester.view.devicePixelRatio = 1;
@@ -83,7 +84,7 @@ void main() {
         await tester.pumpAndSettle();
         final chips = find.byType(ChoiceChip);
         expect(chips, findsNWidgets(4));
-        expect(find.text('Sve · 5'), findsOneWidget);
+        expect(find.text('Izdvojeno · 5'), findsOneWidget);
         expect(find.text('Ples · 3'), findsOneWidget);
         expect(find.text('Radionica · 1'), findsOneWidget);
         expect(
@@ -122,13 +123,7 @@ void main() {
         }
 
         await select('dance');
-        expect(
-          tester
-              .widget<EventTimeline>(find.byType(EventTimeline))
-              .events
-              .map((event) => event.id),
-          ['dance-ongoing', 'dance-early', 'dance-late'],
-        );
+        await expectHomeCards(tester, ['dance-early', 'dance-late']);
         await tester.scrollUntilVisible(
           find.byType(OngoingEvents),
           200,
@@ -154,13 +149,7 @@ void main() {
           2,
         );
         await select('workshop');
-        expect(
-          tester
-              .widget<EventTimeline>(find.byType(EventTimeline))
-              .events
-              .map((event) => event.id),
-          ['workshop'],
-        );
+        await expectHomeCards(tester, ['workshop']);
         expect(find.byType(OngoingEvents), findsNothing);
         await tester.scrollUntilVisible(
           find.byKey(const ValueKey('event-card-workshop')),
@@ -178,14 +167,13 @@ void main() {
           find.byKey(const ValueKey('event-card-dance-early')),
           findsNothing,
         );
-        await select('all');
-        expect(
-          tester
-              .widget<EventTimeline>(find.byType(EventTimeline))
-              .events
-              .map((event) => event.id),
-          ['dance-ongoing', 'dance-early', 'workshop', 'music', 'dance-late'],
-        );
+        await select('featured');
+        await expectHomeCards(tester, [
+          'dance-early',
+          'workshop',
+          'music',
+          'dance-late',
+        ]);
         await tester.scrollUntilVisible(
           find.byKey(const ValueKey('event-card-dance-early')),
           200,
@@ -238,37 +226,30 @@ void main() {
       expect(
         tester
             .widget<ChoiceChip>(
-              find.byKey(const ValueKey('activity-filter-all')),
+              find.byKey(const ValueKey('activity-filter-featured')),
             )
             .selected,
         isFalse,
       );
       expect(find.byType(EventTimeline), findsNothing);
       await tester.scrollUntilVisible(
-        find.text('Prikaži sve događaje'),
+        find.text('Prikaži izdvojeno'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('Nema događaja ove vrste.'), findsOneWidget);
-      await tester.tap(find.text('Prikaži sve događaje'));
+      await tester.tap(find.text('Prikaži izdvojeno'));
       await tester.pumpAndSettle();
+      await expectHomeCards(tester, ['workshop']);
       expect(
         tester
             .widget<ChoiceChip>(
-              find.byKey(const ValueKey('activity-filter-all')),
+              find.byKey(const ValueKey('activity-filter-featured')),
             )
             .selected,
         isTrue,
       );
-      expect(
-        tester
-            .widget<EventTimeline>(find.byType(EventTimeline))
-            .events
-            .single
-            .id,
-        'workshop',
-      );
-      expect(find.text('Sve · 1'), findsOneWidget);
+      expect(find.text('Izdvojeno · 1'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },

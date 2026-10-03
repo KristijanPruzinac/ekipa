@@ -10,9 +10,6 @@ test('explicit dance formats and practical workshops have distinct categories', 
     'Bachata social',
     'Plesnjak za odrasle',
     'Plesna večer',
-    'Plesna predstava',
-    'Baletna predstava',
-    'Labuđe jezero — balet',
     'Festival plesa',
     'Početak tečaja salse',
     'Nova grupa tečaja tanga',
@@ -21,8 +18,22 @@ test('explicit dance formats and practical workshops have distinct categories', 
     'Plesna radionica u sklopu festivala',
     'Dance workshop',
     'Početni plesni tečaj swinga',
+    'Balet za odrasle — početak tečaja',
+    'Dan otvorenih vrata baletne škole',
+    'Radionica baleta za odrasle',
   ])
     assert.equal(categoryFor(title), 'dance', title);
+  for (const title of [
+    'Plesna predstava',
+    'Baletna predstava',
+    'Labuđe jezero — balet',
+    'Plesna izvedba',
+    'Baletni performans',
+    'Baletna večer',
+    'Baletna gala',
+    'Plesna večer — plesna predstava ansambla',
+  ])
+    assert.equal(categoryFor(title), 'theatre', title);
   for (const title of [
     'Radionica keramike',
     'Kreativna radionica za djecu',
@@ -31,6 +42,7 @@ test('explicit dance formats and practical workshops have distinct categories', 
     'Radionica kuhanja salsa umaka',
     'Radionica fotografiranja plesa',
     'Dance music production workshop',
+    'Radionica izrade baletnih kostima',
   ]) {
     assert.equal(categoryFor(title), 'workshop', title);
   }
@@ -51,8 +63,20 @@ test('incidental dancing/workshops do not replace a main concert, festival or op
     ['Dani otvorenih vrata — radionice plesa', '', 'community'],
     ['Izložba fotografija baleta', '', 'culture'],
     ['Filmska večer o plesu', '', 'film'],
+    ['Projekcija filma Balet', 'Priča o baletnoj predstavi.', 'film'],
     ['Redovni satovi salse utorkom i četvrtkom', '', 'other'],
     ['Početni plesni tečaj swinga — redovni tjedni satovi', '', 'other'],
+    [
+      'Sportski dan — učimo, istražujemo i stvaramo zajedno',
+      'Razvijamo znanje i kompetencije uz sportska natjecanja.',
+      'sport',
+    ],
+    ['Koncert — učimo i stvaramo zajedno', 'Glazbeni program promiče znanje.', 'music'],
+    [
+      'Festival grada',
+      'Učimo, istražujemo i stvaramo zajedno na radionicama digitalnih kompetencija.',
+      'culture',
+    ],
   ])
     assert.equal(categoryFor(`${title} ${body}`, title), expected, title);
 });

@@ -31,6 +31,7 @@ import { readTipSource } from './ai/tip-source.ts';
 import type { Config } from './config.ts';
 import { inferDiscovery, isFree } from './discovery.ts';
 import { supportedTime } from './ai/evidence.ts';
+import { classifyCandidates } from './ai/classification.ts';
 
 function submittedTimeMatches(note: string, startsAt: string): boolean {
   const explicitTime =
@@ -217,6 +218,7 @@ export function reconcileExtraction(
     }
     events.push({
       ...event,
+      classificationText: page.text,
       discovery: inferDiscovery(
         event.title,
         extracted.length === 1 ? page.text : '',
@@ -294,6 +296,15 @@ export class WagzService {
       const sourceBudgetEnd =
         deadlineMs - (queued ? Math.min(120_000, (deadlineMs - Date.now()) / 2) : 0);
       const enabledSources = this.repo.sources.filter((source) => source.enabled);
+      const classificationAttempts = new Set<string>();
+      const enrichment: Array<{
+        sourceId: string;
+        candidates: EventCandidate[];
+        pages: Array<{ url: string; text: string }>;
+        reviewExternalIds: string[];
+        run: SourceRun;
+        savedIds: Set<string>;
+      }> = [];
       for (const [sourceIndex, source] of enabledSources.entries()) {
         const sourceStarted = Date.now();
         // A slow source must leave the remaining sources a fair share of the run.
@@ -335,11 +346,65 @@ export class WagzService {
           run.pagesFetched = result.pagesFetched;
           run.warnings = result.warnings;
           let candidates = result.events;
-          for (const page of result.extractionPages ?? []) {
+          // Mandatory semantic labels receive budget before optional field enrichment.
+          const initialClassification = await classifyCandidates(
+            candidates,
+            this.config.ai,
+            this.ledger,
+            this.repo,
+            {
+              deadlineMs: sourceDeadlineMs - 5000,
+              attemptedKeys: classificationAttempts,
+            },
+          );
+          candidates = initialClassification.events;
+          run.warnings.push(...initialClassification.warnings);
+          if (result.extractionPages?.length)
+            enrichment.push({
+              sourceId: source.id,
+              candidates,
+              pages: result.extractionPages,
+              reviewExternalIds: result.reviewExternalIds ?? [],
+              run,
+              savedIds: new Set(),
+            });
+          const savedIds =
+            enrichment.at(-1)?.run === run ? enrichment.at(-1)!.savedIds : new Set<string>();
+          for (const candidate of candidates) {
+            try {
+              await this.repo.upsert(
+                candidate,
+                new Date(),
+                result.reviewExternalIds?.includes(candidate.externalId) ?? false,
+              );
+              run.imported++;
+              savedIds.add(candidate.externalId);
+            } catch (error) {
+              run.skipped++;
+              run.warnings.push(
+                `Neispravan događaj (${candidate.title.slice(0, 80)}): ${error instanceof Error ? error.message : 'validacija'}`,
+              );
+            }
+          }
+          run.status = run.warnings.length ? 'partial' : 'success';
+        } catch (error) {
+          run.status = 'error';
+          run.warnings.push(error instanceof Error ? error.message : 'Izvor nije dostupan.');
+        }
+        run.finishedAt = new Date().toISOString();
+        await this.repo.saveRun(run);
+      }
+      // All sources receive their mandatory semantic labels before optional
+      // enrichment. Mixed pages keep their additional dated events in this phase.
+      for (const job of enrichment) {
+        const { run } = job;
+        let candidates = job.candidates;
+        try {
+          for (const page of job.pages) {
             const key = createHash('sha256')
               .update(
                 JSON.stringify({
-                  source: source.id,
+                  source: job.sourceId,
                   url: page.url,
                   text: page.text,
                   model: this.config.ai.model,
@@ -352,14 +417,14 @@ export class WagzService {
             try {
               extraction = await this.repo.cached<Extraction>(`extract:${key}`);
               if (!extraction) {
-                if (sourceDeadlineMs - Date.now() < 50_000) {
+                if (sourceBudgetEnd - Date.now() < 50_000) {
                   run.warnings.push(
                     `${page.url}: AI obrada odgođena zbog vremenskog ograničenja; izvorni događaji bit će spremljeni.`,
                   );
                   continue;
                 }
                 extraction = await extractEvents(
-                  { ...page, sourceId: source.id, now: new Date().toISOString() },
+                  { ...page, sourceId: job.sourceId, now: new Date().toISOString() },
                   this.config.ai,
                   this.ledger,
                 );
@@ -379,25 +444,40 @@ export class WagzService {
             run.skipped += reconciled.skipped;
             run.warnings.push(...reconciled.warnings);
           }
-          for (const candidate of candidates) {
+          const classified = await classifyCandidates(
+            candidates,
+            this.config.ai,
+            this.ledger,
+            this.repo,
+            {
+              deadlineMs: sourceBudgetEnd - 5000,
+              attemptedKeys: classificationAttempts,
+            },
+          );
+          run.warnings.push(...classified.warnings);
+
+          for (const candidate of classified.events) {
             try {
               await this.repo.upsert(
                 candidate,
                 new Date(),
-                result.reviewExternalIds?.includes(candidate.externalId) ?? false,
+                job.reviewExternalIds.includes(candidate.externalId),
               );
-              run.imported++;
+              if (!job.savedIds.has(candidate.externalId)) {
+                run.imported++;
+                job.savedIds.add(candidate.externalId);
+              }
             } catch (error) {
               run.skipped++;
               run.warnings.push(
-                `Neispravan događaj (${candidate.title.slice(0, 80)}): ${error instanceof Error ? error.message : 'validacija'}`,
+                error instanceof Error ? error.message : 'Neispravan obogaćeni zapis.',
               );
             }
           }
           run.status = run.warnings.length ? 'partial' : 'success';
-        } catch (error) {
-          run.status = 'error';
-          run.warnings.push(error instanceof Error ? error.message : 'Izvor nije dostupan.');
+        } catch {
+          run.status = 'partial';
+          run.warnings.push('Dodatna obrada nije dovršena; izvorni događaji ostaju sačuvani.');
         }
         run.finishedAt = new Date().toISOString();
         await this.repo.saveRun(run);

@@ -17,6 +17,7 @@ export type Publication = 'published' | 'draft' | 'rejected';
 
 export type Audience = 'students' | 'adults' | 'seniors';
 export interface EventDiscovery {
+  screening?: { kind: 'routine' | 'special'; reason: string; sourceUrl: string };
   audiences: Audience[];
   audienceEvidence: Array<{ audience: Audience; reason: string; sourceUrl: string }>;
   prominence: {
@@ -29,6 +30,8 @@ export interface EventDiscovery {
 }
 
 export interface EventCandidate {
+  /** Internal fetched evidence for semantic classification; validation strips it before persistence. */
+  classificationText?: string;
   sourceId: string;
   sourceUrl: string;
   externalId: string;
@@ -53,7 +56,10 @@ export interface EventEvidence {
   lastSeenAt: string;
 }
 
-export interface PublicEvent extends Omit<EventCandidate, 'sourceId' | 'sourceUrl' | 'externalId'> {
+export interface PublicEvent extends Omit<
+  EventCandidate,
+  'sourceId' | 'sourceUrl' | 'externalId' | 'classificationText'
+> {
   id: string;
   sources: EventEvidence[];
   firstSeenAt: string;

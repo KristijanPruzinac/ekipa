@@ -244,6 +244,7 @@ export class Repository {
           : known
             ? refreshed
             : {
+                category: fields.category,
                 description: current.description || fields.description,
                 endsAt: current.endsAt ?? fields.endsAt,
                 address: current.address ?? fields.address,

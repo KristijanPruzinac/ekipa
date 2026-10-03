@@ -2,6 +2,10 @@ import { appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { SITE_ORIGIN } from '../shared/site.ts';
 
+// Friday -> Tuesday spans 96 hours, or 97 across the autumn DST change.
+// 108 hours permits that gap and flags a missed Tuesday at Wednesday's check.
+export const MAX_FEED_AGE_HOURS = 108;
+
 export function assertFreshFeed(value: unknown, now = Date.now()) {
   const feed = value as {
     events?: unknown;
@@ -15,9 +19,13 @@ export function assertFreshFeed(value: unknown, now = Date.now()) {
     Number(feed.meta?.sourceCount) < 1
   )
     throw new Error('The public event feed is invalid.');
-  if (!Number.isFinite(checked) || checked > now + 5 * 60_000 || now - checked > 36 * 60 * 60_000)
+  if (
+    !Number.isFinite(checked) ||
+    checked > now + 5 * 60_000 ||
+    now - checked > MAX_FEED_AGE_HOURS * 60 * 60_000
+  )
     throw new Error(
-      'No successful source check in the last 36 hours. Inspect the collection workflow and source health.',
+      `No successful source check in the last ${MAX_FEED_AGE_HOURS} hours. Inspect the collection workflow and source health.`,
     );
   return {
     sources: feed.meta!.sourceCount,

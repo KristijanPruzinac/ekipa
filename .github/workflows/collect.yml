@@ -1,7 +1,9 @@
 name: Collect Osijek events
 on:
   schedule:
-    - cron: '23 5 * * *'
+    # GitHub cron is UTC. The gate selects the slot for Europe/Zagreb's season.
+    - cron: '0 16 * * 2,5'
+    - cron: '0 17 * * 2,5'
   workflow_dispatch:
 concurrency:
   group: wagz-collection
@@ -27,12 +29,22 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - name: Select Tuesday and Friday at 18:00 Europe/Zagreb
+        id: schedule
+        env:
+          WAGZ_TRIGGER_EVENT: ${{ github.event_name }}
+          WAGZ_TRIGGER_SCHEDULE: ${{ github.event.schedule }}
+        run: node scripts/collection-schedule.ts
       - run: npm ci
+        if: steps.schedule.outputs.collect == 'true'
       - name: Check durable database is configured
+        if: steps.schedule.outputs.collect == 'true'
         run: node -e "if (!process.env.DATABASE_URL) { console.error('Missing WAGZ_DATABASE_URL repository secret.'); process.exit(1); }"
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        if: steps.schedule.outputs.collect == 'true'
         with:
           path: data/source-cache
           key: wagz-sources-${{ github.run_id }}
           restore-keys: wagz-sources-
       - run: npm run collect
+        if: steps.schedule.outputs.collect == 'true'

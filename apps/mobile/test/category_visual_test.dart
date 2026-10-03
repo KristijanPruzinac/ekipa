@@ -33,11 +33,11 @@ void main() {
   );
 
   test(
-    'dance workshops retain dance motif and both labels with contrasting distinct colors',
+    'AI categories control labels and contrasting motifs despite workshop words',
     () {
       expect(themeForCategory(dance.category), DiscoveryTheme.dance);
       expect(themeForCategory(workshop.category), DiscoveryTheme.workshop);
-      expect(eventCategoryLabel(dance), 'Ples · Radionica');
+      expect(eventCategoryLabel(dance), 'Ples');
       expect(eventCategoryLabel(workshop), 'Radionica');
       expect(
         eventCategoryLabel(
@@ -73,7 +73,7 @@ void main() {
             description: 'Plesna radionica za početnike.',
           ),
         ),
-        'Ples · Radionica',
+        'Ples',
       );
       expect(
         themeColor(DiscoveryTheme.dance),
@@ -122,9 +122,11 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('timeline-toggle')));
         await tester.pumpAndSettle();
         for (final label in ['Ples', 'Radionice']) {
-          expect(find.text(label), findsOneWidget);
-          final rect = tester.getRect(find.text(label));
-          expect(rect.right, lessThanOrEqualTo(320));
+          expect(find.text(label), findsNWidgets(label == 'Ples' ? 2 : 1));
+          for (final element in find.text(label).evaluate()) {
+            final rect = tester.getRect(find.byWidget(element.widget));
+            expect(rect.right, lessThanOrEqualTo(320));
+          }
         }
         for (final label in [
           'Izlasci',
@@ -135,7 +137,7 @@ void main() {
         ]) {
           expect(find.text(label), findsNothing);
         }
-        expect(find.text('Ples · Radionica'), findsOneWidget);
+        expect(find.text('Ples'), findsNWidgets(2));
         expect(tester.takeException(), isNull);
       },
     );
@@ -180,10 +182,7 @@ void main() {
       addTearDown(api.close);
       await tester.pumpWidget(WagzApp(api: api));
       await tester.pumpAndSettle();
-      for (final entry in {
-        'dance': 'PLES · RADIONICA',
-        'workshop': 'RADIONICA',
-      }.entries) {
+      for (final entry in {'dance': 'PLES', 'workshop': 'RADIONICA'}.entries) {
         final card = find.byKey(ValueKey('event-card-${entry.key}'));
         await tester.scrollUntilVisible(
           card,

@@ -655,3 +655,10 @@
     padding: 10px 8px;
   }
 }
+
+/* Match the client breakpoint before hydration as well. Phones go straight to cards. */
+@media (max-width: 760px) {
+  .event-timeline {
+    display: none;
+  }
+}

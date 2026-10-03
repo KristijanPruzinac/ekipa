@@ -16,84 +16,74 @@ void main() {
     await initializeDateFormatting('hr');
   });
 
-  testWidgets('narrow phone timeline, details and tip submission work', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(360, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    Map<String, dynamic>? tip;
-    final api = WagzApi(
-      baseUrl: 'https://wagz.example',
-      client: MockClient((request) async {
-        if (request.method == 'POST') {
-          tip = jsonDecode(request.body) as Map<String, dynamic>;
-          return http.Response('{"ok":true}', 201);
-        }
-        return http.Response.bytes(utf8.encode(jsonEncode(feedJson())), 200);
-      }),
-    );
-    addTearDown(api.close);
-    await tester.pumpWidget(WagzApp(api: api));
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('timeline-toggle')),
-      250,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(
-      find.byKey(const ValueKey('timeline-event-student-concert')),
-      findsNothing,
-    );
-    await tester.ensureVisible(find.byKey(const ValueKey('timeline-toggle')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('timeline-toggle')));
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('timeline-event-student-concert')),
-      250,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-    expect(find.byType(TextField), findsNothing);
-    expect(find.byTooltip('Tvoj radar'), findsNothing);
-    await tester.tap(
-      find.byKey(const ValueKey('timeline-event-student-concert')),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Detalji događaja'), findsOneWidget);
-    expect(find.textContaining('20:00'), findsWidgets);
-    await tester.scrollUntilVisible(
-      find.text('Organizator'),
-      220,
-      scrollable: find.byType(Scrollable).last,
-    );
-    expect(find.text('Otvori izvornu najavu'), findsOneWidget);
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Dojavi događaj'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Koncert sutra u Osijeku',
-    );
-    await tester.enterText(
-      find.byType(TextFormField).last,
-      'https://example.org/najava',
-    );
-    await tester.scrollUntilVisible(
-      find.text('Pošalji dojavu'),
-      220,
-      scrollable: find.byType(Scrollable).last,
-    );
-    await tester.tap(find.text('Pošalji dojavu'));
-    await tester.pumpAndSettle();
-    expect(find.text('Dobra dojava.\nHvala!'), findsOneWidget);
-    expect(tip?['note'], 'Koncert sutra u Osijeku');
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'narrow phone cards show directly, details and tip submission work',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      Map<String, dynamic>? tip;
+      final api = WagzApi(
+        baseUrl: 'https://wagz.example',
+        client: MockClient((request) async {
+          if (request.method == 'POST') {
+            tip = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response('{"ok":true}', 201);
+          }
+          return http.Response.bytes(utf8.encode(jsonEncode(feedJson())), 200);
+        }),
+      );
+      addTearDown(api.close);
+      await tester.pumpWidget(WagzApp(api: api));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const ValueKey('event-timeline')), findsNothing);
+      expect(find.byKey(const ValueKey('timeline-toggle')), findsNothing);
+      final card = find.byKey(const ValueKey('event-card-student-concert'));
+      await tester.scrollUntilVisible(
+        card,
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(card);
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
+      expect(find.byTooltip('Tvoj radar'), findsNothing);
+      await tester.tap(card);
+      await tester.pumpAndSettle();
+      expect(find.text('Detalji događaja'), findsOneWidget);
+      expect(find.textContaining('20:00'), findsWidgets);
+      await tester.scrollUntilVisible(
+        find.text('Organizator'),
+        220,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.text('Otvori izvornu najavu'), findsOneWidget);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Dojavi događaj'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'Koncert sutra u Osijeku',
+      );
+      await tester.enterText(
+        find.byType(TextFormField).last,
+        'https://example.org/najava',
+      );
+      await tester.scrollUntilVisible(
+        find.text('Pošalji dojavu'),
+        220,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(find.text('Pošalji dojavu'));
+      await tester.pumpAndSettle();
+      expect(find.text('Dobra dojava.\nHvala!'), findsOneWidget);
+      expect(tip?['note'], 'Koncert sutra u Osijeku');
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'foreground refresh moves real start/end boundaries, pauses in background and keeps last feed on failure',

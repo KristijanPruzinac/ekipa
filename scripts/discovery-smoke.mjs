@@ -1,4 +1,10 @@
-import { eventDurationText, isOngoing, rankForAudience, timelineFor } from '../shared/discovery.ts';
+import {
+  eventDurationText,
+  isFeaturedEvent,
+  isOngoing,
+  rankForAudience,
+  timelineFor,
+} from '../shared/discovery.ts';
 import { chromium, expect } from '@playwright/test';
 import { createServer } from 'vite';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -204,7 +210,8 @@ try {
         `^(?:U tijeku\\. )?Detalji: ${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.`,
       ),
     });
-  const chronological = () => rankForAudience(currentFeed.events).map((row) => row.event);
+  const chronological = () =>
+    rankForAudience(currentFeed.events.filter(isFeaturedEvent)).map((row) => row.event);
   async function expectNoAudienceLabels(scope = page) {
     await expect(scope.locator('.card-audience')).toHaveCount(0);
     await expect(scope.getByText('Publika navedena u najavi', { exact: true })).toHaveCount(0);
@@ -213,7 +220,7 @@ try {
     ).toHaveCount(0);
   }
   async function expectCards() {
-    const ranked = rankForAudience(currentFeed.events);
+    const ranked = rankForAudience(currentFeed.events.filter(isFeaturedEvent));
     const ongoing = ranked.filter((row) => isOngoing(row.event, currentFeed.meta.now));
     const upcoming = ranked.filter((row) => !isOngoing(row.event, currentFeed.meta.now));
     await expect(cards).toHaveCount(upcoming.length);
@@ -231,8 +238,20 @@ try {
       ...(await titles.allTextContents()),
       ...(await page.locator('.ongoing-event strong').allTextContents()),
     ];
-    expect(new Set(allTitles).size).toBe(currentFeed.events.length);
+    expect(new Set(allTitles).size).toBe(currentFeed.events.filter(isFeaturedEvent).length);
     if (ongoing.length > 2) await button('Sažmi događaje u tijeku').click();
+  }
+  async function expectNoPhoneTimeline() {
+    await expect(timeline).toHaveCount(0);
+    await expect(
+      page.locator('.timeline-mobile-toggle, .timeline-expand, .timeline-spine'),
+    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /vremensku crtu|vremenska crta/i })).toHaveCount(
+      0,
+    );
+    const first = page.locator('.card-feed');
+    const layout = page.locator('.discovery-layout');
+    expect((await first.boundingBox()).y).toBe((await layout.boundingBox()).y);
   }
   async function expectTimeline(limit) {
     const visible = chronological().slice(0, limit);
@@ -375,9 +394,7 @@ try {
     await noOverflow(width);
     if (width > 760) await expectTimeline(6);
     else {
-      await expect(button('Otvori vremensku crtu')).toHaveAttribute('aria-expanded', 'false');
-      await expect(stations).toHaveCount(0);
-      expect((await timeline.boundingBox()).height).toBeLessThanOrEqual(80);
+      await expectNoPhoneTimeline();
     }
     await page.screenshot({
       path: resolve(directory, `${live ? 'live' : 'fixture'}-${width}.png`),
@@ -389,11 +406,6 @@ try {
     await page.screenshot({
       path: resolve(directory, `${live ? 'live' : 'fixture'}-radar-${width}.png`),
     });
-    if (width <= 760) {
-      await button('Otvori vremensku crtu').focus();
-      await page.keyboard.press('Enter');
-      await expectTimeline(3);
-    }
     if (tagged) {
       const card = cards.filter({
         has: page.getByRole('heading', { name: tagged.title, exact: true }),
@@ -409,28 +421,17 @@ try {
     }
     await page.evaluate(() => document.activeElement?.blur());
     await page.mouse.move(0, 0);
-    await timeline.screenshot({
-      path: resolve(directory, `${live ? 'live' : 'fixture'}-timeline-${width}.png`),
-    });
     await expectCards();
-    await button('Cijela vremenska crta').focus();
-    await page.keyboard.press('Enter');
-    await expectTimeline(currentFeed.events.length);
-    await noOverflow(width);
-    if (width === 320) {
-      const largerLabels = await page.addStyleTag({
-        content: '.station-ending .station-time > * { font-size: 160%; }',
+    if (width > 760) {
+      await timeline.screenshot({
+        path: resolve(directory, `${live ? 'live' : 'fixture'}-timeline-${width}.png`),
       });
-      await expectTimeline(currentFeed.events.length);
+      await button('Cijela vremenska crta').focus();
+      await page.keyboard.press('Enter');
+      await expectTimeline(currentFeed.events.filter(isFeaturedEvent).length);
       await noOverflow(width);
-      await largerLabels.evaluate((element) => element.remove());
-    }
-    await button('Prikaži manje').click();
-    if (width <= 760) {
-      await button('Zatvori vremensku crtu').click();
-      await expect(stations).toHaveCount(0);
-      await expect(button('Otvori vremensku crtu')).toHaveAttribute('aria-expanded', 'false');
-    }
+      await button('Prikaži manje').click();
+    } else await expectNoPhoneTimeline();
   }
   if (!live) {
     // Isolated examples informed by KCO's separately announced dance workshops and
@@ -468,7 +469,7 @@ try {
       await expect(workshop).toHaveClass(/theme-workshop/);
       await expect(dance.locator('[data-motif="dance"]')).toHaveCount(1);
       await expect(workshop.locator('[data-motif="workshop"]')).toHaveCount(1);
-      await expect(dance.locator('.category-label')).toHaveText('Ples · Radionica');
+      await expect(dance.locator('.category-label')).toHaveText('Ples');
       await expect(workshop.locator('.category-label')).toHaveText('Radionica');
       await expect(
         cards.filter({ hasText: 'Salsa i bachata party' }).locator('.category-label'),
@@ -484,29 +485,30 @@ try {
       await dance.screenshot({ path: resolve(directory, `dance-card-${width}.png`) });
       await workshop.screenshot({ path: resolve(directory, `workshop-card-${width}.png`) });
       await eventLink('Radionica plesne improvizacije').click();
-      await expect(page.locator('dialog .eyebrow').first()).toHaveText('Ples · Radionica');
+      await expect(page.locator('dialog .eyebrow').first()).toHaveText('Ples');
       await page.keyboard.press('Escape');
-      if (width <= 760) await button('Otvori vremensku crtu').click();
-      await expectTimeline(3);
-      await expect(timeline.locator('.timeline-legend span')).toHaveText(['Ples', 'Radionice']);
-      await expect(timeline.locator('.timeline-range.theme-dance')).toHaveCount(1);
-      await expect(timeline.locator('.timeline-range.theme-workshop')).toHaveCount(1);
-      await timeline.screenshot({ path: resolve(directory, `category-timeline-${width}.png`) });
-      const biggerLegend = await page.addStyleTag({
-        content: '.timeline-legend { font-size: 22px; }',
-      });
-      await noOverflow(width);
-      const legendBounds = await timeline.locator('.timeline-legend').boundingBox();
-      for (const item of await timeline.locator('.timeline-legend span').all()) {
-        const bounds = await item.boundingBox();
-        expect(bounds.x + bounds.width).toBeLessThanOrEqual(
-          legendBounds.x + legendBounds.width + 1,
-        );
-      }
-      await timeline
-        .locator('.timeline-legend')
-        .screenshot({ path: resolve(directory, `category-legend-large-${width}.png`) });
-      await biggerLegend.evaluate((element) => element.remove());
+      if (width > 760) {
+        await expectTimeline(3);
+        await expect(timeline.locator('.timeline-legend span')).toHaveText(['Ples', 'Radionice']);
+        await expect(timeline.locator('.timeline-range.theme-dance')).toHaveCount(1);
+        await expect(timeline.locator('.timeline-range.theme-workshop')).toHaveCount(1);
+        await timeline.screenshot({ path: resolve(directory, `category-timeline-${width}.png`) });
+        const biggerLegend = await page.addStyleTag({
+          content: '.timeline-legend { font-size: 22px; }',
+        });
+        await noOverflow(width);
+        const legendBounds = await timeline.locator('.timeline-legend').boundingBox();
+        for (const item of await timeline.locator('.timeline-legend span').all()) {
+          const bounds = await item.boundingBox();
+          expect(bounds.x + bounds.width).toBeLessThanOrEqual(
+            legendBounds.x + legendBounds.width + 1,
+          );
+        }
+        await timeline
+          .locator('.timeline-legend')
+          .screenshot({ path: resolve(directory, `category-legend-large-${width}.png`) });
+        await biggerLegend.evaluate((element) => element.remove());
+      } else await expectNoPhoneTimeline();
     }
     const activityFeed = {
       ...currentFeed,
@@ -537,15 +539,14 @@ try {
       await page.reload();
       const filters = page.getByRole('group', { name: 'Vrsta događaja' });
       await expect(filters.getByRole('button')).toHaveText([
-        'Sve 6',
+        'Izdvojeno 6',
         'Ples 3',
         'Radionica 2',
         'Zajednica 1',
       ]);
-      await expect(filters.getByRole('button', { name: 'Sve 6', exact: true })).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      );
+      await expect(
+        filters.getByRole('button', { name: 'Izdvojeno 6', exact: true }),
+      ).toHaveAttribute('aria-pressed', 'true');
       await expectCards();
       const danceFilter = filters.getByRole('button', { name: 'Ples 3', exact: true });
       await danceFilter.focus();
@@ -555,12 +556,12 @@ try {
       await expect(titles).toHaveText(['Radionica plesne improvizacije', 'Salsa i bachata party']);
       await expect(page.locator('.ongoing-event strong')).toHaveText(['Plesni susret u tijeku']);
       await expect(page.locator('.results-line')).toContainText('3 događaja');
-      if (width <= 760) await button('Otvori vremensku crtu').click();
-      await expect(stations.locator('strong')).toHaveText([
-        'Plesni susret u tijeku',
-        'Radionica plesne improvizacije',
-        'Salsa i bachata party',
-      ]);
+      if (width > 760)
+        await expect(stations.locator('strong')).toHaveText([
+          'Plesni susret u tijeku',
+          'Radionica plesne improvizacije',
+          'Salsa i bachata party',
+        ]);
       await noOverflow(width);
       await filters.screenshot({ path: resolve(directory, `activity-filters-${width}.png`) });
       await page.screenshot({
@@ -570,11 +571,12 @@ try {
       await filters.getByRole('button', { name: 'Radionica 2', exact: true }).click();
       await expect(titles).toHaveText(['Radionica keramike']);
       await expect(page.locator('.ongoing-event strong')).toHaveText(['Radionica u tijeku']);
-      await expect(stations.locator('strong')).toHaveText([
-        'Radionica u tijeku',
-        'Radionica keramike',
-      ]);
-      await filters.getByRole('button', { name: 'Sve 6', exact: true }).click();
+      if (width > 760)
+        await expect(stations.locator('strong')).toHaveText([
+          'Radionica u tijeku',
+          'Radionica keramike',
+        ]);
+      await filters.getByRole('button', { name: 'Izdvojeno 6', exact: true }).click();
       await expectCards();
       await danceFilter.click();
       // A refreshed feed can remove the selected type: show zero and an explicit reset.
@@ -586,11 +588,15 @@ try {
       await expect(page.locator('.activity-empty')).toContainText(
         'Trenutno nema događaja vrste ples',
       );
-      await expect(filters.getByRole('button')).toHaveText(['Sve 3', 'Radionica 2', 'Zajednica 1']);
+      await expect(filters.getByRole('button')).toHaveText([
+        'Izdvojeno 3',
+        'Radionica 2',
+        'Zajednica 1',
+      ]);
       await expect(cards).toHaveCount(0);
       await expect(page.locator('.ongoing-event')).toHaveCount(0);
       await expect(stations).toHaveCount(0);
-      await button('Prikaži sve događaje').click();
+      await button('Prikaži izdvojeno').click();
       await expectCards();
       if (width === 320) {
         const enlarged = await page.addStyleTag({
@@ -602,6 +608,84 @@ try {
         await enlarged.evaluate((element) => element.remove());
       }
     }
+    // Featured is conservative and city-agnostic; all films remain selectable.
+    const screeningDiscovery = (kind) => ({
+      ...blankDiscovery,
+      screening: { kind, reason: 'Izvor potvrđuje kontekst projekcije.', sourceUrl },
+    });
+    const featuredFeed = {
+      ...fixtureFeed,
+      events: [
+        fixture(
+          'routine',
+          'Redovni kino termin',
+          '2026-10-04T17:00:00+02:00',
+          'film',
+          screeningDiscovery('routine'),
+          { city: 'Zagreb' },
+        ),
+        fixture(
+          'outdoor',
+          'Kino na otvorenom',
+          '2026-10-04T18:00:00+02:00',
+          'film',
+          screeningDiscovery('special'),
+        ),
+        fixture(
+          'rooftop',
+          'Rooftop filmska večer',
+          '2026-10-05',
+          'film',
+          screeningDiscovery('special'),
+          { city: 'Zagreb' },
+        ),
+        fixture('unknown-film', 'Projekcija bez potvrđenog konteksta', '2026-10-06', 'film'),
+        fixture('other-event', 'Susret u susjedstvu', '2026-10-03', 'other'),
+      ],
+    };
+    currentFeed = featuredFeed;
+    await page.setViewportSize({ width: 390, height: 1000 });
+    await page.reload();
+    await expectCards();
+    const featuredFilters = page.getByRole('group', { name: 'Vrsta događaja' });
+    await expect(featuredFilters.getByRole('button')).toHaveText(['Izdvojeno 4', 'Film 4']);
+    await expect(featuredFilters.getByRole('button', { name: /Ostalo|Sve/ })).toHaveCount(0);
+    await expect(titles).toHaveText([
+      'Susret u susjedstvu',
+      'Kino na otvorenom',
+      'Rooftop filmska večer',
+      'Projekcija bez potvrđenog konteksta',
+    ]);
+    await expect(page.locator('.event-count')).toHaveAccessibleName('Izdvojeno, 4 događaja');
+    await expectNoPhoneTimeline();
+    await featuredFilters.getByRole('button', { name: 'Film 4', exact: true }).click();
+    await expect(titles).toHaveText([
+      'Redovni kino termin',
+      'Kino na otvorenom',
+      'Rooftop filmska večer',
+      'Projekcija bez potvrđenog konteksta',
+    ]);
+    await expectNoPhoneTimeline();
+    await eventLink('Redovni kino termin').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.goBack();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(
+      featuredFilters.getByRole('button', { name: 'Film 4', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await featuredFilters.getByRole('button', { name: 'Izdvojeno 4', exact: true }).click();
+    await expectCards();
+    await noOverflow(390);
+    await page.screenshot({ path: resolve(directory, 'featured-cinema-390.png'), fullPage: true });
+    currentFeed = { ...featuredFeed, events: [featuredFeed.events[0]] };
+    await page.reload();
+    await expect(featuredFilters.getByRole('button')).toHaveText(['Izdvojeno 0', 'Film 1']);
+    await expect(cards).toHaveCount(0);
+    await expect(page.locator('.activity-empty')).toContainText(
+      'Trenutno nema izdvojenih događaja.',
+    );
+    await button('Prikaži filmove').click();
+    await expect(titles).toHaveText(['Redovni kino termin']);
     // New source-backed types retain distinct motifs, useful filter counts and
     // complete action names at 200% text size, including on a narrow phone.
     currentFeed = {
@@ -630,7 +714,11 @@ try {
       await expectCards();
       await noOverflow(width);
       const filters = page.getByRole('group', { name: 'Vrsta događaja' });
-      await expect(filters.getByRole('button')).toHaveText(['Sve 2', 'Film 1', 'Književnost 1']);
+      await expect(filters.getByRole('button')).toHaveText([
+        'Izdvojeno 2',
+        'Film 1',
+        'Književnost 1',
+      ]);
       for (const category of ['film', 'literature']) {
         const card = cards.filter({ has: page.locator(`[data-motif="${category}"]`) });
         await expect(card).toHaveCount(1);
@@ -643,35 +731,14 @@ try {
           path: resolve(directory, `${category}-card-text200-${width}.png`),
         });
       }
-      if (width <= 760) await button('Otvori vremensku crtu').click();
-      await expectTimeline(2);
-      await expect(timeline.locator('.timeline-legend span')).toHaveText(['Film', 'Književnost']);
-      if (width <= 390) {
-        try {
-          await expect(timeline.locator('.station-time').first()).toHaveCSS('position', 'static');
-        } catch (error) {
-          console.log(
-            'Text reflow layout',
-            await page.evaluate(() => {
-              const feed = document.querySelector('.feed-section');
-              return {
-                rootFont: getComputedStyle(document.documentElement).fontSize,
-                feedFont: getComputedStyle(feed).fontSize,
-                feedWidth: feed.getBoundingClientRect().width,
-                container: getComputedStyle(feed).container,
-                styles: [...document.styleSheets].map(
-                  (sheet) => sheet.href ?? sheet.ownerNode?.getAttribute('data-vite-dev-id'),
-                ),
-              };
-            }),
-          );
-          throw error;
-        }
-      }
+      if (width > 760) {
+        await expectTimeline(2);
+        await expect(timeline.locator('.timeline-legend span')).toHaveText(['Film', 'Književnost']);
+        await timeline.screenshot({
+          path: resolve(directory, `film-literature-timeline-text200-${width}.png`),
+        });
+      } else await expectNoPhoneTimeline();
       await noOverflow(width);
-      await timeline.screenshot({
-        path: resolve(directory, `film-literature-timeline-text200-${width}.png`),
-      });
       await eventLink('Projekcija dokumentarnog filma').focus();
       await page.keyboard.press('Enter');
       await expect(page.getByRole('dialog')).toContainText('1 h 30 min');
@@ -682,7 +749,8 @@ try {
       await page.keyboard.press('Escape');
       await filters.getByRole('button', { name: 'Književnost 1', exact: true }).click();
       await expect(titles).toHaveText(['Književna večer i razgovor s autorom']);
-      await expect(timeline.locator('.timeline-legend span')).toHaveText(['Književnost']);
+      if (width > 760)
+        await expect(timeline.locator('.timeline-legend span')).toHaveText(['Književnost']);
       await textZoom.evaluate((element) => element.remove());
     }
     currentFeed = baseFeed;
@@ -710,7 +778,7 @@ try {
   await expectCards('students');
   await expect(page.locator('.card-audience')).toHaveCount(0);
   await expect(button('Cijela vremenska crta')).toHaveCount(0);
-  await button('Otvori vremensku crtu').click();
+  await page.setViewportSize({ width: 1440, height: 1100 });
   await expectTimeline(1);
   await expect(timeline.locator('.station-weekday')).toHaveText(['ned']);
   // The repeated hour during the Zagreb autumn clock change retains Sunday at both ends.
@@ -723,7 +791,7 @@ try {
     ],
   };
   await page.reload();
-  await button('Otvori vremensku crtu').click();
+  await page.setViewportSize({ width: 1440, height: 1100 });
   await expectTimeline(1);
   await expect(timeline.locator('.station-weekday')).toHaveText(['ned', 'ned']);
   await expect(timeline.locator('.station-duration')).toContainText(['3 h']);

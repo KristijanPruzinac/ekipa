@@ -86,10 +86,21 @@ export function categoryFor(text: string, title = text): Category {
     /\b(?:ples[a-z]*|balet[a-z]*|sals[a-z]*|bachat[a-z]*|kizomb[a-z]*|tango|tanga|swing|dance)\b/.test(
       primary,
     ) &&
-    !/\b(?:kuh[a-z]*|kulin[a-z]*|umak[a-z]*|gastronom[a-z]*|fotograf[a-z]*|snimanj[a-z]*|crtanj[a-z]*|slikanj[a-z]*|music|glazb[a-z]*|produkcij[a-z]*)\b/.test(
+    !/\b(?:kuh[a-z]*|kulin[a-z]*|umak[a-z]*|gastronom[a-z]*|fotograf[a-z]*|snimanj[a-z]*|crtanj[a-z]*|slikanj[a-z]*|izrad[a-z]*|kostim[a-z]*|music|glazb[a-z]*|produkcij[a-z]*)\b/.test(
       primary,
     );
   if (isWorkshopTitle(title)) return danceTopic ? 'dance' : 'workshop';
+  // Some invitations describe the practical learning activity without the noun
+  // "radionica". Require both a participatory title and educational evidence;
+  // a festival's background list of sports must not classify that activity.
+  const learningInvitation =
+    /\bucimo\b/.test(primary) &&
+    /\b(?:istrazujemo|stvaramo)\b/.test(primary) &&
+    /\b(?:ucionic[a-z]*|ucenj[a-z]*|uciti|kompetenc[a-z]*|znanj[a-z]*)\b/.test(value) &&
+    !/\b(?:sport[a-z]*|utrk[a-z]*|turnir[a-z]*|utakmic[a-z]*|maraton[a-z]*|trening[a-z]*|nogomet[a-z]*|koncert[a-z]*|festival[a-z]*|predstav[a-z]*|izlozb[a-z]*|sajam[a-z]*)\b/.test(
+      primary,
+    );
+  if (learningInvitation) return danceTopic ? 'dance' : 'workshop';
   // The announced activity takes precedence over incidental programme/body words.
   const filmEvent =
     /\b(?:projekcij[a-z]*\s+(?:(?:dokumentarn[a-z]*|igran[a-z]*|kratk[a-z]*|animiran[a-z]*)\s+)?film[a-z]*|filmsk[a-z]*\s+(?:projekcij[a-z]*|vecer[a-z]*|festival[a-z]*|matinej[a-z]*)|kino\s+(?:vecer|matineja)|screening)\b/;
@@ -97,9 +108,18 @@ export function categoryFor(text: string, title = text): Category {
     /\b(?:knjizevn[a-z]*\s+(?:vecer[a-z]*|susret[a-z]*|razgovor[a-z]*|festival[a-z]*)|(?:promocij[a-z]*|predstavljanj[a-z]*)\s+(?:knjig[a-z]*|roman[a-z]*|zbirke|slikovnic[a-z]*)|citateljsk[a-z]*\s+klub[a-z]*|(?:vecer|citanje)\s+poezij[a-z]*)\b/;
   if (filmEvent.test(primary)) return 'film';
   if (literaryEvent.test(primary)) return 'literature';
+  if (
+    /\b(?:plesn[a-z]*|baletn[a-z]*)\s+(?:predstav[a-z]*|izvedb[a-z]*|performans[a-z]*)\b/.test(
+      primary,
+    ) &&
+    !/\b(?:tecaj[a-z]*|skol[a-z]*|koncert[a-z]*|glazb[a-z]*|izlozb[a-z]*|knjig[a-z]*|predavanj[a-z]*)\b/.test(
+      primary,
+    )
+  )
+    return 'theatre';
   const danceEvent =
-    /\b(?:plesnjak[a-z]*|balet)\b/.test(primary) ||
-    /\b(?:plesn[a-z]*|baletn[a-z]*)\s+(?:vecer[a-z]*|druzenj[a-z]*|predstav[a-z]*|izvedb[a-z]*|performans[a-z]*|natjecanj[a-z]*|festival[a-z]*)\b/.test(
+    /\bplesnjak[a-z]*\b/.test(primary) ||
+    /\bplesn[a-z]*\s+(?:vecer[a-z]*|druzenj[a-z]*|natjecanj[a-z]*|festival[a-z]*)\b/.test(
       primary,
     ) ||
     /\b(?:sals[a-z]*|bachat[a-z]*|kizomb[a-z]*|tang[oa]|swing)(?:\s+(?:i|and))?(?:\s+(?:sals[a-z]*|bachat[a-z]*|kizomb[a-z]*|tang[oa]|swing))?\s+(?:social|party|night|festival|vecer)\b/.test(
@@ -122,6 +142,19 @@ export function categoryFor(text: string, title = text): Category {
     )
   )
     return 'dance';
+  // A staged ballet is a performance; a positively identified class/open day
+  // above remains participatory even when its title also contains "balet".
+  const stagePerformance =
+    /\b(?:balet|opera|opereta)\b|\b(?:plesn[a-z]*|baletn[a-z]*)\s+(?:predstav[a-z]*|izvedb[a-z]*|performans[a-z]*|gala|vecer[a-z]*)\b/.test(
+      primary,
+    );
+  if (
+    stagePerformance &&
+    !/\b(?:koncert[a-z]*|glazb[a-z]*|izlozb[a-z]*|knjig[a-z]*|predavanj[a-z]*)\b/.test(primary)
+  )
+    return 'theatre';
+  if (/\b(?:dan(?:i)? otvorenih vrata|dan(?:i)? karijera|open day|career fair)\b/.test(primary))
+    return 'community';
   if (/\b(predstava|kazalist|komedij|teatar)/.test(value)) return 'theatre';
   if (/\b(sport|utrka|maraton|atletik|nogomet|gimnastik|natjecanje|bicikl|rekreacij)/.test(value))
     return 'sport';
@@ -146,7 +179,7 @@ export function synopsis(event: EventCandidate): string {
     culture: 'Kulturni događaj',
     sport: 'Sportski događaj',
     community: 'Događaj zajednice',
-    other: 'Događaj u Osijeku',
+    other: 'Događaj',
   };
   return [
     `${labels[event.category]}.`,
@@ -168,6 +201,7 @@ export function candidate(
   sourceText: string,
 ): EventCandidate {
   const event: EventCandidate = {
+    classificationText: sourceText,
     sourceId,
     sourceUrl,
     externalId,

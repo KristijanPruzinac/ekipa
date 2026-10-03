@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'rea
 import {
   durationLabel,
   eventDurationText,
+  isFeaturedEvent,
   isOngoing,
   rankForAudience,
   themeForCategory,
@@ -290,6 +291,7 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
     };
   }, []);
   const events = useMemo(() => rankForAudience(feed?.events ?? []), [feed]);
+  const featured = events.filter(({ event }) => isFeaturedEvent(event));
   const activityCounts = new Map(
     categories.map((category) => [
       category,
@@ -298,7 +300,7 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
   );
   const visibleEvents = activity
     ? events.filter(({ event }) => event.category === activity)
-    : events;
+    : featured;
   const ongoing = visibleEvents.filter(({ event }) => isOngoing(event, feed!.meta.now));
   const upcoming = visibleEvents.filter(({ event }) => !isOngoing(event, feed!.meta.now));
   return (
@@ -350,8 +352,11 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
                 ✳
               </span>
               <h2 id="feed-title">Događanja u Osijeku</h2>
-              <span className="event-count" aria-label={`${feed?.events.length ?? 0} događaja`}>
-                {loading && !feed ? '—' : (feed?.events.length ?? '—')}
+              <span
+                className="event-count"
+                aria-label={`${activity ? categoryNames[activity] : 'Izdvojeno'}, ${visibleEvents.length} događaja`}
+              >
+                {loading && !feed ? '—' : visibleEvents.length}
               </span>
             </div>
             <p className="section-note">DOBRI PLANOVI POČINJU OVDJE.</p>
@@ -363,10 +368,10 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
                 aria-pressed={activity === null}
                 onClick={() => setActivity(null)}
               >
-                Sve <span>{events.length}</span>
+                Izdvojeno <span>{featured.length}</span>
               </button>
               {categories
-                .filter((category) => activityCounts.get(category)! > 0)
+                .filter((category) => category !== 'other' && activityCounts.get(category)! > 0)
                 .map((category) => (
                   <button
                     type="button"
@@ -422,15 +427,18 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
                       Sljedeće u gradu <span>{upcoming.length}</span>
                     </p>
                   )}
-                  {visibleEvents.length === 0 && activity ? (
+                  {visibleEvents.length === 0 ? (
                     <div className="activity-empty">
                       <p>
-                        Trenutno nema događaja vrste{' '}
-                        {categoryNames[activity].toLocaleLowerCase('hr')}. Najave su se možda
-                        promijenile.
+                        {activity
+                          ? `Trenutno nema događaja vrste ${categoryNames[activity].toLocaleLowerCase('hr')}. Najave su se možda promijenile.`
+                          : 'Trenutno nema izdvojenih događaja. Sve filmske projekcije pronađi pod Film.'}
                       </p>
-                      <button className="button button-dark" onClick={() => setActivity(null)}>
-                        Prikaži sve događaje <Arrow />
+                      <button
+                        className="button button-dark"
+                        onClick={() => setActivity(activity ? null : 'film')}
+                      >
+                        {activity ? 'Prikaži izdvojeno' : 'Prikaži filmove'} <Arrow />
                       </button>
                     </div>
                   ) : (

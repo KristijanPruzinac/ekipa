@@ -1,5 +1,5 @@
 import type { Category, EventDraft, PublicEvent } from '../shared/types';
-import { eventDurationText, isWorkshopEvent } from '../shared/discovery';
+import { eventDurationText } from '../shared/discovery';
 import type { MouseEvent } from 'react';
 
 export const categoryNames: Record<Category, string> = {
@@ -15,10 +15,7 @@ export const categoryNames: Record<Category, string> = {
   community: 'Zajednica',
   other: 'Ostalo',
 };
-export const eventCategoryLabel = (event: PublicEvent) =>
-  event.category === 'dance' && isWorkshopEvent(event)
-    ? 'Ples · Radionica'
-    : categoryNames[event.category];
+export const eventCategoryLabel = (event: PublicEvent) => categoryNames[event.category];
 
 /** A single complete action name when the whole card is one link. */
 export function eventDetailsLabel(event: PublicEvent, now?: string): string {

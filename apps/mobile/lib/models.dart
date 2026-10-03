@@ -36,6 +36,11 @@ class DiscoveryReason {
   final String? audience;
 }
 
+class ScreeningEvidence {
+  const ScreeningEvidence(this.kind, this.reason, this.sourceUrl);
+  final String kind, reason, sourceUrl;
+}
+
 class EventDiscovery {
   const EventDiscovery({
     this.audiences = const [],
@@ -43,16 +48,19 @@ class EventDiscovery {
     this.prominenceLabel,
     this.prominenceEvidence,
     this.free = false,
+    this.screening,
   });
   final List<String> audiences;
   final List<DiscoveryReason> audienceEvidence;
   final String? prominenceLabel;
   final DiscoveryReason? prominenceEvidence;
   final bool free;
+  final ScreeningEvidence? screening;
 
   factory EventDiscovery.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const EventDiscovery();
     final prominence = json['prominence'] as Map<String, dynamic>?;
+    final screening = json['screening'];
     return EventDiscovery(
       audiences: (json['audiences'] as List? ?? []).cast<String>(),
       audienceEvidence: (json['audienceEvidence'] as List? ?? [])
@@ -72,6 +80,17 @@ class EventDiscovery {
               prominence['sourceUrl'] as String,
             ),
       free: json['free'] == true,
+      screening:
+          screening is Map<String, dynamic> &&
+              screening['kind'] is String &&
+              screening['reason'] is String &&
+              screening['sourceUrl'] is String
+          ? ScreeningEvidence(
+              screening['kind'] as String,
+              screening['reason'] as String,
+              screening['sourceUrl'] as String,
+            )
+          : null,
     );
   }
 }
