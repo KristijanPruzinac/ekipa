@@ -106,7 +106,7 @@ test('semantic request uses shared written criteria, strict quotes and the same 
       assert.deepEqual(payload.tools, []);
       assert.equal(payload.tool_choice, 'none');
       assert.ok(payload.messages[0].content.includes(SEMANTIC_CRITERIA));
-      assert.match(SEMANTIC_CRITERIA, /A ballet performance is theatre/);
+      assert.match(SEMANTIC_CRITERIA, /ballet performance that people watch is theatre/);
       assert.match(SEMANTIC_CRITERIA, /career fairs/);
       assert.match(SEMANTIC_CRITERIA, /Special evidence overrides repeated dates/);
       return envelope({ classifications: [decision(input)] });
@@ -383,4 +383,30 @@ test('fresh special overrides routine, withdrawn evidence clears, and automatic 
   } finally {
     await repo.close();
   }
+});
+
+test('criteria decide by attendee activity, never by art form, venue, organiser or place', () => {
+  assert.match(SEMANTIC_CRITERIA, /NEVER decide the category on their own/);
+  for (const phrase of [
+    'ballet performance that people watch is theatre',
+    'ballet class or workshop where people learn is dance',
+    'screening of a ballet film is film',
+    'exhibition of ballet photographs is culture',
+  ])
+    assert.ok(SEMANTIC_CRITERIA.includes(phrase), phrase);
+  // The rules must generalise: no city, venue, organiser or source names, and no local terms.
+  assert.doesNotMatch(
+    SEMANTIC_CRITERIA,
+    /osijek|zagreb|croatia|hrvatsk|hnk|urania|kulturni centar|gisko|feniks|d&d|core-?event|dkolektiv|plesnja|tzosijek|kino /i,
+  );
+  // No category is defined by a bare genre: each definition names what attendees do or attend.
+  const definitions = SEMANTIC_CRITERIA.split('\n').filter((line) =>
+    /^(theatre|dance|workshop|film|literature|music|nightlife|sport|community|culture|other):/.test(
+      line,
+    ),
+  );
+  assert.equal(definitions.length, 11);
+  for (const line of definitions)
+    assert.match(line, /attendees|presentations|nights|fairs|exhibitions|evidence/, line);
+  assert.match(SEMANTIC_CRITERIA, /other: .*Never guess/);
 });

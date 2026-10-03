@@ -2,6 +2,7 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { Repository } from './repository.ts';
+import { classificationReply } from './test-support.ts';
 import { WagzService } from './service.ts';
 import type { Config } from './config.ts';
 import type {
@@ -90,7 +91,10 @@ test('daily collection imports sources first and archives an already-listed real
   freeze(context);
   const repo = new Repository(':memory:', [source]);
   let calls = 0;
-  context.mock.method(globalThis, 'fetch', async () => {
+  context.mock.method(globalThis, 'fetch', async (_request: unknown, init?: RequestInit) => {
+    // Only the batched source classification may reach the provider; tip handling must not.
+    const categorised = classificationReply(init);
+    if (categorised) return categorised;
     calls++;
     throw new Error('Network forbidden');
   });

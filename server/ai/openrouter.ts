@@ -4,18 +4,32 @@ import { supportedDays, supportedTime, supportedEndTime, normalizedEvidence } fr
 import { tipDates, upcoming } from '../validation.ts';
 
 // Included in extraction cache keys: changes to runtime evidence rules invalidate old results.
-export const EXTRACTION_VERSION = 6;
+export const EXTRACTION_VERSION = 7;
 // Tip prompts, response envelopes and source evidence are part of the cache contract.
-export const TIP_PREPARATION_VERSION = 6;
-export const CLASSIFICATION_VERSION = 1;
+export const TIP_PREPARATION_VERSION = 7;
+export const CLASSIFICATION_VERSION = 2;
 export const MAX_CLASSIFICATION_BATCH = 8;
 export const MAX_CLASSIFICATION_TEXT = 16_000;
-export const SEMANTIC_CRITERIA = `Classify the main announced activity semantically using the supplied source evidence, never a hardcoded event name, city, venue or domain. Category definitions:
-theatre: watched staged performances, plays, ballet, opera, operetta, staged dance, comedy and stand-up. A ballet performance is theatre even though its art form is dance.
-dance: participatory social dancing, dance socials/plesnjaci, dance workshops, dance course starts and open days where visitors participate at a dance school. Dance workshops remain dance. Incidental dance music or a watched staged dance performance is not participatory dance.
-workshop: the event itself is practical learning, making or hands-on work, except participatory dance workshops. An overarching festival, concert or open day merely containing workshops keeps its main category.
-film: all film screenings and cinema programmes, even when the title is only the movie name or the synopsis never says film. Use combined source context, programme and bookable showtimes to interpret the activity. A filmmaking/costume workshop is workshop, a film about ballet is film. literature: book presentations, readings, poetry and literary discussions; a library venue alone is insufficient.
-music: concerts and live music. nightlife: DJ/clubbing and nightlife parties. sport: sports events and participation. community: career fairs/days, general open days, civic and community gatherings. culture: exhibitions and other cultural events not covered above. other: insufficient or genuinely ambiguous activity evidence.
+/**
+ * Written classification criteria. Categories are defined by what attendees DO; genre, art form,
+ * organiser, venue and place never decide alone, so the same art form can land in different
+ * categories. No city-, venue- or organiser-specific rule belongs here (tests enforce this).
+ */
+export const SEMANTIC_CRITERIA = `Classify the main announced activity semantically using the supplied source evidence, never a hardcoded event name, city, venue, organiser or domain.
+Decide the category from what attendees actually do. Genre, art form, subject, performer, organiser, venue and location NEVER decide the category on their own, so the same art form belongs to different categories depending on the activity: a ballet performance that people watch is theatre, a ballet class or workshop where people learn is dance, a screening of a ballet film is film, an exhibition of ballet photographs is culture, a lecture about ballet is culture.
+Category definitions:
+theatre: attendees watch a live staged performance (drama, opera, operetta, musical, ballet or contemporary dance performance, comedy, stand-up, puppetry).
+dance: attendees themselves dance or learn to dance: social dance evenings, dance classes and workshops, the start of a dance course, or a dance school's open day where visitors take part. Incidental dance music does not make an event dance.
+workshop: attendees take part in hands-on learning or making of a practical skill other than dancing. A festival, concert or open day that merely contains workshops keeps its main category.
+film: attendees watch a film screening, wherever and however it is held, even when the title is only the film's name or the synopsis never says film. A filmmaking or costume workshop is workshop.
+literature: book presentations, readings, poetry evenings, author talks and literary discussions; a library venue alone is insufficient.
+music: attendees listen to live music (concerts, recitals, gigs).
+nightlife: DJ, club and party nights where the party itself is the event.
+sport: attendees compete in or watch organised sport, or take part in organised physical recreation.
+community: career fairs/days, general open days, civic, family and neighbourhood gatherings.
+culture: exhibitions, lectures, guided tours and other cultural events not covered above.
+other: the evidence does not clearly establish the primary activity, or none of the above fits. Never guess.
+When an event combines activities, choose the main announced activity, not a side programme, an after-party, an incidental mention or a performer biography.
 Screening kind applies only to film: routine means affirmative source evidence of an ordinary cinema programme, including at least three independently bookable showtimes on three distinct dates for the same film. Ticket tiers, duplicate rows or one continuous date range are not separate screenings. special means the current screening is outdoor/open-air/courtyard/rooftop, festival, retrospective, premiere, special presentation or a weather-relocated special event. Special evidence overrides repeated dates. A historical festival award in a plot synopsis does not make the current screening a festival. Unknown screening format stays unknown and visible in Featured; never infer routine merely from a venue/domain/city name or absent special wording.
 Do not expand weekly lessons, registration deadlines or recap dates into events. Preserve the original source facts and distinguish primary activity from incidental programme items or performer biographies.`;
 

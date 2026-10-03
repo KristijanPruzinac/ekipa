@@ -63,6 +63,9 @@ export async function classifyCandidates(
     if (cached) results.set(input.id, cached);
     else if (!options.attemptedKeys?.has(input.id)) pending.push(input);
   }
+  // Without a provider key nothing is sent and nothing is billed; every uncached event stays
+  // visible as `other` (no keyword guess) without a per-run warning.
+  if (!config.apiKey) pending.length = 0;
   while (pending.length) {
     const batch: ClassificationInput[] = [];
     let size = 0;
