@@ -6,6 +6,7 @@ data/
 !.env.example
 *.log
 .cache/
+.kilo/
 .artifacts/
 coverage/
 .DS_Store
