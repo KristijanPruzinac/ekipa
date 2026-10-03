@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { PostgresDatabase, SqliteDatabase, type Database, type Row } from './database.ts';
 import { isFree, mergeDiscovery } from './discovery.ts';
+import { DEFAULT_TIP_DAILY_LIMIT, QUOTA_DAY_MS, QUOTA_HOUR_MS } from './request-security.ts';
 import type {
   EventCandidate,
   EventDraft,
@@ -261,7 +262,7 @@ export class Repository {
           current.autoPublishEligible ??
           (current.publication === 'draft' && !current.venue && !current.manuallyEdited);
         event.autoPublishEligible = eligible;
-        if (ambiguous && !current.manuallyEdited) {
+        if ((ambiguous || forceDraft) && !current.manuallyEdited) {
           event.autoPublishEligible = false;
           // Preserve explicit operator publication/rejection decisions. Imported
           // collisions remain held even after their source supplies missing facts.
@@ -396,10 +397,78 @@ export class Repository {
       return (await this.event(id))!;
     }, true);
   }
-  /** Shared by all API instances; raw client addresses are never persisted. */
-  async consumeTipQuota(client: string, now = Date.now()): Promise<boolean> {
+  private validateQuotaClient(client: string, now: number) {
     if (!client || client.length > 256 || !Number.isSafeInteger(now) || now < 0)
-      throw new ValidationError('Neispravni podaci ograničenja dojava.');
+      throw new ValidationError('Neispravni podaci ograničenja zahtjeva.');
+  }
+  /** Must run in a write transaction. Check every window before incrementing any. */
+  private async consumeRequestQuotas(
+    quotas: Array<{ key: string; limit: number; expiresAt: number }>,
+    now: number,
+  ): Promise<boolean> {
+    await this.database.query(
+      'DELETE FROM request_quotas WHERE quota_key IN (SELECT quota_key FROM request_quotas WHERE expires_at<=? ORDER BY expires_at LIMIT 128)',
+      [now],
+    );
+    const entries: Array<{ key: string; attempts: number; expiresAt: number }> = [];
+    for (const quota of quotas) {
+      const [row] = await this.database.query(
+        'SELECT attempts,expires_at FROM request_quotas WHERE quota_key=?',
+        [quota.key],
+      );
+      const active = row && Number(row.expires_at) > now;
+      const attempts = active ? Number(row.attempts) : 0;
+      if (attempts >= quota.limit) return false;
+      entries.push({
+        key: quota.key,
+        attempts: attempts + 1,
+        expiresAt: active ? Number(row.expires_at) : quota.expiresAt,
+      });
+    }
+    for (const entry of entries)
+      await this.database.query(
+        'INSERT INTO request_quotas(quota_key,attempts,expires_at) VALUES (?,?,?) ON CONFLICT(quota_key) DO UPDATE SET attempts=excluded.attempts,expires_at=excluded.expires_at',
+        [entry.key, entry.attempts, entry.expiresAt],
+      );
+    return true;
+  }
+  /** Shared across instances; the global ceiling also bounds rotating-address state. */
+  async consumeAdminAuthQuota(client: string, now = Date.now()): Promise<boolean> {
+    this.validateQuotaClient(client, now);
+    const clientKey = createHash('sha256').update(`wagz-admin-auth:${client}`).digest('hex');
+    return this.operation(
+      () =>
+        this.consumeRequestQuotas(
+          [
+            { key: 'admin-auth:global', limit: 300, expiresAt: now + 15 * 60_000 },
+            { key: `admin-auth:${clientKey}`, limit: 30, expiresAt: now + 15 * 60_000 },
+          ],
+          now,
+        ),
+      true,
+    );
+  }
+  /** Collection work is a shared resource, so its request limit is global. */
+  async consumeCollectionQuota(now = Date.now()): Promise<boolean> {
+    this.validateQuotaClient('collection', now);
+    return this.operation(
+      () =>
+        this.consumeRequestQuotas(
+          [{ key: 'collection:global', limit: 6, expiresAt: now + QUOTA_HOUR_MS }],
+          now,
+        ),
+      true,
+    );
+  }
+  /** Atomic per-client/hour and global/UTC-day admission; never persists raw IPs. */
+  async consumeTipQuota(
+    client: string,
+    now = Date.now(),
+    dailyLimit = DEFAULT_TIP_DAILY_LIMIT,
+  ): Promise<boolean> {
+    this.validateQuotaClient(client, now);
+    if (!Number.isSafeInteger(dailyLimit) || dailyLimit < 0)
+      throw new ValidationError('Neispravno dnevno ograničenje dojava.');
     const clientKey = createHash('sha256').update(`wagz-tip-quota:${client}`).digest('hex');
     return this.operation(async () => {
       // Cap cleanup work per request; expired rows never constrain a new window.
@@ -413,12 +482,25 @@ export class Repository {
       );
       const active = row && Number(row.expires_at) > now;
       if (active && Number(row.attempts) >= 5) return false;
+      if (
+        !(await this.consumeRequestQuotas(
+          [
+            {
+              key: 'tips:global',
+              limit: dailyLimit,
+              expiresAt: (Math.floor(now / QUOTA_DAY_MS) + 1) * QUOTA_DAY_MS,
+            },
+          ],
+          now,
+        ))
+      )
+        return false;
       await this.database.query(
         'INSERT INTO tip_quotas(client_key,attempts,expires_at) VALUES (?,?,?) ON CONFLICT(client_key) DO UPDATE SET attempts=excluded.attempts,expires_at=excluded.expires_at',
         [
           clientKey,
           active ? Number(row.attempts) + 1 : 1,
-          active ? Number(row.expires_at) : now + 60 * 60_000,
+          active ? Number(row.expires_at) : now + QUOTA_HOUR_MS,
         ],
       );
       return true;

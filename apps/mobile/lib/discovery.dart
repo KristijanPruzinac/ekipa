@@ -1,11 +1,21 @@
 import 'models.dart';
 
-enum DiscoveryTheme { goOut, dance, workshop, culture, joinIn }
+enum DiscoveryTheme {
+  goOut,
+  dance,
+  workshop,
+  film,
+  literature,
+  culture,
+  joinIn,
+}
 
 const discoveryThemes = {
   DiscoveryTheme.goOut: 'Glazba i izlasci',
   DiscoveryTheme.dance: 'Ples',
   DiscoveryTheme.workshop: 'Radionice',
+  DiscoveryTheme.film: 'Film',
+  DiscoveryTheme.literature: 'Književnost',
   DiscoveryTheme.culture: 'Pozornica i kultura',
   DiscoveryTheme.joinIn: 'Pokret i druženje',
 };
@@ -14,6 +24,8 @@ DiscoveryTheme? themeForCategory(String category) => switch (category) {
   'music' || 'nightlife' => DiscoveryTheme.goOut,
   'dance' => DiscoveryTheme.dance,
   'workshop' => DiscoveryTheme.workshop,
+  'film' => DiscoveryTheme.film,
+  'literature' => DiscoveryTheme.literature,
   'theatre' || 'culture' => DiscoveryTheme.culture,
   'sport' || 'community' => DiscoveryTheme.joinIn,
   _ => null,
@@ -51,6 +63,17 @@ String eventCategoryLabel(WagzEvent event) =>
     event.category == 'dance' && isWorkshopEvent(event)
     ? 'Ples · Radionica'
     : categoryNames[event.category] ?? 'Ostalo';
+
+String eventActionLabel(WagzEvent event, [String? now]) => [
+  'Detalji: ${event.title}.',
+  '${eventCategoryLabel(event)}.',
+  '${formatDate(event.startsAt, 'EEEE d. MMMM')}, ${formatTime(event.startsAt)}.',
+  '${eventDurationText(event, now)}.',
+  '${event.venue ?? 'Lokacija još nije navedena'}.',
+  '${event.price ?? 'Cijena nije navedena'}.',
+  if (event.status != 'scheduled')
+    event.status == 'cancelled' ? 'Otkazano.' : 'Odgođeno.',
+].join(' ');
 
 class RankedEvent {
   const RankedEvent({required this.event, required this.index});

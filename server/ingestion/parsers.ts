@@ -90,9 +90,16 @@ export function categoryFor(text: string, title = text): Category {
       primary,
     );
   if (isWorkshopTitle(title)) return danceTopic ? 'dance' : 'workshop';
+  // The announced activity takes precedence over incidental programme/body words.
+  const filmEvent =
+    /\b(?:projekcij[a-z]*\s+(?:(?:dokumentarn[a-z]*|igran[a-z]*|kratk[a-z]*|animiran[a-z]*)\s+)?film[a-z]*|filmsk[a-z]*\s+(?:projekcij[a-z]*|vecer[a-z]*|festival[a-z]*|matinej[a-z]*)|kino\s+(?:vecer|matineja)|screening)\b/;
+  const literaryEvent =
+    /\b(?:knjizevn[a-z]*\s+(?:vecer[a-z]*|susret[a-z]*|razgovor[a-z]*|festival[a-z]*)|(?:promocij[a-z]*|predstavljanj[a-z]*)\s+(?:knjig[a-z]*|roman[a-z]*|zbirke|slikovnic[a-z]*)|citateljsk[a-z]*\s+klub[a-z]*|(?:vecer|citanje)\s+poezij[a-z]*)\b/;
+  if (filmEvent.test(primary)) return 'film';
+  if (literaryEvent.test(primary)) return 'literature';
   const danceEvent =
     /\b(?:plesnjak[a-z]*|balet)\b/.test(primary) ||
-    /\b(?:plesn[a-z]*|baletn[a-z]*)\s+(?:vecer[a-z]*|predstav[a-z]*|izvedb[a-z]*|performans[a-z]*|natjecanj[a-z]*|festival[a-z]*)\b/.test(
+    /\b(?:plesn[a-z]*|baletn[a-z]*)\s+(?:vecer[a-z]*|druzenj[a-z]*|predstav[a-z]*|izvedb[a-z]*|performans[a-z]*|natjecanj[a-z]*|festival[a-z]*)\b/.test(
       primary,
     ) ||
     /\b(?:sals[a-z]*|bachat[a-z]*|kizomb[a-z]*|tang[oa]|swing)(?:\s+(?:i|and))?(?:\s+(?:sals[a-z]*|bachat[a-z]*|kizomb[a-z]*|tang[oa]|swing))?\s+(?:social|party|night|festival|vecer)\b/.test(
@@ -120,6 +127,8 @@ export function categoryFor(text: string, title = text): Category {
     return 'sport';
   if (/\b(koncert|glazb|orkest|jazz|pjev|tambur|vibrafon)/.test(value)) return 'music';
   if (/\b(party|night|dj)\b/.test(value)) return 'nightlife';
+  if (filmEvent.test(value)) return 'film';
+  if (literaryEvent.test(value)) return 'literature';
   if (/\b(izlozb|umjet|kultur|knjig|film|muzej|festival)/.test(value)) return 'culture';
   if (/\b(sajam|radionic|djec|obitelj|advent)/.test(value)) return 'community';
   return 'other';
@@ -132,6 +141,8 @@ export function synopsis(event: EventCandidate): string {
     dance: 'Plesni događaj',
     workshop: 'Radionica',
     theatre: 'Kazališna predstava',
+    film: 'Filmska projekcija',
+    literature: 'Književni događaj',
     culture: 'Kulturni događaj',
     sport: 'Sportski događaj',
     community: 'Događaj zajednice',
@@ -273,7 +284,9 @@ export function parseKcListing(
   rows.each((_index, element) => {
     const row = $(element);
     const link = row.find('h4 a').first();
-    const title = clean(link.text()).replace(/^\d{1,2}\.\d{1,2}\.\s*/, '');
+    const title = clean(link.text())
+      .replace(/^\d{1,2}\.\d{1,2}\.\s*/, '')
+      .replace(/\s*\/predstava\/\s*$/i, '');
     const dateText = clean(row.find('.pattern--date').text());
     const matches = [...dateText.matchAll(/(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})(?!\d)/g)];
     const parseMatch = (match: RegExpMatchArray) =>
@@ -325,7 +338,9 @@ export function parseKcDetail(
   entry: ListingEntry,
 ): { event: EventCandidate; extraction: ExtractionPage | null; warnings: string[] } {
   const $ = load(html);
-  const title = clean($('.news-item__title').first().text()).replace(/^\d{1,2}\.\d{1,2}\.\s*/, '');
+  const title = clean($('.news-item__title').first().text())
+    .replace(/^\d{1,2}\.\d{1,2}\.\s*/, '')
+    .replace(/\s*\/predstava\/\s*$/i, '');
   const article = $('article.article').first();
   if (!title || !article.length) throw new Error(`KC: nedostaje sadržaj događaja ${entry.url}.`);
   article.find('br').replaceWith('\n');

@@ -1,5 +1,17 @@
 # WagZ hosting
 
+## Candidate awaiting final deployment — 3 October 2026
+
+The current working release adds four event sources, precise film/literature categories, distributed abuse controls, production-only database access, encrypted backups and public-feed freshness monitoring. Final integration, deployment and production collection have not yet been recorded here. Earlier production counts and deployment IDs below remain historical evidence.
+
+The canonical production and GitHub collector/backup database variables now use restricted `wagz_runtime`; the additive nine-table migration and grants are verified, and the collector disables migrations; owner aliases and preview/development credentials have been removed. Three earlier preview deployments were removed, retiring their previously configured credentials. Runtime migration disabling and the preview database guard await deployment. GitHub protection requires `check` CI and linear history, disallows force pushes/deletion and enforces the rules for administrators while retaining checked direct owner pushes. Security scanning and CodeQL are enabled; no dependency or secret alerts remain.
+
+The read-only new-source sweep returned 40 candidates, 39 eligible before elapsed-event filtering and KC deduplication; it did not publish them. A real encrypted nine-table backup/restore drill passed; the approved 30-day encrypted backup workflow and daily 07:41 UTC health workflow still await first GitHub runs. Signed Android APK/AAB builds and 27 tests passed; no store submission or iOS build is claimed. See [current release gates](RELEASE-QUEUE.md#current-release-candidate--3-october-2026).
+
+The provider key has a verified $1 lifetime ceiling with $0.8499661 remaining and no reset; this differs from the separate $1 monthly application ledger. Account MFA/sessions and a stored-data deletion policy remain unverified/unapproved.
+
+## Earlier hosting and deployment record
+
 The public web client and API use **Vercel Hobby**, with a fresh **Neon Free** Postgres database in Frankfurt. The Flutter client calls the same HTTPS API. Source data, event edits, tips, settings, extraction cache and AI charges persist in `public.wagz_*` tables. The historical Ekipa database is not used.
 
 Canonical production origin: <https://wagz.com.hr>. The operator inbox for this release is `/ured-231b67e86427` (the `ADMIN_PATH` constant); bookmark the direct address. `/admin` and `/admin/` return 404 without redirecting. The existing <https://wagz.vercel.app> homepage/API remain available during DNS propagation; the current Android APK continues to use that HTTPS API origin.

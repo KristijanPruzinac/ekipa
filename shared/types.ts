@@ -4,6 +4,8 @@ export const categories = [
   'dance',
   'workshop',
   'theatre',
+  'film',
+  'literature',
   'culture',
   'sport',
   'community',
@@ -72,6 +74,8 @@ export interface SourceDefinition {
 }
 export interface FetchResult {
   events: EventCandidate[];
+  /** Deterministic source conflicts require review even when a venue is known. */
+  reviewExternalIds?: string[];
   pagesFetched: number;
   discovered: number;
   skipped: number;

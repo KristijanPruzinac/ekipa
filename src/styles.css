@@ -80,7 +80,7 @@ summary:focus-visible {
   margin-inline: auto;
 }
 .eyebrow {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 750;
   letter-spacing: 1.8px;
   line-height: 1.6;
@@ -93,12 +93,13 @@ summary:focus-visible {
   min-height: 49px;
   padding: 13px 21px;
   border: 1px solid transparent;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 650;
   transition:
     background 0.15s,
     transform 0.15s;
-  white-space: nowrap;
+  white-space: normal;
+  max-width: 100%;
 }
 .button:hover:not(:disabled) {
   transform: translateY(-2px);
@@ -120,7 +121,7 @@ summary:focus-visible {
 .button-small {
   min-height: 38px;
   padding: 9px 13px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   gap: 14px;
 }
 .full-width {
@@ -130,7 +131,7 @@ summary:focus-visible {
   background: transparent;
   border: 0;
   padding: 10px 5px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 650;
   text-decoration: underline;
   text-underline-offset: 4px;
@@ -140,23 +141,29 @@ summary:focus-visible {
 }
 .fine-print {
   color: var(--muted);
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.6;
 }
 .skip-link {
   position: fixed;
   left: 20px;
-  top: -100px;
+  top: 0;
+  transform: translateY(-200%);
+  max-width: calc(100% - 40px);
   z-index: 100;
   background: var(--lime);
   padding: 15px;
 }
 .skip-link:focus {
   top: 15px;
+  transform: translateY(0);
 }
 .site-header {
-  height: 112px;
+  min-height: 112px;
+  padding-block: 16px;
   display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--ink);
@@ -171,28 +178,28 @@ summary:focus-visible {
 }
 .wordmark {
   font-family: var(--display);
-  font-size: 48px;
+  font-size: 3rem;
   font-weight: 700;
   letter-spacing: -4px;
   line-height: 1;
 }
 .brand-dot {
   font-family: 'DM Sans', sans-serif;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   letter-spacing: 0;
   position: relative;
   top: -25px;
   left: 4px;
 }
 .brand-caption {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 900;
   letter-spacing: 2.9px;
   line-height: 1.5;
   padding-left: 3px;
 }
 .header-city {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   letter-spacing: 1.3px;
   font-weight: 700;
   display: flex;
@@ -222,7 +229,7 @@ summary:focus-visible {
 }
 .hero h1 {
   font-family: var(--display);
-  font-size: clamp(70px, 8.3vw, 117px);
+  font-size: clamp(4.375rem, 8.3vw, 7.3125rem);
   line-height: 0.98;
   letter-spacing: -7.5px;
   font-weight: 600;
@@ -268,7 +275,7 @@ summary:focus-visible {
   z-index: -1;
 }
 .hero-stamp span {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   text-align: center;
   font-weight: 800;
   letter-spacing: 0.5px;
@@ -286,12 +293,12 @@ summary:focus-visible {
   justify-content: space-between;
 }
 .hero-bottom p {
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1.6;
   color: #50554a;
 }
 .hero-jump {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   letter-spacing: 1.2px;
   font-weight: 750;
   display: flex;
@@ -299,11 +306,12 @@ summary:focus-visible {
   align-items: center;
 }
 .hero-jump span {
-  font-size: 26px;
+  font-size: 1.625rem;
   font-weight: 400;
   line-height: 1;
 }
 .feed-section {
+  container: feed / inline-size;
   border-top: 1px solid var(--ink);
   padding-top: 28px;
   padding-bottom: 55px;
@@ -316,17 +324,21 @@ summary:focus-visible {
 }
 .section-heading {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 12px;
 }
 .section-heading h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-family: var(--display);
-  font-size: 30px;
+  font-size: 1.875rem;
   font-weight: 600;
   letter-spacing: -1.3px;
 }
 .tiny-cross {
-  font-size: 30px;
+  font-size: 1.875rem;
   line-height: 1;
 }
 .event-count {
@@ -341,10 +353,10 @@ summary:focus-visible {
   padding: 2px 6px;
   border: 1px solid #afb39f;
   border-radius: 20px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
 }
 .section-note {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   letter-spacing: 1.4px;
   font-weight: 700;
 }
@@ -363,11 +375,11 @@ summary:focus-visible {
 .preferences-summary h3 {
   font-family: var(--display);
   font-weight: 600;
-  font-size: 22px;
+  font-size: 1.375rem;
   letter-spacing: -0.6px;
 }
 .preferences-summary p {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: #555f49;
   line-height: 1.6;
   margin-top: 5px;
@@ -383,14 +395,14 @@ summary:focus-visible {
   justify-content: space-between;
   gap: 20px;
   flex-shrink: 0;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 650;
 }
 .preferences-toggle:hover {
   background: #e0e6d1;
 }
 .preferences-toggle span {
-  font-size: 20px;
+  font-size: 1.25rem;
   line-height: 1;
 }
 .preferences-options {
@@ -399,7 +411,7 @@ summary:focus-visible {
 }
 .preferences-explanation {
   max-width: 680px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
   color: #555f49;
 }
@@ -412,7 +424,7 @@ summary:focus-visible {
 .preferences-options legend {
   padding: 0;
   margin-bottom: 10px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 700;
   line-height: 1.6;
 }
@@ -436,7 +448,7 @@ summary:focus-visible {
   background: #f6f6ef;
   min-height: 44px;
   padding: 10px 14px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.4;
   cursor: pointer;
 }
@@ -468,7 +480,7 @@ summary:focus-visible {
   margin-top: 22px;
 }
 .preferences-footer p {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: #626957;
   line-height: 1.6;
 }
@@ -488,7 +500,7 @@ summary:focus-visible {
 }
 .date-tab {
   padding: 11px 17px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 650;
   border: 1px solid transparent;
   background: transparent;
@@ -514,7 +526,7 @@ summary:focus-visible {
   border: 0;
   background: transparent;
   padding: 4px 0;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   min-width: 0;
   width: 100%;
   outline-offset: 6px;
@@ -525,7 +537,7 @@ summary:focus-visible {
 .search-field button {
   border: 0;
   background: transparent;
-  font-size: 24px;
+  font-size: 1.5rem;
   line-height: 20px;
   padding: 0 4px;
 }
@@ -541,7 +553,7 @@ summary:focus-visible {
   margin: 20px 0 18px;
 }
 .category-chip {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 600;
   line-height: 1.3;
   padding: 8px 13px;
@@ -583,7 +595,7 @@ summary:focus-visible {
   min-height: 44px;
   border: 1px solid #c5cbb8;
   background: transparent;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 600;
 }
 .free-filter.active {
@@ -597,7 +609,7 @@ summary:focus-visible {
   width: 17px;
   height: 17px;
   border: 1px solid #778565;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1;
 }
 .filter-reset {
@@ -607,7 +619,7 @@ summary:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
 }
 .sort-select select {
@@ -617,11 +629,11 @@ summary:focus-visible {
   background: #faf9f4;
   color: var(--ink);
   border: 1px solid #c7cbba;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 600;
 }
 .discovery-note {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
   color: #626957;
   margin-bottom: 19px;
@@ -649,18 +661,18 @@ summary:focus-visible {
   border-left: 3px solid #bdcba9;
   background: #eeefe4;
   color: #535d47;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
 }
 .results-line {
   display: flex;
   justify-content: space-between;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
   margin-bottom: 13px;
 }
 .results-line > span:last-child {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 700;
   letter-spacing: 1px;
 }
@@ -709,7 +721,7 @@ summary:focus-visible {
   gap: 8px;
 }
 .category-label {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 750;
   letter-spacing: 1px;
   border: 1px solid #171a173d;
@@ -718,7 +730,7 @@ summary:focus-visible {
 }
 .card-number {
   font-family: var(--display);
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: #666959;
 }
 .card-title-area {
@@ -729,15 +741,11 @@ summary:focus-visible {
 }
 .card-title-area h3 {
   font-family: var(--display);
-  font-size: 28px;
+  font-size: 1.75rem;
   font-weight: 600;
   line-height: 1.09;
   letter-spacing: -1px;
   overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 .card-reasons {
   display: flex;
@@ -754,13 +762,13 @@ summary:focus-visible {
   border: 1px solid #cfc4a5;
   background: #faf7eccc;
   color: #575035;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 600;
   line-height: 1.4;
 }
 .status-label {
   display: inline-block;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   letter-spacing: 0.3px;
   background: #a53528;
   color: white;
@@ -782,7 +790,7 @@ summary:focus-visible {
 }
 .card-date > span {
   font-family: var(--display);
-  font-size: 46px;
+  font-size: 2.875rem;
   font-weight: 500;
   line-height: 1;
   letter-spacing: -2px;
@@ -793,18 +801,18 @@ summary:focus-visible {
   gap: 3px;
 }
 .card-date strong {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   letter-spacing: 0.7px;
 }
 .card-date > div > span {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: #505548;
 }
 .card-location {
   display: flex;
   gap: 7px;
   align-items: center;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   margin-top: 17px;
   min-height: 20px;
 }
@@ -823,9 +831,11 @@ summary:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
 .card-footer > span:first-child {
-  font-size: 14.5px;
+  flex: 1 1 8rem;
+  font-size: 0.90625rem;
   color: #565b4e;
   overflow-wrap: anywhere;
 }
@@ -843,7 +853,7 @@ summary:focus-visible {
   height: 16px;
 }
 .feed-updated {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
   margin-top: 24px;
 }
@@ -857,7 +867,7 @@ summary:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
 }
 .spinner {
   display: inline-block;
@@ -890,30 +900,30 @@ summary:focus-visible {
   margin-bottom: 18px;
 }
 .empty-state .eyebrow {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   letter-spacing: 1.5px;
   color: #626a4d;
   margin-bottom: 9px;
 }
 .empty-state h3 {
   font-family: var(--display);
-  font-size: 27px;
+  font-size: 1.6875rem;
   letter-spacing: -1px;
   line-height: 1.2;
 }
 .empty-state > p:not(.eyebrow) {
   max-width: 430px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
   margin: 12px 0 22px;
   color: #666d59;
 }
 .empty-state .button {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   min-height: 42px;
 }
 .empty-symbol {
-  font-size: 42px;
+  font-size: 2.625rem;
   line-height: 1;
   margin-bottom: 15px;
 }
@@ -931,25 +941,25 @@ summary:focus-visible {
   padding-block: 37px;
 }
 .tip-banner .eyebrow {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   letter-spacing: 1.5px;
   margin-bottom: 10px;
 }
 .tip-banner h2 {
   font-family: var(--display);
-  font-size: 31px;
+  font-size: 1.9375rem;
   letter-spacing: -1.2px;
   font-weight: 600;
   line-height: 1.2;
 }
 .tip-banner p:not(.eyebrow) {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   margin-top: 10px;
   line-height: 1.6;
   color: #414918;
 }
 .tip-banner .button {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
 }
 .site-footer {
   display: flex;
@@ -958,19 +968,19 @@ summary:focus-visible {
   padding-block: 41px 35px;
 }
 .brand-small .wordmark {
-  font-size: 36px;
+  font-size: 2.25rem;
   letter-spacing: -3px;
 }
 .brand-small .brand-dot {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   top: -18px;
 }
 .brand-small .brand-caption {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   letter-spacing: 2px;
 }
 .site-footer > div > p {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
   margin-top: 12px;
 }
@@ -978,19 +988,19 @@ summary:focus-visible {
   text-align: right;
 }
 .footer-right > span {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   letter-spacing: 1px;
   font-weight: 700;
 }
 .footer-right p {
-  font-size: 14.5px !important;
+  font-size: 0.90625rem !important;
   line-height: 1.6;
 }
 .footer-right > a {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   margin-top: 12px;
   color: var(--muted);
 }
@@ -1069,7 +1079,7 @@ summary:focus-visible {
 }
 .event-page h1 {
   font-family: var(--display);
-  font-size: clamp(30px, 4.6vw, 54px);
+  font-size: clamp(1.875rem, 4.6vw, 3.375rem);
   font-weight: 600;
   line-height: 1.1;
   letter-spacing: -1.5px;
@@ -1110,11 +1120,11 @@ summary:focus-visible {
 .modal .eyebrow {
   padding-right: 52px;
   margin-bottom: 15px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
 }
 .modal h2 {
   font-family: var(--display);
-  font-size: 36px;
+  font-size: 2.25rem;
   font-weight: 600;
   letter-spacing: -1.5px;
   line-height: 1.1;
@@ -1143,7 +1153,7 @@ summary:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: 1.625rem;
   font-weight: 400;
   line-height: 1;
 }
@@ -1151,7 +1161,7 @@ summary:focus-visible {
   background: var(--lime);
 }
 .modal-intro {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
   color: #616653;
   margin-bottom: 25px;
@@ -1170,27 +1180,27 @@ summary:focus-visible {
   gap: 10px;
 }
 .event-facts dt {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 750;
   letter-spacing: 1px;
   margin-top: 4px;
 }
 .event-facts dd {
   margin: 0;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 650;
   line-height: 1.5;
 }
 .event-facts dd span {
   display: block;
   color: var(--muted);
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 400;
   margin-top: 4px;
 }
 .event-description {
   white-space: pre-wrap;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.85;
   overflow-wrap: anywhere;
   margin-top: 25px;
@@ -1202,7 +1212,7 @@ summary:focus-visible {
   background: #eeefe4;
 }
 .detail-discovery h3 {
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 750;
   margin-bottom: 12px;
 }
@@ -1214,7 +1224,7 @@ summary:focus-visible {
   gap: 13px;
 }
 .detail-discovery li {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -1235,7 +1245,7 @@ summary:focus-visible {
   height: 15px;
 }
 .detail-discovery > p {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
   color: #626957;
   margin-top: 13px;
@@ -1249,7 +1259,7 @@ summary:focus-visible {
   align-items: center;
   gap: 8px 12px;
   margin-top: 20px;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.5;
 }
 .detail-ongoing strong {
@@ -1272,7 +1282,7 @@ summary:focus-visible {
   min-height: 52px;
   padding: 14px 16px;
   margin-top: 7px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 650;
 }
 .source-link:hover {
@@ -1291,7 +1301,7 @@ summary:focus-visible {
 }
 .source-link small {
   display: block;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 400;
   margin-top: 4px;
   color: var(--muted);
@@ -1300,7 +1310,7 @@ summary:focus-visible {
   margin-top: 17px;
 }
 .detail-sources > p:not(.eyebrow):not(.fine-print) {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
 }
 .tip-form {
@@ -1310,14 +1320,14 @@ summary:focus-visible {
 .tip-form label,
 .field label,
 .admin-login label {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 700;
   display: block;
   margin-bottom: 8px;
 }
 .tip-form label > span,
 .field label > span {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
   font-weight: 400;
   margin-left: 5px;
@@ -1334,7 +1344,7 @@ summary:focus-visible {
   border-radius: 0;
   padding: 12px 13px;
   background: #faf9f4;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   min-height: 44px;
 }
 .tip-form textarea,
@@ -1347,7 +1357,7 @@ summary:focus-visible {
   justify-content: space-between;
   margin: 7px 0 23px;
   gap: 10px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
 }
 .tip-form > button {
@@ -1377,7 +1387,7 @@ summary:focus-visible {
   color: #718200;
 }
 .tip-success p {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
   color: var(--muted);
 }
@@ -1385,7 +1395,7 @@ summary:focus-visible {
   border: 1px solid #bbc891;
   background: #edf2dc;
   padding: 13px 16px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.6;
   margin: 16px 0;
   overflow-wrap: anywhere;
@@ -1405,7 +1415,7 @@ summary:focus-visible {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   margin-left: auto;
 }
 .back-to-site svg {
@@ -1421,13 +1431,13 @@ summary:focus-visible {
 }
 .admin-login h1 {
   font-family: var(--display);
-  font-size: 52px;
+  font-size: 3.25rem;
   font-weight: 600;
   letter-spacing: -2px;
   margin: 16px 0;
 }
 .admin-login > p:not(.eyebrow) {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
   line-height: 1.7;
 }
@@ -1453,7 +1463,7 @@ summary:focus-visible {
 }
 .admin-heading h1 {
   font-family: var(--display);
-  font-size: 43px;
+  font-size: 2.6875rem;
   font-weight: 600;
   letter-spacing: -1.8px;
   margin-top: 9px;
@@ -1472,7 +1482,7 @@ summary:focus-visible {
   border-bottom: 3px solid transparent;
   background: none;
   padding: 15px 1px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 650;
   margin-bottom: -1px;
 }
@@ -1480,7 +1490,7 @@ summary:focus-visible {
   border-bottom-color: var(--ink);
 }
 .admin-tabs button span {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   background: #e3e7d5;
   border-radius: 12px;
   padding: 3px 7px;
@@ -1499,12 +1509,12 @@ summary:focus-visible {
 }
 .admin-section-header h2 {
   font-family: var(--display);
-  font-size: 27px;
+  font-size: 1.6875rem;
   font-weight: 600;
   letter-spacing: -1px;
 }
 .admin-section-header p {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
   color: var(--muted);
   margin-top: 8px;
@@ -1527,13 +1537,13 @@ summary:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
 }
 .admin-badge {
   display: inline-block;
   padding: 5px 8px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 750;
   color: #555b45;
   background: #e9ebdd;
@@ -1566,7 +1576,7 @@ summary:focus-visible {
 }
 .tip-note {
   white-space: pre-wrap;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 500;
   line-height: 1.65;
   margin-top: 16px;
@@ -1576,7 +1586,7 @@ summary:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 650;
   border-bottom: 1px solid #a9ae98;
   padding-block: 5px;
@@ -1590,12 +1600,12 @@ summary:focus-visible {
   border-left: 2px solid #ced4ba;
   padding-left: 12px;
   margin-top: 18px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
   line-height: 1.65;
 }
 .tip-reason strong {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: #4b5340;
   font-weight: 650;
 }
@@ -1603,12 +1613,12 @@ summary:focus-visible {
   margin-top: 3px;
 }
 .draft-preview {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   margin-top: 17px;
   line-height: 1.7;
 }
 .draft-preview span {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 750;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -1630,24 +1640,24 @@ summary:focus-visible {
 }
 .admin-empty > span {
   display: block;
-  font-size: 42px;
+  font-size: 2.625rem;
   margin-bottom: 15px;
 }
 .admin-empty h3 {
   font-family: var(--display);
-  font-size: 23px;
+  font-size: 1.4375rem;
   font-weight: 500;
   letter-spacing: -0.8px;
 }
 .admin-empty p {
   color: var(--muted);
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.6;
   margin-top: 12px;
 }
 .admin-search {
   width: 240px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
 }
 .admin-event-row {
   display: flex;
@@ -1663,13 +1673,13 @@ summary:focus-visible {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
   flex-wrap: wrap;
 }
 .admin-event-row h3 {
   font-family: var(--display);
-  font-size: 21px;
+  font-size: 1.3125rem;
   line-height: 1.25;
   letter-spacing: -0.5px;
   font-weight: 600;
@@ -1677,7 +1687,7 @@ summary:focus-visible {
   overflow-wrap: anywhere;
 }
 .admin-event-row p {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
   color: var(--muted);
 }
@@ -1697,11 +1707,11 @@ summary:focus-visible {
   margin-bottom: 14px;
 }
 .settings-panel h3 {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-weight: 650;
 }
 .settings-panel p {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.8;
   color: #626b4c;
   max-width: 630px;
@@ -1711,7 +1721,7 @@ summary:focus-visible {
   display: flex;
   align-items: center;
   position: relative;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   gap: 10px;
   cursor: pointer;
   flex-shrink: 0;
@@ -1770,7 +1780,7 @@ summary:focus-visible {
   margin-bottom: 25px;
 }
 .ai-panel p {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -1788,13 +1798,13 @@ summary:focus-visible {
 }
 .source-card h3 {
   font-family: var(--display);
-  font-size: 25px;
+  font-size: 1.5625rem;
   font-weight: 600;
   letter-spacing: -0.7px;
   margin: 20px 0 8px;
 }
 .source-card > p:not(.fine-print) {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.65;
   color: var(--muted);
 }
@@ -1808,24 +1818,24 @@ summary:focus-visible {
   margin-block: 20px;
 }
 .source-stats dt {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
 }
 .source-stats dd {
   font-family: var(--display);
-  font-size: 25px;
+  font-size: 1.5625rem;
   margin: 5px 0 0;
   font-weight: 500;
 }
 .source-card > .fine-print {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   margin-top: 7px;
 }
 .source-warnings {
   margin-top: 17px;
   background: #f4ebdb;
   padding: 12px 14px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.7;
   color: #6c562e;
 }
@@ -1873,12 +1883,12 @@ summary:focus-visible {
   margin-bottom: 25px;
 }
 .original-tip strong {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 .original-tip > p:not(.fine-print) {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.8;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1886,7 +1896,7 @@ summary:focus-visible {
 }
 .original-tip .fine-print {
   margin-top: 13px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
 }
 .form-grid {
   display: grid;
@@ -1901,7 +1911,7 @@ summary:focus-visible {
 }
 .form-grid > .fine-print {
   margin-top: -12px;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
 }
 .editor-actions {
   display: flex;
@@ -1919,7 +1929,7 @@ summary:focus-visible {
 }
 @media (min-width: 1500px) {
   .hero h1 {
-    font-size: 125px;
+    font-size: 7.8125rem;
   }
   .hero {
     padding-top: 42px;
@@ -1935,7 +1945,7 @@ summary:focus-visible {
     height: 160px;
   }
   .hero-stamp span {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .hero-bottom {
     margin-top: 38px;
@@ -1956,7 +1966,7 @@ summary:focus-visible {
     top: -3px;
   }
   .hero-stamp span {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .hero-stamp > svg:last-child {
     width: 20px;
@@ -1969,10 +1979,10 @@ summary:focus-visible {
     padding: 19px 18px 14px;
   }
   .card-title-area h3 {
-    font-size: 25px;
+    font-size: 1.5625rem;
   }
   .tip-banner h2 {
-    font-size: 27px;
+    font-size: 1.6875rem;
   }
   .source-card {
     padding: 20px;
@@ -1989,25 +1999,26 @@ summary:focus-visible {
     width: calc(100% - 44px);
   }
   .site-header {
-    height: 94px;
+    min-height: 94px;
+    height: auto;
   }
   .wordmark {
-    font-size: 42px;
+    font-size: 2.625rem;
   }
   .brand-caption {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 2.5px;
   }
   .brand-dot {
     top: -22px;
   }
   .header-city {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 0.8px;
     margin: 0;
   }
   .header-tip {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     gap: 14px;
     min-height: 42px;
     padding: 11px 15px;
@@ -2021,7 +2032,7 @@ summary:focus-visible {
     letter-spacing: -4.5px;
   }
   .hero-topline .eyebrow {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 1.3px;
   }
   .hero-stamp {
@@ -2031,7 +2042,7 @@ summary:focus-visible {
     right: 2px;
   }
   .hero-stamp span {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 0.2px;
     line-height: 1.3;
   }
@@ -2040,23 +2051,23 @@ summary:focus-visible {
     width: 17px;
   }
   .hero-bottom p {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .hero-jump {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     gap: 11px;
   }
   .section-note {
     display: none;
   }
   .section-heading h2 {
-    font-size: 28px;
+    font-size: 1.75rem;
   }
   .filter-top {
     gap: 15px;
   }
   .date-tab {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     padding: 10px 12px;
   }
   .search-field {
@@ -2067,7 +2078,7 @@ summary:focus-visible {
     gap: 6px;
   }
   .category-chip {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     padding: 8px 11px;
   }
   .event-grid {
@@ -2078,42 +2089,42 @@ summary:focus-visible {
     padding: 21px 22px 16px;
   }
   .card-title-area h3 {
-    font-size: 29px;
+    font-size: 1.8125rem;
   }
   .tip-banner-inner {
     gap: 25px;
     min-height: 177px;
   }
   .tip-banner h2 {
-    font-size: 25px;
+    font-size: 1.5625rem;
     max-width: 330px;
   }
   .tip-banner p:not(.eyebrow) {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     max-width: 330px;
   }
   .tip-banner .button {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     padding: 12px 16px;
     gap: 18px;
   }
   .footer-right > span {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .admin-heading h1 {
-    font-size: 34px;
+    font-size: 2.125rem;
   }
   .admin-section-header {
     align-items: flex-start;
   }
   .admin-section-header h2 {
-    font-size: 24px;
+    font-size: 1.5rem;
   }
   .admin-section-header p {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .admin-section-header > .button {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     padding-inline: 15px;
     gap: 15px;
   }
@@ -2137,21 +2148,21 @@ summary:focus-visible {
     gap: 7px;
   }
   .source-card h3 {
-    font-size: 22px;
+    font-size: 1.375rem;
   }
   .settings-panel {
     padding: 20px;
     gap: 20px;
   }
   .settings-panel h3 {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .settings-panel p {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .settings-panel .toggle {
     flex-direction: column;
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     gap: 7px;
   }
   .ai-panel {
@@ -2164,7 +2175,7 @@ summary:focus-visible {
     padding: 33px;
   }
   .modal h2 {
-    font-size: 33px;
+    font-size: 2.0625rem;
   }
 }
 @media (max-width: 560px) {
@@ -2172,18 +2183,19 @@ summary:focus-visible {
     width: calc(100% - 36px);
   }
   .site-header {
-    height: 84px;
+    min-height: 84px;
+    height: auto;
   }
   .wordmark {
-    font-size: 38px;
+    font-size: 2.375rem;
     letter-spacing: -3.4px;
   }
   .brand-caption {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 2.2px;
   }
   .brand-dot {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     top: -20px;
     left: 3px;
   }
@@ -2192,7 +2204,7 @@ summary:focus-visible {
   }
   .header-tip {
     min-height: 37px;
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     gap: 10px;
     padding: 9px 12px;
   }
@@ -2205,7 +2217,7 @@ summary:focus-visible {
     padding-bottom: 31px;
   }
   .hero-topline .eyebrow {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 1.3px;
   }
   .hero-heading {
@@ -2225,7 +2237,7 @@ summary:focus-visible {
     transform: rotate(15deg);
   }
   .hero-stamp span {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 0.05px;
     margin-top: 4px;
   }
@@ -2243,17 +2255,17 @@ summary:focus-visible {
     align-items: flex-end;
   }
   .hero-bottom p {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     line-height: 1.75;
   }
   .hero-jump {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 0.7px;
     gap: 8px;
     padding-bottom: 2px;
   }
   .hero-jump span {
-    font-size: 22px;
+    font-size: 1.375rem;
   }
   .feed-section {
     padding-top: 22px;
@@ -2266,14 +2278,14 @@ summary:focus-visible {
     gap: 9px;
   }
   .section-heading h2 {
-    font-size: 26px;
+    font-size: 1.625rem;
     letter-spacing: -1.1px;
   }
   .tiny-cross {
-    font-size: 26px;
+    font-size: 1.625rem;
   }
   .event-count {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     min-width: 21px;
     height: 19px;
     margin-top: 0;
@@ -2286,7 +2298,7 @@ summary:focus-visible {
     gap: 2px;
   }
   .date-tab {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     min-height: 41px;
     padding: 10px 15px;
     flex-grow: 1;
@@ -2298,23 +2310,23 @@ summary:focus-visible {
     gap: 9px;
   }
   .search-field input {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .category-filters {
     margin: 17px 0 23px;
     gap: 6px;
   }
   .category-chip {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     min-height: 30px;
     padding: 7px 10px;
   }
   .results-line {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     margin-bottom: 12px;
   }
   .results-line > span:last-child {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .event-grid {
     grid-template-columns: 1fr;
@@ -2328,38 +2340,37 @@ summary:focus-visible {
     min-height: 125px;
   }
   .card-title-area h3 {
-    font-size: 31px;
+    font-size: 1.9375rem;
     max-width: 97%;
-    -webkit-line-clamp: 4;
   }
   .category-label {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .card-topline .card-number {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .card-date > span {
-    font-size: 44px;
+    font-size: 2.75rem;
   }
   .card-date strong {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .card-date > div > span {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .card-location {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     margin-top: 14px;
   }
   .card-footer > span:first-child {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .card-open {
     width: 32px;
     height: 32px;
   }
   .feed-updated {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     line-height: 1.7;
     margin-top: 18px;
   }
@@ -2368,10 +2379,10 @@ summary:focus-visible {
     min-height: 300px;
   }
   .empty-state h3 {
-    font-size: 26px;
+    font-size: 1.625rem;
   }
   .empty-state > p:not(.eyebrow) {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .empty-spark {
     width: 37px;
@@ -2382,22 +2393,22 @@ summary:focus-visible {
     display: block;
   }
   .tip-banner h2 {
-    font-size: 28px;
+    font-size: 1.75rem;
     max-width: 320px;
     letter-spacing: -1.1px;
   }
   .tip-banner p:not(.eyebrow) {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     max-width: 315px;
   }
   .tip-banner .eyebrow {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 1.2px;
   }
   .tip-banner .button {
     margin-top: 22px;
     min-height: 43px;
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     gap: 28px;
   }
   .site-footer {
@@ -2406,35 +2417,35 @@ summary:focus-visible {
     gap: 22px;
   }
   .brand-small .wordmark {
-    font-size: 33px;
+    font-size: 2.0625rem;
   }
   .brand-small .brand-caption {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 2px;
   }
   .brand-small .brand-dot {
     top: -17px;
   }
   .site-footer > div > p {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     line-height: 1.6;
     max-width: 130px;
     margin-top: 10px;
   }
   .footer-right > span {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 0.6px;
     line-height: 1.7;
     display: inline-block;
     max-width: 160px;
   }
   .footer-right p {
-    font-size: 14.5px !important;
+    font-size: 0.90625rem !important;
     max-width: 170px !important;
     line-height: 1.6;
   }
   .footer-right > a {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .modal {
     width: calc(100% - 20px);
@@ -2444,30 +2455,30 @@ summary:focus-visible {
     padding: 30px 22px 24px;
   }
   .modal h2 {
-    font-size: 30px;
+    font-size: 1.875rem;
     letter-spacing: -1.2px;
     padding-right: 14px;
     margin-bottom: 20px;
   }
   .modal .eyebrow {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     margin-bottom: 14px;
   }
   .close-button {
     margin: 10px 10px 0 0;
-    font-size: 23px;
+    font-size: 1.4375rem;
   }
   .event-facts dd {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .event-facts dd span {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .event-description {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .modal-intro {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .tip-form input,
   .tip-form textarea,
@@ -2476,42 +2487,42 @@ summary:focus-visible {
   .draft-form select,
   .admin-login input,
   .admin-search {
-    font-size: 16px;
+    font-size: 1rem;
     padding: 10px 11px;
     min-height: 43px;
   }
   .tip-form label {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .tip-form label > span {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .tip-form .field-caption {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .tip-form .button {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .tip-form > .fine-print {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .tip-success p {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .tip-success > .button {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     gap: 22px;
   }
   .admin-page .site-header {
     height: 78px;
   }
   .back-to-site {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     gap: 3px;
   }
   .admin-page .site-header > .button {
     margin-left: 13px;
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     min-height: 31px;
     padding: 7px 9px;
   }
@@ -2519,10 +2530,10 @@ summary:focus-visible {
     padding-block: 66px;
   }
   .admin-login h1 {
-    font-size: 42px;
+    font-size: 2.625rem;
   }
   .admin-login > p:not(.eyebrow) {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .admin-main {
     padding-block: 28px 50px;
@@ -2532,17 +2543,17 @@ summary:focus-visible {
     gap: 12px;
   }
   .admin-heading h1 {
-    font-size: 29px;
+    font-size: 1.8125rem;
     letter-spacing: -1.2px;
     line-height: 1.1;
     max-width: 200px;
   }
   .admin-heading .eyebrow {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     letter-spacing: 1px;
   }
   .admin-heading > .button {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     gap: 7px;
     padding: 7px 9px;
     min-height: 32px;
@@ -2553,12 +2564,12 @@ summary:focus-visible {
     margin: 22px 0;
   }
   .admin-tabs button {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     padding-block: 13px;
     gap: 6px;
   }
   .admin-tabs button span {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     min-width: 21px;
   }
   .admin-section-header {
@@ -2566,10 +2577,10 @@ summary:focus-visible {
     margin: 23px 0;
   }
   .admin-section-header h2 {
-    font-size: 24px;
+    font-size: 1.5rem;
   }
   .admin-section-header p {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .admin-section-header > .button {
     margin-top: 17px;
@@ -2577,60 +2588,60 @@ summary:focus-visible {
   .admin-search {
     width: 100%;
     margin-top: 17px;
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .admin-empty {
     padding: 45px 20px;
   }
   .admin-empty h3 {
-    font-size: 21px;
+    font-size: 1.3125rem;
   }
   .admin-empty p {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .tip-row,
   .admin-event-row {
     padding: 17px;
   }
   .tip-note {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     margin-top: 13px;
   }
   .admin-row-top {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     gap: 8px;
   }
   .admin-badge {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     padding: 5px 7px;
   }
   .tip-reason {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .tip-reason strong {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .draft-preview {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .admin-actions {
     gap: 9px 12px;
     margin-top: 17px;
   }
   .admin-actions .button-small {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     min-height: 35px;
     padding: 8px 11px;
     gap: 12px;
   }
   .admin-actions .text-button {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .admin-event-row h3 {
-    font-size: 21px;
+    font-size: 1.3125rem;
   }
   .admin-event-row p {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .source-grid {
     grid-template-columns: 1fr;
@@ -2643,10 +2654,10 @@ summary:focus-visible {
     align-items: center;
   }
   .source-card h3 {
-    font-size: 25px;
+    font-size: 1.5625rem;
   }
   .source-card > p:not(.fine-print) {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .source-stats {
     gap: 17px;
@@ -2657,11 +2668,11 @@ summary:focus-visible {
     gap: 17px;
   }
   .settings-panel h3 {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     line-height: 1.5;
   }
   .settings-panel p {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .settings-panel .toggle {
     margin-top: 3px;
@@ -2671,19 +2682,19 @@ summary:focus-visible {
     gap: 10px;
   }
   .ai-panel p {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .form-grid {
     gap: 17px 12px;
   }
   .field label {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     line-height: 1.4;
     min-height: 14px;
   }
   .field label > span {
     display: block;
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     margin-left: 0;
     margin-top: 2px;
   }
@@ -2694,7 +2705,7 @@ summary:focus-visible {
     min-height: 27px;
   }
   .form-grid > .fine-print {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     margin-top: -7px;
   }
   .editor-actions {
@@ -2703,7 +2714,7 @@ summary:focus-visible {
   }
   .editor-actions > .button {
     flex: 1;
-    font-size: 14.5px;
+    font-size: 0.90625rem;
     padding: 11px 12px;
     gap: 12px;
     min-height: 43px;
@@ -2712,22 +2723,22 @@ summary:focus-visible {
     padding: 14px;
   }
   .original-tip > p:not(.fine-print) {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
   .original-tip .fine-print {
-    font-size: 14.5px;
+    font-size: 0.90625rem;
   }
 }
 /* Text stays readable at every viewport. Only the decorative logo caption is smaller. */
 .brand-caption {
-  font-size: 7.5px;
+  font-size: 0.46875rem;
 }
 .brand-small .brand-caption {
-  font-size: 6px;
+  font-size: 0.375rem;
 }
 .brand-dot,
 .brand-small .brand-dot {
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 .eyebrow,
 .hero-topline .eyebrow,
@@ -2750,7 +2761,8 @@ summary:focus-visible {
 }
 .event-count {
   min-width: 30px;
-  height: 28px;
+  min-height: 28px;
+  height: auto;
   padding: 3px 8px;
 }
 .date-filters {
@@ -2933,14 +2945,14 @@ summary:focus-visible {
 }
 @media (max-width: 560px) {
   .brand-caption {
-    font-size: 6px;
+    font-size: 0.375rem;
   }
   .brand-small .brand-caption {
-    font-size: 6px;
+    font-size: 0.375rem;
   }
   .brand-dot,
   .brand-small .brand-dot {
-    font-size: 9px;
+    font-size: 0.5625rem;
   }
   .hero-topline .eyebrow {
     max-width: 100%;
@@ -3126,7 +3138,7 @@ summary:focus-visible {
     padding: 18px;
   }
   .preferences-summary h3 {
-    font-size: 21px;
+    font-size: 1.3125rem;
   }
   .preferences-toggle {
     margin-top: 14px;

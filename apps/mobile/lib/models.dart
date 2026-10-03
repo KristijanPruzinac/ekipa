@@ -7,6 +7,8 @@ const categoryNames = {
   'dance': 'Ples',
   'workshop': 'Radionica',
   'theatre': 'Kazalište',
+  'film': 'Film',
+  'literature': 'Književnost',
   'culture': 'Kultura',
   'sport': 'Sport',
   'community': 'Zajednica',

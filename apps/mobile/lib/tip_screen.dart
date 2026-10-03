@@ -47,7 +47,8 @@ class _TipScreenState extends State<TipScreen> {
     canPop: !busy,
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('Dojavi događaj'),
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(56),
+        title: const Text('Dojavi događaj', maxLines: 2),
         automaticallyImplyLeading: !busy,
       ),
       body: SafeArea(

@@ -12,7 +12,12 @@ Future<void> main() async {
   await initializeDateFormatting('hr');
   runApp(
     WagzApp(
-      api: WagzApi(baseUrl: const String.fromEnvironment('WAGZ_API_BASE_URL')),
+      api: WagzApi(
+        baseUrl: const String.fromEnvironment(
+          'WAGZ_API_BASE_URL',
+          defaultValue: 'https://wagz.com.hr',
+        ),
+      ),
     ),
   );
 }

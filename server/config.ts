@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { DEFAULT_TIP_DAILY_LIMIT } from './request-security.ts';
 
 if (existsSync('.env')) process.loadEnvFile('.env');
 const number = (key: string, fallback: number, min = 0) => {
@@ -16,6 +17,7 @@ export const config = {
   autoPublish: process.env.WAGZ_AUTO_PUBLISH !== 'false',
   fetchOnStart: process.env.WAGZ_FETCH_ON_START !== 'false',
   fetchIntervalMinutes: number('WAGZ_FETCH_INTERVAL_MINUTES', 1440, 5),
+  tipDailyLimit: number('WAGZ_TIP_DAILY_LIMIT', DEFAULT_TIP_DAILY_LIMIT),
   ai: {
     apiKey: process.env.OPENROUTER_API_KEY || '',
     model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite',
@@ -24,8 +26,10 @@ export const config = {
     searchEnabled: process.env.WAGZ_AI_SEARCH_ENABLED !== 'false',
   },
 };
-export type Config = Omit<typeof config, 'databaseUrl' | 'hosted' | 'ai'> & {
+if (!Number.isSafeInteger(config.tipDailyLimit)) throw new Error('Invalid WAGZ_TIP_DAILY_LIMIT');
+export type Config = Omit<typeof config, 'databaseUrl' | 'hosted' | 'ai' | 'tipDailyLimit'> & {
   databaseUrl?: string;
   hosted?: boolean;
+  tipDailyLimit?: number;
   ai: Omit<typeof config.ai, 'lookupModel'> & { lookupModel?: string };
 };

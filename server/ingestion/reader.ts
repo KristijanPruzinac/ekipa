@@ -9,6 +9,14 @@ const HOSTS = new Set([
   'www.kulturni-centar.hr',
   'visitslavoniabaranja.com',
   'www.visitslavoniabaranja.com',
+  'www.gskos.unios.hr',
+  'gskos.unios.hr',
+  'hnk-osijek.hr',
+  'www.hnk-osijek.hr',
+  'core-event.co',
+  'www.core-event.co',
+  'www.dkolektiv.hr',
+  'dkolektiv.hr',
 ]);
 const MAX_BYTES = 2 * 1024 * 1024;
 const CACHE_MS = 6 * 60 * 60 * 1000;

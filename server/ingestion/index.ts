@@ -15,6 +15,14 @@ import {
   type ReaderOptions,
 } from './reader.ts';
 import { COUNTY_URL, parseCountyDetail, parseCountyListing } from './county.ts';
+import {
+  localSources,
+  parseLocalListing,
+  parseAnnouncement,
+  parseHnkDetail,
+  parseCoreEventDetail,
+  type LocalEntry,
+} from './local-sources.ts';
 
 export const sources: SourceDefinition[] = [
   {
@@ -41,11 +49,13 @@ export const sources: SourceDefinition[] = [
       'Službene pojedinačne najave županijskog kalendara; uvoze se samo događaji s potvrđenim gradom Osijekom.',
     enabled: true,
   },
+  ...localSources,
 ];
 
 export interface FetchOptions extends ReaderOptions {
   now?: Date;
   maxDetails?: number;
+  maxListingPages?: number;
 }
 
 export async function fetchSource(id: string, options: FetchOptions = {}): Promise<FetchResult> {
@@ -53,6 +63,76 @@ export async function fetchSource(id: string, options: FetchOptions = {}): Promi
   if (!source) throw new Error('Nepoznat izvor događaja.');
   const now = options.now ?? new Date();
   const listing = await readSourcePage(source.url, options);
+  if (localSources.some((item) => item.id === id)) {
+    const result = emptyResult();
+    result.pagesFetched = listing.cached ? 0 : 1;
+    const reviewExternalIds: string[] = [];
+    const grouped = new Map<string, LocalEntry[]>();
+    const maxPages = Math.max(1, Math.min(2, options.maxListingPages ?? 2));
+    let parsed = parseLocalListing(id, listing.html, now, source.url);
+    for (let pageIndex = 0; ; pageIndex++) {
+      result.discovered += parsed.discovered;
+      result.skipped += parsed.skipped;
+      result.warnings.push(...parsed.warnings);
+      for (const entry of parsed.entries) {
+        const previous = grouped.get(entry.url) ?? [];
+        if (!previous.some((item) => item.startsAt === entry.startsAt)) previous.push(entry);
+        grouped.set(entry.url, previous);
+      }
+      if (!parsed.nextPageUrl || pageIndex + 1 >= maxPages) break;
+      try {
+        const page = await readSourcePage(parsed.nextPageUrl, options);
+        if (!page.cached) result.pagesFetched++;
+        parsed = parseLocalListing(id, page.html, now, parsed.nextPageUrl);
+      } catch (error) {
+        result.warnings.push(
+          `${source.name}: sljedeća stranica nije dostupna; već otkrivene najave ostaju u obradi (${error instanceof Error ? error.message : 'dohvat'}).`,
+        );
+        break;
+      }
+    }
+    const limit = Math.max(0, Math.min(30, options.maxDetails ?? (id === 'dkolektiv' ? 24 : 20)));
+    const entries = [...grouped.values()];
+    if (entries.length > limit) {
+      result.skipped += entries.length - limit;
+      result.warnings.push(
+        `${source.name}: ${entries.length - limit} najava čeka dohvat; ograničenje je ${limit} detaljnih stranica.`,
+      );
+    }
+    for (const [index, group] of entries.slice(0, limit).entries()) {
+      try {
+        const page = await readSourcePage(group[0].url, options);
+        if (!page.cached) result.pagesFetched++;
+        const detail =
+          id === 'hnk-osijek'
+            ? parseHnkDetail(page.html, group, now)
+            : id === 'coreevent-osijek'
+              ? parseCoreEventDetail(page.html, group[0], now)
+              : parseAnnouncement(id as 'gisko' | 'dkolektiv', page.html, group[0], now);
+        result.events.push(...detail.events);
+        result.warnings.push(...detail.warnings);
+        reviewExternalIds.push(...detail.reviewExternalIds);
+        if (!detail.events.length) result.skipped++;
+      } catch (error) {
+        if (
+          error instanceof SourceDeadlineError ||
+          Date.now() >= (options.deadlineMs ?? Infinity)
+        ) {
+          result.skipped += Math.min(entries.length, limit) - index;
+          result.warnings.push(
+            `${source.name}: vremensko ograničenje dohvata; preostale najave čekaju sljedeće pokretanje.`,
+          );
+          break;
+        }
+        result.skipped++;
+        result.warnings.push(
+          `${group[0].title}: ${error instanceof Error ? error.message : 'dohvat nije uspio'}`,
+        );
+      }
+    }
+    // These text-first adapters intentionally produce no AI extraction work or invented fallbacks.
+    return { ...result, reviewExternalIds };
+  }
   if (id === 'tz-osijek') {
     const result = parseTourismCalendar(listing.html, now);
     result.pagesFetched = listing.cached ? 0 : 1;

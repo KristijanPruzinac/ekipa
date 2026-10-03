@@ -93,48 +93,52 @@ void main() {
   );
 
   for (final scale in [1.0, 2.0]) {
-    testWidgets('five-category timeline legend fits 320px at ${scale}x text', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(320, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MediaQuery(
-            data: MediaQueryData(
-              size: const Size(320, 900),
-              textScaler: TextScaler.linear(scale),
-            ),
-            child: Scaffold(
-              body: SingleChildScrollView(
-                child: EventTimeline(
-                  events: const [dance, workshop],
-                  now: '2026-10-03T10:00:00Z',
-                  onOpen: (_) {},
+    testWidgets(
+      'present-category timeline legend fits 320px at ${scale}x text',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(
+                size: const Size(320, 900),
+                textScaler: TextScaler.linear(scale),
+              ),
+              child: Scaffold(
+                body: SingleChildScrollView(
+                  child: EventTimeline(
+                    events: const [dance, workshop],
+                    now: '2026-10-03T10:00:00Z',
+                    onOpen: (_) {},
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-      await tester.tap(find.byKey(const ValueKey('timeline-toggle')));
-      await tester.pumpAndSettle();
-      for (final label in [
-        'Izlasci',
-        'Ples',
-        'Radionice',
-        'Kultura',
-        'Druženje',
-      ]) {
-        expect(find.text(label), findsOneWidget);
-        final rect = tester.getRect(find.text(label));
-        expect(rect.right, lessThanOrEqualTo(320));
-      }
-      expect(find.text('Ples · Radionica'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
+        );
+        await tester.tap(find.byKey(const ValueKey('timeline-toggle')));
+        await tester.pumpAndSettle();
+        for (final label in ['Ples', 'Radionice']) {
+          expect(find.text(label), findsOneWidget);
+          final rect = tester.getRect(find.text(label));
+          expect(rect.right, lessThanOrEqualTo(320));
+        }
+        for (final label in [
+          'Izlasci',
+          'Kultura',
+          'Druženje',
+          'Film',
+          'Književnost',
+        ]) {
+          expect(find.text(label), findsNothing);
+        }
+        expect(find.text('Ples · Radionica'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
   testWidgets(

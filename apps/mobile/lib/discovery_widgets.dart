@@ -7,6 +7,8 @@ Color themeColor(DiscoveryTheme? theme) => switch (theme) {
   DiscoveryTheme.goOut => const Color(0xff674587),
   DiscoveryTheme.dance => const Color(0xff983d55),
   DiscoveryTheme.workshop => const Color(0xff356087),
+  DiscoveryTheme.film => const Color(0xff3e596b),
+  DiscoveryTheme.literature => const Color(0xff725622),
   DiscoveryTheme.culture => const Color(0xff914a2b),
   DiscoveryTheme.joinIn => const Color(0xff286d62),
   null => muted,
@@ -16,6 +18,8 @@ Color eventPaper(WagzEvent event) => switch (themeForCategory(event.category)) {
   DiscoveryTheme.goOut => const Color(0xffe8ddf3),
   DiscoveryTheme.dance => const Color(0xfff5dce1),
   DiscoveryTheme.workshop => const Color(0xffdce7f5),
+  DiscoveryTheme.film => const Color(0xffdce8ec),
+  DiscoveryTheme.literature => const Color(0xffefe5ca),
   DiscoveryTheme.culture => const Color(0xfff3dfd0),
   DiscoveryTheme.joinIn => const Color(0xffd9ebe2),
   null => const Color(0xffe9e7df),
@@ -199,6 +203,89 @@ class _MotifPainter extends CustomPainter {
             ..lineTo(91, 42),
           pen,
         );
+      case DiscoveryTheme.film:
+        canvas.drawCircle(const Offset(76, 35), 26, pen);
+        canvas.drawCircle(const Offset(76, 35), 3, pen);
+        for (final point in [
+          const Offset(76, 18),
+          const Offset(93, 35),
+          const Offset(76, 52),
+          const Offset(59, 35),
+        ]) {
+          canvas.drawCircle(point, 6, pen);
+        }
+        canvas.drawPath(
+          Path()
+            ..moveTo(76, 61)
+            ..lineTo(97, 61)
+            ..quadraticBezierTo(106, 61, 106, 52),
+          pen,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(7, 31)
+            ..lineTo(39, 23)
+            ..lineTo(42, 34)
+            ..lineTo(10, 42)
+            ..close()
+            ..moveTo(10, 42)
+            ..lineTo(42, 42)
+            ..lineTo(42, 65)
+            ..lineTo(10, 65)
+            ..close()
+            ..moveTo(17, 30)
+            ..lineTo(24, 39)
+            ..moveTo(30, 26)
+            ..lineTo(37, 35)
+            ..moveTo(18, 50)
+            ..lineTo(34, 50)
+            ..moveTo(18, 57)
+            ..lineTo(29, 57),
+          pen,
+        );
+      case DiscoveryTheme.literature:
+        canvas.drawPath(
+          Path()
+            ..moveTo(43, 21)
+            ..quadraticBezierTo(58, 13, 73, 21)
+            ..quadraticBezierTo(88, 13, 103, 21)
+            ..lineTo(103, 65)
+            ..quadraticBezierTo(88, 57, 73, 65)
+            ..quadraticBezierTo(58, 57, 43, 65)
+            ..close()
+            ..moveTo(73, 21)
+            ..lineTo(73, 65),
+          pen,
+        );
+        for (final y in [32.0, 42.0, 52.0]) {
+          canvas.drawPath(
+            Path()
+              ..moveTo(49, y)
+              ..quadraticBezierTo(58, y - 3, 66, y)
+              ..moveTo(80, y)
+              ..quadraticBezierTo(89, y - 3, 97, y),
+            pen,
+          );
+        }
+        canvas.drawPath(
+          Path()
+            ..moveTo(8, 28)
+            ..lineTo(31, 28)
+            ..lineTo(31, 39)
+            ..lineTo(8, 39)
+            ..close()
+            ..moveTo(5, 40)
+            ..lineTo(34, 40)
+            ..lineTo(34, 51)
+            ..lineTo(5, 51)
+            ..close()
+            ..moveTo(10, 52)
+            ..lineTo(33, 52)
+            ..lineTo(33, 63)
+            ..lineTo(10, 63)
+            ..close(),
+          pen,
+        );
       case DiscoveryTheme.culture:
         canvas.drawRRect(
           RRect.fromRectAndRadius(
@@ -380,13 +467,21 @@ class _EventTimelineState extends State<EventTimeline> {
               spacing: 12,
               runSpacing: 8,
               children: [
-                for (final entry in const {
-                  DiscoveryTheme.goOut: 'Izlasci',
-                  DiscoveryTheme.dance: 'Ples',
-                  DiscoveryTheme.workshop: 'Radionice',
-                  DiscoveryTheme.culture: 'Kultura',
-                  DiscoveryTheme.joinIn: 'Druženje',
-                }.entries)
+                for (final entry
+                    in const {
+                      DiscoveryTheme.goOut: 'Izlasci',
+                      DiscoveryTheme.dance: 'Ples',
+                      DiscoveryTheme.workshop: 'Radionice',
+                      DiscoveryTheme.film: 'Film',
+                      DiscoveryTheme.literature: 'Književnost',
+                      DiscoveryTheme.culture: 'Kultura',
+                      DiscoveryTheme.joinIn: 'Druženje',
+                    }.entries.where(
+                      (entry) => visible.any(
+                        (event) =>
+                            themeForCategory(event.category) == entry.key,
+                      ),
+                    ))
                   _Legend(label: entry.value, color: themeColor(entry.key)),
               ],
             ),
@@ -453,9 +548,11 @@ class _Legend extends StatelessWidget {
         color: color,
       ),
       const SizedBox(width: 5),
-      Text(
-        label,
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+      Flexible(
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+        ),
       ),
     ],
   );
@@ -574,8 +671,6 @@ class _TimelineStation extends StatelessWidget {
                             ],
                             Text(
                               event.title,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -655,7 +750,13 @@ class _TimelineStation extends StatelessWidget {
             label: 'Završetak: ${event.title}.',
             child: station,
           )
-        : station;
+        : Semantics(
+            button: true,
+            label: eventActionLabel(event, now),
+            onTap: onTap,
+            excludeSemantics: true,
+            child: station,
+          );
   }
 }
 
@@ -781,50 +882,54 @@ class _OngoingEventsState extends State<OngoingEvents> {
           style: TextStyle(fontSize: 11, color: muted, height: 1.5),
         ),
         for (final event in expanded ? widget.events : widget.events.take(2))
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              key: ValueKey('ongoing-event-${event.id}'),
-              onTap: () => widget.onOpen(event),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.circle,
-                      size: 7,
-                      color: themeColor(themeForCategory(event.category)),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            event.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              height: 1.4,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '${eventDurationText(event, widget.now)}${event.endsAt!.length > 10 ? '' : ' · završni sat nije naveden'}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: muted,
-                              height: 1.5,
-                            ),
-                          ),
-                        ],
+          Semantics(
+            button: true,
+            label: eventActionLabel(event, widget.now),
+            onTap: () => widget.onOpen(event),
+            excludeSemantics: true,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                key: ValueKey('ongoing-event-${event.id}'),
+                onTap: () => widget.onOpen(event),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.circle,
+                        size: 7,
+                        color: themeColor(themeForCategory(event.category)),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.north_east, size: 18),
-                  ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              event.title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${eventDurationText(event, widget.now)}${event.endsAt!.length > 10 ? '' : ' · završni sat nije naveden'}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: muted,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.north_east, size: 18),
+                    ],
+                  ),
                 ),
               ),
             ),

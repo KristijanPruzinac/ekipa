@@ -7,6 +7,7 @@ import { sources } from '../server/ingestion/index.ts';
 import { createRepository } from '../server/repository.ts';
 import { WagzService } from '../server/service.ts';
 import { createApp } from '../server/app.ts';
+import { assertProductionEnvironment } from '../server/hosted-environment.ts';
 
 // Source files are a disposable fetching cache. All application data and AI accounting live in Postgres.
 process.env.WAGZ_FETCH_CACHE_DIR = '/tmp/wagz-source-cache';
@@ -14,6 +15,7 @@ let app: Promise<ReturnType<typeof createApp>> | undefined;
 function application() {
   if (!app)
     app = (async () => {
+      assertProductionEnvironment(process.env);
       if (!config.databaseUrl) throw new Error('Hosted database is not configured.');
       const repository = await createRepository(
         config.databasePath,

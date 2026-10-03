@@ -1,5 +1,5 @@
 import type { Category, EventDraft, PublicEvent } from '../shared/types';
-import { isWorkshopEvent } from '../shared/discovery';
+import { eventDurationText, isWorkshopEvent } from '../shared/discovery';
 import type { MouseEvent } from 'react';
 
 export const categoryNames: Record<Category, string> = {
@@ -8,6 +8,8 @@ export const categoryNames: Record<Category, string> = {
   dance: 'Ples',
   workshop: 'Radionica',
   theatre: 'Kazalište',
+  film: 'Film',
+  literature: 'Književnost',
   culture: 'Kultura',
   sport: 'Sport',
   community: 'Zajednica',
@@ -17,6 +19,21 @@ export const eventCategoryLabel = (event: PublicEvent) =>
   event.category === 'dance' && isWorkshopEvent(event)
     ? 'Ples · Radionica'
     : categoryNames[event.category];
+
+/** A single complete action name when the whole card is one link. */
+export function eventDetailsLabel(event: PublicEvent, now?: string): string {
+  return [
+    `Detalji: ${event.title}.`,
+    `${eventCategoryLabel(event)}.`,
+    `${dateFormat(event.startsAt, { weekday: 'long', day: 'numeric', month: 'long' })}, ${timeFormat(event.startsAt)}.`,
+    `${eventDurationText(event, now)}.`,
+    `${event.venue || 'Lokacija još nije navedena'}.`,
+    `${event.price || 'Cijena nije navedena'}.`,
+    event.status === 'cancelled' ? 'Otkazano.' : event.status === 'postponed' ? 'Odgođeno.' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
 
 /** Preserve open-in-new-tab/window and native navigation while enhancing ordinary clicks. */
 export function openEventLink(click: MouseEvent<HTMLAnchorElement>, open: () => void) {

@@ -14,7 +14,7 @@
   border-radius: 24px;
   background: transparent;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
 }
 .activity-filters button[aria-pressed='true'] {
@@ -26,7 +26,7 @@
   border-color: var(--ink);
 }
 .activity-filters button span {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 400;
 }
 .activity-empty {
@@ -47,7 +47,7 @@
 }
 .card-duration {
   margin: 10px 0 14px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--muted);
 }
@@ -55,16 +55,16 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .card-feed .results-line {
-  font-size: 13px;
+  font-size: 0.8125rem;
   gap: 10px;
 }
 .card-feed .results-line > span:last-child {
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0.5px;
 }
 .ongoing-result-note {
   margin: 0 0 18px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.6;
   color: var(--muted);
 }
@@ -85,12 +85,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .ongoing-heading > span,
 .ongoing-note {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.5;
 }
 .ongoing-note {
@@ -121,13 +121,13 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.4;
 }
 .ongoing-event small {
   display: block;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.5;
   margin-top: 3px;
 }
@@ -143,7 +143,7 @@
   border-top: 1px solid var(--line);
   width: 100%;
   min-height: 44px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   text-align: left;
 }
@@ -152,7 +152,7 @@
   gap: 8px;
   align-items: center;
   margin: 0 0 16px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
 }
 .upcoming-heading span {
@@ -166,6 +166,14 @@
 .theme-culture {
   --theme-ink: #914a2b;
   --theme-paper: #f3dfd0;
+}
+.theme-film {
+  --theme-ink: #3e596b;
+  --theme-paper: #dce8ec;
+}
+.theme-literature {
+  --theme-ink: #725622;
+  --theme-paper: #efe5ca;
 }
 .theme-dance {
   --theme-ink: #983d55;
@@ -198,7 +206,7 @@
   border: 0;
   background: transparent;
   padding: 0;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
 }
 .event-card .card-reason + .card-reason::before {
@@ -206,6 +214,7 @@
   padding-right: 8px;
 }
 .event-card .card-open {
+  margin-left: auto;
   display: inline-flex;
   width: auto;
   min-height: 36px;
@@ -215,7 +224,7 @@
   border: 1px solid #a9b998;
   background: #e0ebd3;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 .event-card .card-open svg {
@@ -243,7 +252,7 @@
   padding: 0;
   border: 0;
   color: var(--theme-ink);
-  font-size: 12px;
+  font-size: 0.75rem;
   letter-spacing: 1.1px;
 }
 .event-card .card-title-area {
@@ -251,7 +260,7 @@
   min-height: 122px;
 }
 .event-card .card-title-area h3 {
-  font-size: clamp(23px, 2vw, 28px);
+  font-size: clamp(1.4375rem, 2vw, 1.75rem);
   line-height: 1.15;
 }
 .event-card.card-prominent {
@@ -275,22 +284,22 @@
   gap: 10px;
 }
 .timeline-heading .eyebrow {
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 1.2px;
   margin-bottom: 7px;
 }
 .timeline-heading h3 {
   font-family: var(--display);
-  font-size: 26px;
+  font-size: 1.625rem;
   max-width: 210px;
   letter-spacing: -0.8px;
   font-weight: 600;
 }
 .timeline-direction {
-  font-size: 30px;
+  font-size: 1.875rem;
 }
 .timeline-description {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted);
   margin-top: 8px;
   line-height: 1.6;
@@ -300,7 +309,7 @@
   flex-wrap: wrap;
   gap: 7px 12px;
   margin: 18px 0 20px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.5;
 }
 .timeline-legend span::before {
@@ -316,7 +325,7 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  --spine: 54px;
+  --spine: 3.375rem;
 }
 .timeline-spine {
   position: absolute;
@@ -367,23 +376,23 @@
   position: absolute;
   top: 10px;
   left: 0;
-  width: 43px;
+  width: 2.6875rem;
   display: grid;
   gap: 2px;
   text-align: right;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.35;
 }
 .station-time b {
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .station-time > span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 .station-time .station-weekday {
   color: var(--ink);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -436,29 +445,25 @@
   border-color: var(--theme-ink);
 }
 .timeline-station strong {
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.45;
   overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 .station-category,
 .station-duration {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.5;
 }
 .station-category {
   color: var(--theme-ink);
 }
 .station-duration {
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 .station-duration.has-end {
   color: var(--ink);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 .station-live {
@@ -467,7 +472,7 @@
   background: #e1ecc8;
   padding: 3px 5px;
   border-radius: 3px;
-  font-size: 9px;
+  font-size: 0.5625rem;
   letter-spacing: 0.6px;
   font-weight: 700;
 }
@@ -478,13 +483,13 @@
 .timeline-scale-note {
   margin: 7px 0 14px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.5;
 }
 .timeline-symbols {
   display: flex;
   gap: 16px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--muted);
 }
 .timeline-symbols span {
@@ -508,11 +513,11 @@
   justify-self: end;
   gap: 4px;
   color: var(--theme-ink);
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
 }
 .station-status {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #9b3022;
   font-weight: 700;
 }
@@ -526,7 +531,7 @@
   border: 0;
   border-top: 1px solid #cdd1bf;
   background: transparent;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   margin-top: 10px;
 }
@@ -534,7 +539,7 @@
   background: #e1e4d5;
 }
 .timeline-expand span {
-  font-size: 20px;
+  font-size: 1.25rem;
 }
 .timeline-mobile-toggle {
   display: flex;
@@ -546,19 +551,19 @@
   padding: 8px 0;
   border: 0;
   background: transparent;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   text-align: left;
 }
 .timeline-mobile-toggle > span:last-child {
-  font-size: 20px;
+  font-size: 1.25rem;
 }
 .timeline-toggle-copy {
   display: grid;
   gap: 3px;
 }
 .timeline-toggle-copy small {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--muted);
   font-weight: 400;
   line-height: 1.4;
@@ -571,11 +576,11 @@
   padding: 7px 0;
 }
 .timeline-collapsed .timeline-heading h3 {
-  font-size: 20px;
+  font-size: 1.25rem;
   max-width: none;
 }
 .timeline-collapsed .timeline-direction {
-  font-size: 24px;
+  font-size: 1.5rem;
 }
 .mobile-expand-only {
   display: none;
@@ -607,6 +612,46 @@
     height: 90px;
   }
   .event-card .card-title-area h3 {
-    font-size: 26px;
+    font-size: 1.625rem;
+  }
+}
+
+/* Font-relative containers also respond to text-only zoom. Normal desktop and
+   phone layouts keep their accepted proportions; enlarged text gets real room. */
+@container feed (max-width: 40rem) {
+  .discovery-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .card-feed .event-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  }
+  .timeline-heading h3 {
+    max-width: none;
+  }
+}
+@container feed (max-width: 12rem) {
+  .timeline-direction {
+    display: none;
+  }
+  .timeline-track {
+    --spine: 8px;
+  }
+  .timeline-station,
+  .station-ending {
+    padding: 10px 0 12px calc(var(--spine) + var(--range-space));
+  }
+  .station-time,
+  .station-ending .station-time {
+    position: static;
+    width: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    align-items: baseline;
+    text-align: left;
+    margin-bottom: 8px;
+  }
+  .timeline-station > a {
+    padding: 10px 8px;
   }
 }

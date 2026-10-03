@@ -381,7 +381,11 @@ export class WagzService {
           }
           for (const candidate of candidates) {
             try {
-              await this.repo.upsert(candidate);
+              await this.repo.upsert(
+                candidate,
+                new Date(),
+                result.reviewExternalIds?.includes(candidate.externalId) ?? false,
+              );
               run.imported++;
             } catch (error) {
               run.skipped++;

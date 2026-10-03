@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore, type CSSProperties } from 'react';
 import {
+  discoveryThemes,
   durationLabel,
   isOngoing,
   knownEnd,
@@ -9,7 +10,13 @@ import {
 } from '../shared/discovery';
 import type { PublicEvent } from '../shared/types';
 import { eventPath } from '../shared/site';
-import { eventCategoryLabel, dateFormat, openEventLink, timeFormat } from './lib';
+import {
+  eventCategoryLabel,
+  eventDetailsLabel,
+  dateFormat,
+  openEventLink,
+  timeFormat,
+} from './lib';
 
 const compactQuery = () => window.matchMedia('(max-width: 760px)');
 const subscribe = (callback: () => void) => {
@@ -81,11 +88,15 @@ export function EventTimeline({
       {chartOpen && (
         <div id="timeline-chart">
           <div className="timeline-legend" aria-label="Vrste događaja">
-            <span className="theme-go-out">Izlasci</span>
-            <span className="theme-dance">Ples</span>
-            <span className="theme-workshop">Radionice</span>
-            <span className="theme-culture">Kultura</span>
-            <span className="theme-join-in">Druženje</span>
+            {discoveryThemes
+              .filter((theme) =>
+                preview.some((event) => themeForCategory(event.category) === theme.id),
+              )
+              .map((theme) => (
+                <span className={`theme-${theme.id}`} key={theme.id}>
+                  {theme.label}
+                </span>
+              ))}
           </div>
           <div className="timeline-symbols" aria-label="Oznake na vremenskoj crti">
             <span>
@@ -138,7 +149,7 @@ export function EventTimeline({
                       <a
                         href={eventPath(event.id)}
                         onClick={(click) => openEventLink(click, () => onSelect(event))}
-                        aria-label={`Na vremenskoj crti: ${event.title}`}
+                        aria-label={eventDetailsLabel(event, now)}
                       >
                         {isOngoing(event, now) && <span className="station-live">U TIJEKU</span>}
                         <strong>{event.title}</strong>

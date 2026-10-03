@@ -52,6 +52,33 @@ export function EventArt({ category }: { category: Category }) {
             <path d="m199 24 43-5 21 17 6 46-62 8Zm43-5 2 20 19-3" />
             <path d="m216 53 29-4m-27 17 20-3" opacity=".55" />
           </g>
+        ) : category === 'film' ? (
+          <g data-motif="film">
+            <path
+              d="m48 40 78-16 4 20-78 16Zm7 19h77v33H55Z"
+              fill="currentColor"
+              fillOpacity=".06"
+            />
+            <path d="m59 38 11 18m11-23 11 18m11-23 11 18M66 73h45m-45 9h26" />
+            <circle cx="226" cy="53" r="37" fill="currentColor" fillOpacity=".06" />
+            <circle cx="226" cy="53" r="5" />
+            <circle cx="226" cy="30" r="9" />
+            <circle cx="249" cy="53" r="9" />
+            <circle cx="226" cy="76" r="9" />
+            <circle cx="203" cy="53" r="9" />
+            <path d="M226 90h38q19 0 19-17" opacity=".6" />
+          </g>
+        ) : category === 'literature' ? (
+          <g data-motif="literature">
+            <path
+              d="M174 30q23-13 46 0 23-13 46 0v59q-23-13-46 0-23-13-46 0Z"
+              fill="currentColor"
+              fillOpacity=".06"
+            />
+            <path d="M220 30v59m-36-45q13-5 26 0m-26 13q13-5 26 0m-26 13q13-5 26 0m20-26q13-5 26 0m-26 13q13-5 26 0m-26 13q13-5 26 0" />
+            <path d="M55 32h61v17H55Zm-6 18h73v17H49Zm9 18h62v17H58ZM66 37v7m43 11v7M68 73v7" />
+            <path d="m246 27 7-11m19 19 12-4" opacity=".5" />
+          </g>
         ) : category === 'theatre' || category === 'culture' ? (
           <>
             <path

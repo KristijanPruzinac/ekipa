@@ -50,11 +50,42 @@ test('incidental dancing/workshops do not replace a main concert, festival or op
     ['Dan otvorenih vrata i dan karijera', 'Radionica robotike i radionica plesa.', 'community'],
     ['Dani otvorenih vrata — radionice plesa', '', 'community'],
     ['Izložba fotografija baleta', '', 'culture'],
-    ['Filmska večer o plesu', '', 'culture'],
+    ['Filmska večer o plesu', '', 'film'],
     ['Redovni satovi salse utorkom i četvrtkom', '', 'other'],
     ['Početni plesni tečaj swinga — redovni tjedni satovi', '', 'other'],
   ])
     assert.equal(categoryFor(`${title} ${body}`, title), expected, title);
+});
+
+test('screenings and literary programmes have precise categories, independent of venue', () => {
+  for (const title of [
+    'Projekcija dokumentarnog filma',
+    'Filmska večer o kazalištu',
+    'Filmski festival',
+    'Kino matineja',
+  ]) {
+    assert.equal(categoryFor(title), 'film', title);
+  }
+  for (const title of [
+    'Književna večer',
+    'Predstavljanje knjige',
+    'Promocija romana',
+    'Čitateljski klub',
+    'Večer poezije',
+  ]) {
+    assert.equal(categoryFor(title), 'literature', title);
+  }
+  for (const [title, body, expected] of [
+    ['Radionica snimanja filma', 'Projekcija filma nastalog na radionici.', 'workshop'],
+    ['Radionica pisanja', 'Književna večer u knjižnici.', 'workshop'],
+    ['Sportska radionica', 'U knjižnici GISKO.', 'workshop'],
+    ['Koncert filmske glazbe', 'Sviranje glazbe iz filmova.', 'music'],
+    ['Književna večer s autorom', 'Autor je pisao glazbu za kazalište.', 'literature'],
+    ['Projekcija filma o plesu', 'Nakon filma razgovor o kazališnoj predstavi.', 'film'],
+  ])
+    assert.equal(categoryFor(`${title} ${body}`, title), expected, title);
+  assert.equal(themeForCategory('film'), 'film');
+  assert.equal(themeForCategory('literature'), 'literature');
 });
 
 test('secondary workshop wording is explicit and does not promote incidental programme items', () => {

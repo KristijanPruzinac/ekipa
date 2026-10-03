@@ -13,7 +13,7 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "tsx --test --test-concurrency=1 server/*.test.ts server/ingestion/*.test.ts server/ai/*.test.ts",
+    "test": "tsx --test --test-concurrency=1 server/*.test.ts server/ingestion/*.test.ts server/ai/*.test.ts scripts/backup*.test.ts",
     "collect": "tsx server/collect.ts",
     "admin-key": "tsx scripts/admin-key.ts",
     "indexnow": "tsx scripts/indexnow.ts",

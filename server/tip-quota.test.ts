@@ -148,3 +148,66 @@ test('Postgres quota queries use the application schema and bound client keys', 
     'SELECT attempts FROM public.wagz_tip_quotas WHERE client_key=$1 AND expires_at>$2',
   );
 });
+
+test('global daily admission caps rotating clients atomically across instances and persists until UTC midnight', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wagz-tip-quota-'));
+  const path = join(directory, 'quota.sqlite');
+  const database = new SqliteDatabase(path);
+  const first = new Repository(path, [], true, database);
+  const second = new Repository(path, []);
+  const now = Date.parse('2026-10-03T10:00:00Z');
+  try {
+    const admitted = await Promise.all(
+      Array.from({ length: 150 }, (_, index) =>
+        (index % 2 ? first : second).consumeTipQuota(`client-${index}`, now),
+      ),
+    );
+    assert.equal(admitted.filter(Boolean).length, 100);
+    assert.equal((await database.query('SELECT client_key FROM tip_quotas')).length, 100);
+    assert.deepEqual(
+      (await database.query('SELECT attempts,expires_at FROM request_quotas')).map((row) => ({
+        ...row,
+      })),
+      [{ attempts: 100, expires_at: Date.parse('2026-10-04T00:00:00Z') }],
+    );
+    await first.close();
+    await second.close();
+    const reopened = new Repository(path, []);
+    try {
+      assert.equal(
+        await reopened.consumeTipQuota('new-address', Date.parse('2026-10-03T23:59:59.999Z')),
+        false,
+      );
+      assert.equal(
+        await reopened.consumeTipQuota('new-address', Date.parse('2026-10-04T00:00:00Z')),
+        true,
+      );
+    } finally {
+      await reopened.close();
+    }
+  } finally {
+    await first.close();
+    await second.close();
+    await removeTemporary(directory);
+  }
+});
+
+test('per-client denials do not spend global admission; configured daily zero closes submissions', async () => {
+  const database = new SqliteDatabase(':memory:');
+  const repo = new Repository(':memory:', [], true, database);
+  const now = Date.parse('2026-10-03T10:00:00Z');
+  try {
+    for (let i = 0; i < 7; i++) assert.equal(await repo.consumeTipQuota('same', now, 9), i < 5);
+    for (let i = 0; i < 6; i++)
+      assert.equal(await repo.consumeTipQuota(`other-${i}`, now, 9), i < 4);
+    const [global] = await database.query('SELECT attempts FROM request_quotas WHERE quota_key=?', [
+      'tips:global',
+    ]);
+    assert.equal(global.attempts, 9);
+    assert.equal(await repo.consumeTipQuota('another', now + 86_400_000, 0), false);
+    assert.equal(await repo.consumeTipQuota('another', now + 86_400_000, 1), true);
+    await assert.rejects(repo.consumeTipQuota('another', now, 1.5), /ograničenje/);
+  } finally {
+    await repo.close();
+  }
+});

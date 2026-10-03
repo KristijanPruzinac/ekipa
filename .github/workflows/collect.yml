@@ -14,6 +14,7 @@ jobs:
     timeout-minutes: 25
     env:
       DATABASE_URL: ${{ secrets.WAGZ_DATABASE_URL }}
+      WAGZ_DATABASE_MIGRATIONS: disabled
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       OPENROUTER_MODEL: google/gemini-2.5-flash-lite
       WAGZ_AI_MONTHLY_BUDGET_USD: '1'

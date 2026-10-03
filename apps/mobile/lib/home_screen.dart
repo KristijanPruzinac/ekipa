@@ -136,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         .toList();
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 76,
+        toolbarHeight: 36 + MediaQuery.textScalerOf(context).scale(40),
         title: const Brand(),
         actions: [
           IconButton(
@@ -494,165 +494,171 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: eventPaper(event),
-      shape: RoundedRectangleBorder(
-        side: const BorderSide(color: line),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(22),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  EventMotif(
-                    theme: themeForCategory(event.category),
-                    compact: true,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Eyebrow(eventCategoryLabel(event).toUpperCase()),
-                  ),
-                  Text(
-                    '/${(index + 1).toString().padLeft(2, '0')}',
-                    style: const TextStyle(fontSize: 11, color: muted),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              if (event.status != 'scheduled')
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    event.status == 'cancelled' ? 'OTKAZANO' : 'ODGOĐENO',
-                    style: const TextStyle(
-                      color: Color(0xff9b3022),
-                      fontWeight: FontWeight.w800,
+    return Semantics(
+      button: true,
+      label: eventActionLabel(event),
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Material(
+        color: eventPaper(event),
+        shape: RoundedRectangleBorder(
+          side: const BorderSide(color: line),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    EventMotif(
+                      theme: themeForCategory(event.category),
+                      compact: true,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Eyebrow(eventCategoryLabel(event).toUpperCase()),
+                    ),
+                    Text(
+                      '/${(index + 1).toString().padLeft(2, '0')}',
+                      style: const TextStyle(fontSize: 11, color: muted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                if (event.status != 'scheduled')
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      event.status == 'cancelled' ? 'OTKAZANO' : 'ODGOĐENO',
+                      style: const TextStyle(
+                        color: Color(0xff9b3022),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
-                ),
-              if (event.status == 'scheduled' &&
-                  event.discovery.prominenceLabel != null) ...[
+                if (event.status == 'scheduled' &&
+                    event.discovery.prominenceLabel != null) ...[
+                  Text(
+                    event.discovery.prominenceLabel!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: muted,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 Text(
-                  event.discovery.prominenceLabel!,
+                  event.title,
                   style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: muted,
+                    fontFamily: 'Space Grotesk',
+                    fontSize: 27,
+                    height: 1.13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.6,
                   ),
                 ),
-                const SizedBox(height: 10),
-              ],
-              Text(
-                event.title,
-                style: const TextStyle(
-                  fontFamily: 'Space Grotesk',
-                  fontSize: 27,
-                  height: 1.13,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.6,
-                ),
-              ),
-              const SizedBox(height: 26),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    formatDate(event.startsAt, 'dd'),
-                    style: const TextStyle(
-                      fontSize: 42,
-                      height: 1,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -2,
+                const SizedBox(height: 26),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      formatDate(event.startsAt, 'dd'),
+                      style: const TextStyle(
+                        fontSize: 42,
+                        height: 1,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -2,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          formatDate(event.startsAt, 'MMM').toUpperCase(),
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        Text(
-                          '${formatDate(event.startsAt, 'EEE')} · ${formatTime(event.startsAt)}',
-                          style: const TextStyle(fontSize: 12, height: 1.5),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.location_on_outlined, size: 17),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      event.venue ?? 'Lokacija još nije navedena',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Divider(height: 1, color: Color(0x44171a17)),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Text(
-                  eventDurationText(event),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: muted,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      event.price ?? 'Cijena nije navedena',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xffe0ebd3),
-                      border: Border.all(color: const Color(0xffa9b998)),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Detalji',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            formatDate(event.startsAt, 'MMM').toUpperCase(),
+                            style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
-                        ),
-                        SizedBox(width: 7),
-                        Icon(Icons.arrow_forward, size: 16),
-                      ],
+                          Text(
+                            '${formatDate(event.startsAt, 'EEE')} · ${formatTime(event.startsAt)}',
+                            style: const TextStyle(fontSize: 12, height: 1.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 17),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        event.venue ?? 'Lokacija još nije navedena',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: Color(0x44171a17)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Text(
+                    eventDurationText(event),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: muted,
                     ),
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        event.price ?? 'Cijena nije navedena',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xffe0ebd3),
+                        border: Border.all(color: const Color(0xffa9b998)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Detalji',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(width: 7),
+                          Icon(Icons.arrow_forward, size: 16),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

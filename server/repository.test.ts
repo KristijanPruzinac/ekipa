@@ -111,6 +111,29 @@ test('operator corrections survive later imports; cancellation is stored for une
     await repo.close();
   }
 });
+
+test('source conflicts hold existing automatic imports while preserving explicit operator decisions', async () => {
+  const repo = new Repository(':memory:', [source]);
+  try {
+    const imported = await repo.upsert(candidate());
+    assert.equal(imported.publication, 'published');
+    const held = await repo.upsert(candidate(), new Date(), true);
+    assert.equal(held.id, imported.id);
+    assert.equal(held.publication, 'draft');
+    assert.equal(held.autoPublishEligible, false);
+    assert.equal((await repo.upsert(candidate())).publication, 'draft');
+    await repo.editEvent(imported.id, 'published');
+    assert.equal((await repo.upsert(candidate(), new Date(), true)).publication, 'published');
+    await repo.editEvent(imported.id, 'rejected');
+    assert.equal((await repo.upsert(candidate(), new Date(), true)).publication, 'rejected');
+    await repo.editEvent(imported.id, 'published', { title: 'Urednički potvrđen naslov' });
+    const manual = await repo.upsert(candidate(), new Date(), true);
+    assert.equal(manual.publication, 'published');
+    assert.equal(manual.title, 'Urednički potvrđen naslov');
+  } finally {
+    await repo.close();
+  }
+});
 test('budget reservation blocks overspending concurrently and preserves unknown charges', async () => {
   const repo = new Repository(':memory:', []);
   try {

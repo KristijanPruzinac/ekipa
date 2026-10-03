@@ -796,7 +796,7 @@ test('bounded collection saves gathered events, defers AI and later sources, and
   }
 });
 
-test('bounded collection divides remaining time fairly so a slow KC cannot starve the county source', async (context) => {
+test('bounded collection gives all seven sources a fair remaining share after a slow source', async (context) => {
   const repo = new Repository(':memory:', sources);
   const started = Date.now();
   let clock = started;
@@ -806,11 +806,11 @@ test('bounded collection divides remaining time fairly so a slow KC cannot starv
     aiCalls++;
     throw new Error('No AI call may take time reserved for later sources.');
   });
-  const fetched: Array<{ id: string; deadline: number }> = [];
+  const fetched: Array<{ id: string; deadline: number; started: number }> = [];
   const service = new WagzService(repo, settings(true), async (id, options) => {
     const deadline = options!.deadlineMs!;
-    fetched.push({ id, deadline });
-    // The first calendar is quick; KC consumes its share. County still gets time.
+    fetched.push({ id, deadline, started: clock });
+    // The first calendar is quick; each later source consumes its fetch share.
     clock = id === 'tz-osijek' ? clock + 5000 : deadline;
     return {
       events: [{ ...candidate, sourceId: id, title: `${candidate.title} ${id}` }],
@@ -826,13 +826,19 @@ test('bounded collection divides remaining time fairly so a slow KC cannot starv
     assert.equal(await service.collect(false, 240_000), true);
     assert.deepEqual(
       fetched.map((item) => item.id),
-      ['tz-osijek', 'kc-osijek', 'tz-obz'],
+      ['tz-osijek', 'kc-osijek', 'tz-obz', 'gisko', 'hnk-osijek', 'coreevent-osijek', 'dkolektiv'],
     );
-    assert.equal(fetched[0].deadline, started + 65_000);
-    assert.equal(fetched[1].deadline, started + 107_500);
-    assert.equal(fetched[2].deadline, started + 225_000);
+    for (const [index, item] of fetched.entries()) {
+      assert.ok(item.deadline > item.started, `${item.id} retains time to fetch`);
+      assert.equal(
+        item.deadline,
+        item.started + (started + 240_000 - item.started) / (fetched.length - index) - 15_000,
+      );
+      if (index > 0) assert.ok(item.deadline > fetched[index - 1].deadline);
+    }
+    assert.equal(fetched.at(-1)!.deadline, started + 225_000);
     assert.equal(aiCalls, 0);
-    assert.equal((await repo.events()).length, 3);
+    assert.equal((await repo.events()).length, 7);
     assert.ok((await repo.runs()).every((run) => run.imported === 1 && run.finishedAt));
     assert.equal(await repo.isLeaseActive('collection'), false);
   } finally {

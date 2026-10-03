@@ -15,6 +15,16 @@ on:
         description: Public HTTPS WagZ origin (no /api path, credentials, or secrets)
         required: true
         type: string
+        default: https://wagz.com.hr
+      build_variant:
+        description: Signed release is installable; unsigned release is verification only
+        required: true
+        default: signed-release
+        type: choice
+        options:
+          - signed-release
+          - unsigned-release
+          - debug
 
 permissions:
   contents: read
@@ -96,20 +106,86 @@ jobs:
       - name: Run mobile tests
         run: flutter test --no-pub --concurrency=2
 
-      - name: Build Android debug APK
+      - name: Prepare explicit Android signing mode
+        id: signing
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          BUILD_VARIANT: ${{ inputs.build_variant }}
+          WAGZ_ANDROID_KEYSTORE_BASE64: ${{ secrets.WAGZ_ANDROID_KEYSTORE_BASE64 }}
+          WAGZ_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.WAGZ_ANDROID_KEYSTORE_PASSWORD }}
+          WAGZ_ANDROID_KEY_ALIAS: ${{ secrets.WAGZ_ANDROID_KEY_ALIAS }}
+          WAGZ_ANDROID_KEY_PASSWORD: ${{ secrets.WAGZ_ANDROID_KEY_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          names = ('WAGZ_ANDROID_KEYSTORE_BASE64', 'WAGZ_ANDROID_KEYSTORE_PASSWORD', 'WAGZ_ANDROID_KEY_ALIAS', 'WAGZ_ANDROID_KEY_PASSWORD')
+          values = [os.environ.get(name, '').strip() for name in names]
+          if any(values) and not all(values):
+              raise SystemExit('Android signing secrets are incomplete. Configure all four secrets before building.')
+          mode = os.environ['BUILD_VARIANT']
+          if mode not in ('signed-release', 'unsigned-release', 'debug'):
+              raise SystemExit('Select a supported build_variant.')
+          if mode == 'signed-release':
+              if not all(values):
+                  raise SystemExit('Signed release requires all four Android signing secrets. Choose unsigned-release or debug explicitly for development.')
+              if any('\n' in value or '\r' in value for value in values):
+                  raise SystemExit('Signing values must not contain embedded newlines.')
+              key = Path(os.environ['RUNNER_TEMP']) / 'wagz-upload.jks'
+              try:
+                  key.write_bytes(base64.b64decode(values[0], validate=True))
+              except ValueError:
+                  raise SystemExit('Android keystore secret is not valid base64.')
+              key.chmod(0o600)
+              def escape(value):
+                  return value.replace('\\', '\\\\').replace(':', '\\:').replace('=', '\\=')
+              props = Path('android/key.properties')
+              props.write_text('\n'.join(f'{name}={escape(value)}' for name, value in (
+                  ('storeFile', str(key)), ('storePassword', values[1]),
+                  ('keyAlias', values[2]), ('keyPassword', values[3]),
+              )) + '\n', encoding='utf-8')
+              props.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env:
+              env.write(f'WAGZ_ALLOW_UNSIGNED_RELEASE={str(mode == "unsigned-release").lower()}\n')
+          PY
+
+      - name: Build Android APK and release app bundle
         if: github.event_name == 'workflow_dispatch'
         env:
           WAGZ_API_BASE_URL: ${{ inputs.api_base_url }}
-        run: >-
-          flutter build apk --debug --no-pub
-          --dart-define="WAGZ_API_BASE_URL=$WAGZ_API_BASE_URL"
+          BUILD_VARIANT: ${{ inputs.build_variant }}
+        run: |
+          if [ "$BUILD_VARIANT" = debug ]; then
+            flutter build apk --debug --dart-define="WAGZ_API_BASE_URL=$WAGZ_API_BASE_URL"
+          else
+            # Keep tooling regeneration enabled: switching from tests/debug to
+            # release removes dev-only plugins from the Android registrant.
+            flutter build apk --release --dart-define="WAGZ_API_BASE_URL=$WAGZ_API_BASE_URL"
+            flutter build appbundle --release --dart-define="WAGZ_API_BASE_URL=$WAGZ_API_BASE_URL"
+          fi
 
-      - name: Upload installable Android APK
+      - name: Verify release APK signature
+        if: github.event_name == 'workflow_dispatch' && inputs.build_variant == 'signed-release'
+        run: |
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          "$apksigner" verify --verbose build/app/outputs/flutter-apk/app-release.apk
+          jarsigner -verify build/app/outputs/bundle/release/app-release.aab
+
+      - name: Remove temporary signing material
+        if: always() && github.event_name == 'workflow_dispatch'
+        run: |
+          rm -f android/key.properties "$RUNNER_TEMP/wagz-upload.jks"
+
+      - name: Upload Android build artifacts
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: wagz-android-debug-${{ github.run_number }}
-          path: apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
+          name: wagz-android-${{ inputs.build_variant }}-${{ github.run_number }}
+          path: |
+            apps/mobile/build/app/outputs/flutter-apk/*.apk
+            apps/mobile/build/app/outputs/bundle/release/*.aab
           if-no-files-found: error
           compression-level: 0
           retention-days: 7

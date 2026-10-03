@@ -180,11 +180,29 @@ test('credentials in query or cookies cannot authorize; rotation and missing-key
 test('cross-origin writes and preflights reject before data access, while absent-origin native clients work', async () => {
   const f = await fixture();
   try {
-    for (const origin of ['https://evil.test', 'null', 'malformed origin']) {
+    for (const origin of [
+      'https://evil.test',
+      'null',
+      '',
+      'malformed origin',
+      f.base.replace('http:', 'https:'),
+      `${f.base}/`,
+      `${f.base}/extra`,
+      `${f.base}?query=true`,
+      `${f.base}#fragment`,
+      f.base.replace('://', '://user:password@'),
+      f.base.replace(/:\d+$/, ':1'),
+    ]) {
       for (const method of ['PATCH', 'OPTIONS']) {
         const reply = await fetch(f.base + '/api/admin/settings', {
           method,
-          headers: { ...headers, origin },
+          headers: {
+            ...headers,
+            origin,
+            'x-forwarded-proto': 'https',
+            'x-forwarded-host': 'evil.test',
+            forwarded: 'host=evil.test;proto=https',
+          },
           ...(method === 'PATCH' ? { body: '{"autoPublish":false}' } : {}),
         });
         assert.equal(reply.status, 403);
@@ -285,7 +303,7 @@ test('API parser failures and internal errors have no-store headers and redact e
   }
 });
 
-test('authentication throttles a process after thirty failures but a valid key still works', async () => {
+test('authentication throttles one database after thirty failures but a valid key still works', async () => {
   const first = await fixture(),
     second = await fixture();
   try {
@@ -297,11 +315,48 @@ test('authentication throttles a process after thirty failures but a valid key s
       await reply.text();
     }
     assert.equal((await fetch(first.base + '/api/admin/dashboard', { headers })).status, 200);
-    // Explicitly document this remaining limitation: unlike tips, auth counters are per app.
+    // A separate database represents an independent environment.
     assert.equal((await fetch(second.base + '/api/admin/dashboard')).status, 401);
   } finally {
     await first.close();
     await second.close();
+  }
+});
+
+test('Vercel origin matching uses configured HTTPS and Host, ignoring spoofed forwarding metadata', async () => {
+  const f = await fixture({ hosted: true });
+  try {
+    const host = new URL(f.base).host;
+    const forged = {
+      ...headers,
+      host,
+      'x-forwarded-proto': 'http',
+      'x-forwarded-host': 'evil.test',
+      'x-forwarded-port': '80',
+      forwarded: 'host=evil.test;proto=http',
+    };
+    for (const origin of [
+      `http://${host}`,
+      'https://wagz.example',
+      'https://wagz.example:9443',
+      'https://evil.test',
+      `https://${host}/`,
+    ]) {
+      const response = await fetch(f.base + '/api/admin/dashboard', {
+        headers: { ...forged, origin },
+      });
+      assert.equal(response.status, 403, origin);
+      await response.text();
+    }
+    for (const origin of [`https://${host}`, undefined]) {
+      const response = await fetch(f.base + '/api/admin/dashboard', {
+        headers: { ...forged, ...(origin ? { origin } : {}) },
+      });
+      assert.equal(response.status, 200);
+      await response.text();
+    }
+  } finally {
+    await f.close();
   }
 });
 

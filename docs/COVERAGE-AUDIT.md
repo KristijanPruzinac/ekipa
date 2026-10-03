@@ -1,6 +1,6 @@
 # Osijek coverage audit — 3 October 2026
 
-This extends the earlier research in [SOURCES.md](SOURCES.md) with concrete current events and source-access checks. It is an audit, **not an import or activation of new adapters**.
+This extends the earlier research in [SOURCES.md](SOURCES.md) with concrete current events and source-access checks. The original comparison below is the audit before implementation. GISKO, HNK, CoreEvent and DKolektiv adapters were subsequently implemented on the same day; see the implementation update at the end.
 
 The captured [public feed](https://wagz.vercel.app/api/events) contained **23 current/upcoming events from three sources** at `2026-10-03T06:36:37Z` (08:36 Zagreb), against baseline `097f949`. Comparison checked title, occurrence date, venue and source URL, including differently worded titles. None of the main examples below appears in that snapshot. This is a sample, not a measure of all events in Osijek. An expired event's absence today does not prove it was missed earlier.
 
@@ -83,7 +83,7 @@ These are point-in-time observations, not availability guarantees or production 
 
 ## Recommended next adapters
 
-Only TZ Osijek, KC Osijek and TZ OBŽ remain active. These are **implementation candidates**, prioritized for variety and current evidence:
+At the time of the original snapshot only TZ Osijek, KC Osijek and TZ OBŽ were active. The following priorities have now been implemented, with the limits recorded below:
 
 | Priority                                                   | Added types                                             | Observed eligible additions                                                 | Required behaviour                                                                                                                                                         |
 | ---------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -97,4 +97,20 @@ One-off primary sites such as the race registration page, Filmska RUNDA and SST 
 
 Keep broad aggregators and social mirrors as discovery leads rather than unrestricted automatic publishers. The captured Manifestacije recommendations place the antiques fair on **3 Oct**, while the [official county notice](https://visitslavoniabaranja.com/event/dogadanja-koja-nam-slijede/) moves it to **10 Oct** for HeadOnEast. Osijek.in's race listing says east entrance; official registration says west. Search results also returned older schedules than current Reader captures. Confirm primary facts before importing.
 
-No events were hand-added, adapters activated, allowlists or application databases changed, or organizers contacted. A restricted Instagram link alone cannot supply readable independent evidence to the existing submission system.
+The original research did not hand-add events, activate adapters, change allowlists/application databases, or contact organizers. The later implementation changes adapters and the trusted-host allowlist through code; it does not hand-add event facts. A restricted Instagram link alone cannot supply readable independent evidence to the existing submission system.
+
+## Implementation update — 3 October 2026
+
+All four selected adapters are implemented in `server/ingestion/local-sources.ts` and registered in the ordinary `fetchSource` path. Public organizer captures were reduced into `server/ingestion/fixtures/local-sources.json`; full public evidence remains in ignored `.artifacts/coverage-2026-10-03/`. Additional anonymous captures verified DKolektiv's two workshop dates, the image-only school calendar, a two-session Kino Urania ticket page, and both sides of the KC/CoreEvent overlap. No paid model calls or production database edits were needed for this implementation.
+
+The recorded bounded collection test, fixed at 2 October, produces 13 candidates: two GISKO events, five HNK ballet occurrences, two DKolektiv workshop occurrences, two separate cinema screenings, one stand-up and one overnight concert. Twelve are public with automatic publication; the concert retains its real venue/18+ condition but stays a draft due to the ambiguous DST ending. The 3 October run naturally excludes the previous day's workshop. These are fixture sample counts, not total live-source coverage.
+
+GISKO parses the event's explicit year, branch and participation conditions, not the article date. HNK discovers home performances and excludes Krapina, Pula and Bjelovar tours; ticket IDs distinguish performances and survive clock corrections. CoreEvent confirms structured Osijek city, reads every ticket occurrence and holds mismatching/DST-ambiguous times. DKolektiv reads at most two news pages, distinguishes invitations from recaps/deadlines/weekly lessons, and warns when image-only dates or the event venue cannot be verified. No organization address, partner-school address, implicit year or sibling event's clock fills a missing fact.
+
+A recorded regression proves KC's `USPJEŠNA.HR` and the linked CoreEvent ticket page merge only with the same date, clock and venue. Explicit type/city title wrappers are removed; other times and venues remain separate. Existing sources run before new sources. Broader fuzzy title deduplication is intentionally not used.
+
+Actionable remaining coverage work: implement accessible ICM invitations; add verified image-row extraction for DKolektiv calendars; support explicit exhibition date ranges separately from recurring workshop sessions; add stable primary access for dance-club/social/RPG announcements. Entrio challenges, denied Eventim pages, private groups and restricted Instagram pages are not successful adapters. A future source must expose actual event dates, city, venue and access conditions before automatic publication. Film/literature categories improve presentation of newly verified events but do not establish social-only coverage.
+
+### Live adapter check after implementation
+
+An anonymous read-only sweep on 3 October used 54 remote Reader pages (10 GISKO, 8 HNK, 10 CoreEvent, 26 DKolektiv), no paid AI and no application database writes. GISKO yielded two eligible events; HNK 19 home performances; CoreEvent 18 candidates, with 17 eligible and the overnight concert held; DKolektiv one current workshop occurrence. The total is 40 raw candidates/39 eligible before the ordinary upcoming filter and cross-source deduplication, not 39 newly published events. A subsequent cached reparse confirmed the final adapter rules. Public review data and HTML timestamps are under ignored `.artifacts/coverage-2026-10-03/live-*.json` and `live-source-cache/`. Warnings identify two unsupported GISKO exhibitions, DKolektiv image calendars/one malformed recap/one old date range, and the concert's DST ambiguity. No production publication is claimed by this check.

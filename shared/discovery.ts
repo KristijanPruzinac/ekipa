@@ -21,9 +21,21 @@ export const discoveryThemes = [
     categories: ['workshop'],
   },
   {
+    id: 'film',
+    label: 'Film',
+    description: 'Filmske projekcije i kino program.',
+    categories: ['film'],
+  },
+  {
+    id: 'literature',
+    label: 'Književnost',
+    description: 'Književne večeri, čitanja i razgovori o knjigama.',
+    categories: ['literature'],
+  },
+  {
     id: 'culture',
     label: 'Pozornica i kultura',
-    description: 'Kazalište, izložbe, film i književnost.',
+    description: 'Kazalište, izložbe i kulturni program.',
     categories: ['theatre', 'culture'],
   },
   {

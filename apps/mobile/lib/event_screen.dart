@@ -18,7 +18,10 @@ class EventScreen extends StatelessWidget {
         event.discovery.prominenceEvidence!,
     ];
     return Scaffold(
-      appBar: AppBar(title: const Text('Detalji događaja')),
+      appBar: AppBar(
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(56),
+        title: const Text('Detalji događaja', maxLines: 2),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),

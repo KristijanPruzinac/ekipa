@@ -20,6 +20,8 @@ const schema = (remote: boolean) => `
   CREATE TABLE IF NOT EXISTS tips (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS tip_quotas (client_key TEXT PRIMARY KEY, attempts INTEGER NOT NULL, expires_at BIGINT NOT NULL);
   CREATE INDEX IF NOT EXISTS ${remote ? 'wagz_' : ''}tip_quotas_expiry ON tip_quotas(expires_at);
+  CREATE TABLE IF NOT EXISTS request_quotas (quota_key TEXT PRIMARY KEY, attempts INTEGER NOT NULL, expires_at BIGINT NOT NULL);
+  CREATE INDEX IF NOT EXISTS ${remote ? 'wagz_' : ''}request_quotas_expiry ON request_quotas(expires_at);
   CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, payload TEXT NOT NULL${remote ? ', ordinal BIGSERIAL NOT NULL' : ''});
   CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS ai_charges (id TEXT PRIMARY KEY, month TEXT NOT NULL, amount ${remote ? 'DOUBLE PRECISION' : 'REAL'} NOT NULL, state TEXT NOT NULL);
@@ -101,7 +103,7 @@ export function postgresSql(sql: string) {
   let parameter = 0;
   return sql
     .replace(
-      /\b(events|evidence|tips|tip_quotas|runs|settings|ai_charges|ai_cache)\b/g,
+      /\b(events|evidence|tips|tip_quotas|request_quotas|runs|settings|ai_charges|ai_cache)\b/g,
       'public.wagz_$1',
     )
     .replace(/\browid\b/g, 'ordinal')
@@ -120,7 +122,10 @@ export function postgresConnectionString(connectionString: string) {
 
 export class PostgresDatabase implements Database {
   private context = new AsyncLocalStorage<PostgresConnection>();
-  constructor(private pool: PostgresPool) {}
+  constructor(
+    private pool: PostgresPool,
+    private migrations = true,
+  ) {}
   static connect(connectionString: string) {
     const pool = new Pool({
       connectionString: postgresConnectionString(connectionString),
@@ -132,9 +137,33 @@ export class PostgresDatabase implements Database {
       console.error('An idle database connection closed; the pool will reconnect.'),
     );
     if (process.env.VERCEL === '1') attachDatabasePool(pool);
-    return new PostgresDatabase(pool);
+    return new PostgresDatabase(pool, process.env.WAGZ_DATABASE_MIGRATIONS !== 'disabled');
   }
   async initialize(autoPublish: boolean) {
+    if (!this.migrations) {
+      await this.transaction(async () => {
+        const columns = {
+          events: 'id,payload',
+          evidence: 'source_id,external_id,event_id,url,last_seen',
+          tips: 'id,payload',
+          tip_quotas: 'client_key,attempts,expires_at',
+          request_quotas: 'quota_key,attempts,expires_at',
+          runs: 'id,payload,ordinal',
+          settings: 'key,value',
+          ai_charges: 'id,month,amount,state',
+          ai_cache: 'key,payload',
+        };
+        for (const [table, fields] of Object.entries(columns)) {
+          await this.query(`SELECT ${fields} FROM ${table} LIMIT 0`);
+        }
+        const settings = await this.query('SELECT value FROM settings WHERE key = ?', [
+          'autoPublish',
+        ]);
+        if (settings.length !== 1)
+          throw new Error('Database migrations must run before deployment.');
+      }, false);
+      return;
+    }
     await this.transaction(async () => {
       await this.query(schema(true));
       await this.query(initialSetting, ['autoPublish', JSON.stringify(autoPublish)]);

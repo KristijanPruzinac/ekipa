@@ -4,6 +4,7 @@ import { WagzService } from './service.ts';
 import { ConflictError, TIMEZONE, ValidationError } from './validation.ts';
 import { publicFeed } from './public-data.ts';
 import { ADMIN_PATH } from '../shared/site.ts';
+import { sameRequestOrigin } from './request-security.ts';
 
 export function createApp(
   service: WagzService,
@@ -31,31 +32,13 @@ export function createApp(
   });
   app.use('/api', (request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
-    const origin = request.get('origin');
-    let validOrigin = true;
-    if (origin) {
-      try {
-        validOrigin = new URL(origin).host === request.get('host');
-      } catch {
-        validOrigin = false;
-      }
-    }
-    if (!validOrigin) {
+    if (!sameRequestOrigin(request, service.config.hosted)) {
       response.status(403).json({ error: 'Zahtjev nije poslan s ove aplikacije.' });
       return;
     }
     next();
   });
   app.use('/api', express.json({ limit: '24kb' }));
-  const limits = new Map<string, { count: number; until: number }>();
-  function allowed(key: string, count: number, minutes: number) {
-    const now = Date.now();
-    for (const [id, entry] of limits) if (entry.until <= now) limits.delete(id);
-    const entry = limits.get(key) ?? { count: 0, until: now + minutes * 60000 };
-    entry.count++;
-    limits.set(key, entry);
-    return entry.count <= count;
-  }
   app.get('/api/health', (_req, res) => res.json({ ok: true, collecting: service.collecting }));
   app.get('/api/events', async (_req, res) => {
     res.json(await publicFeed(service.repo));
@@ -69,7 +52,13 @@ export function createApp(
     res.json({ event, meta: { now: new Date().toISOString(), timezone: TIMEZONE } });
   });
   app.post('/api/tips', async (req, res) => {
-    if (!(await service.repo.consumeTipQuota(req.ip ?? 'unknown'))) {
+    if (
+      !(await service.repo.consumeTipQuota(
+        req.ip ?? 'unknown',
+        Date.now(),
+        service.config.tipDailyLimit,
+      ))
+    ) {
       res.status(429).json({ error: 'Previše dojava u kratkom vremenu. Pokušaj ponovno kasnije.' });
       return;
     }
@@ -79,7 +68,7 @@ export function createApp(
       message: 'Hvala! Tvoja dojava je spremljena za sljedeću dnevnu provjeru.',
     });
   });
-  app.use('/api/admin', (req, res, next) => {
+  app.use('/api/admin', async (req, res, next) => {
     const expected = service.config.adminKey;
     const token = req.get('authorization')?.replace(/^Bearer /, '') ?? '';
     if (!expected) {
@@ -92,7 +81,8 @@ export function createApp(
     const a = Buffer.from(token),
       b = Buffer.from(expected);
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
-      const withinLimit = allowed(`auth:${req.ip}`, 30, 15);
+      // Check the credential first: attackers cannot lock out a valid operator.
+      const withinLimit = await service.repo.consumeAdminAuthQuota(req.ip ?? 'unknown');
       res
         .status(withinLimit ? 401 : 429)
         .json({ error: withinLimit ? 'Admin ključ nije ispravan.' : 'Previše pokušaja prijave.' });
@@ -107,8 +97,8 @@ export function createApp(
     await service.repo.setAutoPublish(req.body.autoPublish);
     res.json({ autoPublish: await service.repo.autoPublish() });
   });
-  app.post('/api/admin/collect', (req, res) => {
-    if (!service.collecting && !allowed(`collect:${req.ip}`, 6, 60)) {
+  app.post('/api/admin/collect', async (_req, res) => {
+    if (!(await service.repo.consumeCollectionQuota())) {
       res.status(429).json({ error: 'Dohvat je ograničen radi zaštite izvora. Pokušaj kasnije.' });
       return;
     }

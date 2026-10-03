@@ -25,6 +25,7 @@ import {
   dayKey,
   errorText,
   eventCategoryLabel,
+  eventDetailsLabel,
   openEventLink,
   safeLink,
   timeFormat,
@@ -120,9 +121,16 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
   const homeTitle = useRef<string | null>(null);
   const pendingEventBack = useRef<Promise<void> | null>(null);
   const eventOpener = useRef<HTMLElement | null>(null);
+  const focusGeneration = useRef(0);
+  const pendingEventFocus = useRef<{
+    opener: HTMLElement | null;
+    generation: number;
+  } | null>(null);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const selectEvent = async (event: PublicEvent) => {
+    focusGeneration.current++;
+    pendingEventFocus.current = null;
     const opener = document.activeElement;
     if (pendingEventBack.current) await pendingEventBack.current;
     eventOpener.current = opener instanceof HTMLElement ? opener : null;
@@ -139,6 +147,10 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
     setSelected(event);
   };
   const closeEvent = () => {
+    pendingEventFocus.current = {
+      opener: eventOpener.current,
+      generation: ++focusGeneration.current,
+    };
     setSelected(null);
     if (window.history.state?.wagzPublicEvent && !pendingEventBack.current) {
       pendingEventBack.current = new Promise<void>((resolve) => {
@@ -157,27 +169,69 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
     }
   };
   useEffect(() => {
+    let historyRestoringFocus = false;
+    const cancelPendingFocus = () => {
+      if (pendingEventFocus.current) focusGeneration.current++;
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      // A traversal restores its saved focus after popstate, within the same
+      // browser task. Later focus movement belongs to the user/assistive tool.
+      if (
+        !historyRestoringFocus &&
+        pendingEventFocus.current &&
+        event.target !== pendingEventFocus.current.opener &&
+        event.target !== document.body &&
+        !(event.target instanceof Element && event.target.closest('dialog'))
+      )
+        cancelPendingFocus();
+    };
     const onPopState = () => {
+      const returningFromEvent = selectedRef.current !== null || pendingEventBack.current !== null;
       const id = window.history.state?.wagzPublicEvent;
       const event = id ? latestFeed.current?.events.find((item) => item.id === id) : null;
       if (id && !event) window.location.reload();
       else {
         setSelected(event ?? null);
-        if (!event) {
-          const opener = eventOpener.current;
+        if (event) {
+          focusGeneration.current++;
+          pendingEventFocus.current = null;
+        } else if (returningFromEvent) {
+          pendingEventFocus.current ??= {
+            opener: eventOpener.current,
+            generation: focusGeneration.current,
+          };
+          const request = pendingEventFocus.current;
+          historyRestoringFocus = true;
           // History may restore an earlier hash target after the dialog cleanup.
           // Return to its actual opener once that browser restoration has finished.
           window.setTimeout(() => {
+            historyRestoringFocus = false;
             window.requestAnimationFrame(() => {
-              if (opener?.isConnected && !document.querySelector('dialog[open]'))
-                opener.focus({ preventScroll: true });
+              if (
+                pendingEventFocus.current === request &&
+                request.generation === focusGeneration.current &&
+                request.opener?.isConnected &&
+                !document.querySelector('dialog[open]')
+              )
+                request.opener.focus({ preventScroll: true });
+              if (pendingEventFocus.current === request) pendingEventFocus.current = null;
             });
           }, 0);
         }
       }
     };
     window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
+    document.addEventListener('keydown', cancelPendingFocus, true);
+    document.addEventListener('pointerdown', cancelPendingFocus, true);
+    document.addEventListener('focusin', onFocusIn, true);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      document.removeEventListener('keydown', cancelPendingFocus, true);
+      document.removeEventListener('pointerdown', cancelPendingFocus, true);
+      document.removeEventListener('focusin', onFocusIn, true);
+      focusGeneration.current++;
+      pendingEventFocus.current = null;
+    };
   }, []);
   useEffect(() => {
     homeTitle.current ??= document.title;
@@ -478,7 +532,7 @@ function OngoingEvents({
             key={event.id}
             href={eventPath(event.id)}
             onClick={(click) => openEventLink(click, () => onSelect(event))}
-            aria-label={`U tijeku: ${event.title}`}
+            aria-label={`U tijeku. ${eventDetailsLabel(event, now)}${event.endsAt!.length === 10 ? ' Završni sat nije naveden.' : ''}`}
           >
             <span className="ongoing-dot" aria-hidden="true" />
             <span>
@@ -516,7 +570,7 @@ function EventCard({ event, onSelect }: { event: PublicEvent; onSelect: () => vo
         className="event-card-button"
         href={eventPath(event.id)}
         onClick={(click) => openEventLink(click, onSelect)}
-        aria-label={`Detalji: ${event.title}`}
+        aria-label={eventDetailsLabel(event)}
       >
         <div className="card-visual">
           <EventArt category={event.category} />
