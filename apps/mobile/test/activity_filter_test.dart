@@ -249,6 +249,14 @@ void main() {
       expect(find.text('Nema događaja ove vrste.'), findsOneWidget);
       await tester.tap(find.text('Prikaži sve događaje'));
       await tester.pumpAndSettle();
+      // Without the phone timeline the reset button sits far enough down that the filter row
+      // is scrolled out of the built range; return to it before asserting.
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('activity-filter-all')),
+        -200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
       expect(
         tester
             .widget<ChoiceChip>(
