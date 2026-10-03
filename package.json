@@ -16,6 +16,8 @@
     "test": "tsx --test --test-concurrency=1 server/*.test.ts server/ingestion/*.test.ts server/ai/*.test.ts",
     "collect": "tsx server/collect.ts",
     "admin-key": "tsx scripts/admin-key.ts",
+    "indexnow": "tsx scripts/indexnow.ts",
+    "test:indexnow": "tsx --test scripts/indexnow.test.ts",
     "test:browser": "node scripts/smoke.mjs",
     "test:discovery": "node scripts/discovery-smoke.mjs",
     "test:review": "node --import tsx scripts/review-smoke.mjs",
