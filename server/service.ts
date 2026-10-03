@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type {
   AdminDashboard,
+  Category,
   EventCandidate,
   EventDraft,
   SourceRun,
@@ -23,6 +24,9 @@ import { fetchSource } from './ingestion/index.ts';
 import {
   prepareTip as aiPrepareTip,
   extractEvents,
+  classifyEvents,
+  CLASSIFICATION_VERSION,
+  CLASSIFY_BATCH_SIZE,
   EXTRACTION_VERSION,
   TIP_PREPARATION_VERSION,
   REQUEST_RESERVATION_USD,
@@ -379,6 +383,7 @@ export class WagzService {
             run.skipped += reconciled.skipped;
             run.warnings.push(...reconciled.warnings);
           }
+          await this.classifyCandidates(candidates, run, sourceDeadlineMs);
           for (const candidate of candidates) {
             try {
               await this.repo.upsert(
@@ -408,6 +413,87 @@ export class WagzService {
       this.collecting = false;
       if (lease) await this.repo.releaseLease('collection', lease);
     }
+  }
+  /**
+   * AI categorisation against the written criteria in ai/openrouter.ts. Verdicts are cached by
+   * event content, so unchanged events cost nothing on later runs, and one provider call covers
+   * a batch. Uncertain or unavailable classification never guesses: the event keeps its last
+   * known AI verdict, otherwise `other`. Without an API key the feature is off and the source
+   * adapter's own category stands.
+   */
+  private async classifyCandidates(
+    candidates: EventCandidate[],
+    run: SourceRun,
+    deadlineMs: number,
+  ): Promise<void> {
+    if (!this.config.ai.apiKey || !candidates.length) return;
+    type Verdict = { category: Category | null; reason: string };
+    const lastKey = (candidate: EventCandidate) =>
+      `classify-last:${candidate.sourceId}:${candidate.externalId}`;
+    const settle = async (candidate: EventCandidate) => {
+      const last = await this.repo.cached<{ category: Category }>(lastKey(candidate));
+      candidate.category = last?.category ?? 'other';
+    };
+    const pending = new Map<string, EventCandidate[]>();
+    for (const candidate of candidates) {
+      const key = createHash('sha256')
+        .update(
+          JSON.stringify({
+            title: candidate.title,
+            description: candidate.description.slice(0, 500),
+            venue: candidate.venue,
+            model: this.config.ai.model,
+            version: CLASSIFICATION_VERSION,
+          }),
+        )
+        .digest('hex');
+      const hit = await this.repo.cached<Verdict>(`classify:${key}`);
+      if (hit) {
+        candidate.category = hit.category ?? 'other';
+        if (hit.category) await this.repo.cache(lastKey(candidate), { category: hit.category });
+        continue;
+      }
+      pending.set(key, [...(pending.get(key) ?? []), candidate]);
+    }
+    const groups = [...pending.entries()];
+    let failure: string | null = null;
+    for (let start = 0; start < groups.length; start += CLASSIFY_BATCH_SIZE) {
+      const batch = groups.slice(start, start + CLASSIFY_BATCH_SIZE);
+      let result: Awaited<ReturnType<typeof classifyEvents>> | null = null;
+      if (!failure && deadlineMs - Date.now() >= 30_000) {
+        result = await classifyEvents(
+          batch.map(([, members], index) => ({
+            id: `e${index}`,
+            title: members[0].title,
+            description: members[0].description,
+            venue: members[0].venue,
+          })),
+          this.config.ai,
+          this.ledger,
+          { deadlineMs },
+        );
+        if (!result.complete) failure = result.reason;
+      } else if (!failure) {
+        failure = 'Vremensko ograničenje: kategorizacija čeka sljedeće pokretanje.';
+      }
+      for (const [index, [key, members]] of batch.entries()) {
+        const verdict = result?.complete ? result.verdicts[`e${index}`] : undefined;
+        if (!verdict) {
+          for (const member of members) await settle(member);
+          continue;
+        }
+        await this.repo.cache(`classify:${key}`, verdict);
+        for (const member of members) {
+          member.category = verdict.category ?? 'other';
+          if (verdict.category)
+            await this.repo.cache(lastKey(member), { category: verdict.category });
+        }
+      }
+    }
+    if (failure)
+      run.warnings.push(
+        `Kategorizacija: ${failure} Kategorije ostaju posljednje poznate ili neodređene.`,
+      );
   }
   private isQueuedTip(tip: Tip): boolean {
     return (

@@ -4,6 +4,7 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { Repository } from './repository.ts';
+import { classificationReply } from './test-support.ts';
 import { reconcileExtraction, WagzService } from './service.ts';
 import type { Config } from './config.ts';
 import type { EventCandidate, EventDraft, FetchResult } from '../shared/types.ts';
@@ -379,7 +380,9 @@ test('cached partial extraction retains its rejected-row warning on subsequent r
     ...fields
   } = candidate;
   const valid = { ...fields, dateEvidence: '2099-10-10' };
-  context.mock.method(globalThis, 'fetch', async () => {
+  context.mock.method(globalThis, 'fetch', async (_request: unknown, init?: RequestInit) => {
+    const categorised = classificationReply(init);
+    if (categorised) return categorised;
     calls++;
     return completion({
       events: [valid, { ...valid, startsAt: '2099-02-30' }],
@@ -661,7 +664,9 @@ test('collection enriches one persistent deterministic event and reuses validate
     externalId: _externalId,
     ...fields
   } = candidate;
-  context.mock.method(globalThis, 'fetch', async () => {
+  context.mock.method(globalThis, 'fetch', async (_request: unknown, init?: RequestInit) => {
+    const categorised = classificationReply(init);
+    if (categorised) return categorised;
     calls++;
     return completion({
       events: [
@@ -1001,5 +1006,130 @@ test('tip database lease prevents duplicate AI charges across service instances 
     assert.equal(dirname(resolved).toLowerCase(), (await realpath(tmpdir())).toLowerCase());
     assert.ok(basename(resolved).startsWith('wagz-tip-lease-test-'));
     await rm(resolved, { recursive: true, force: true });
+  }
+});
+
+function categoriser(
+  context: import('node:test').TestContext,
+  reply: (titles: string[]) => unknown,
+) {
+  const batches: string[][] = [];
+  context.mock.method(globalThis, 'fetch', async (_request: unknown, init?: RequestInit) => {
+    const payload = JSON.parse(String(init?.body));
+    const user = JSON.parse(
+      payload.messages.find((m: { role: string }) => m.role === 'user').content,
+    );
+    batches.push(user.events.map((event: { title: string }) => event.title));
+    return completion(reply(batches.at(-1)!));
+  });
+  return batches;
+}
+const fetchOf = (events: EventCandidate[]) => async () => ({
+  events,
+  discovered: events.length,
+  skipped: 0,
+  pagesFetched: 1,
+  warnings: [],
+});
+
+test('collection categorises with AI once per distinct event content and reuses the cache', async (context) => {
+  const repo = new Repository(':memory:', [source]);
+  const ballet = {
+    ...candidate,
+    externalId: 'ballet',
+    title: 'Labuđe jezero',
+    category: 'dance' as const,
+  };
+  const showtimes = ['a', 'b'].map((id) => ({
+    ...candidate,
+    externalId: `film-${id}`,
+    startsAt: id === 'a' ? '2099-10-11T21:00:00+02:00' : '2099-10-12T21:00:00+02:00',
+    title: 'Ljetno kino: Cinema Paradiso',
+    category: 'culture' as const,
+  }));
+  const batches = categoriser(context, (titles) => ({
+    results: titles.map((title, index) => ({
+      id: `e${index}`,
+      category: /Labu/.test(title) ? 'theatre' : 'film',
+      reason: 'Kriteriji.',
+    })),
+  }));
+  const service = new WagzService(repo, settings(true), fetchOf([ballet, ...showtimes]));
+  try {
+    await service.collect();
+    assert.equal(batches.length, 1, 'one provider call for the whole batch');
+    assert.equal(batches[0].length, 2, 'identical showtimes are classified once');
+    const stored = await repo.events();
+    assert.equal(stored.find((e) => e.title === 'Labuđe jezero')?.category, 'theatre');
+    assert.deepEqual(
+      stored.filter((e) => /Cinema/.test(e.title)).map((e) => e.category),
+      ['film', 'film'],
+    );
+    await service.collect();
+    assert.equal(batches.length, 1, 'unchanged events cost no further provider calls');
+  } finally {
+    await repo.close();
+  }
+});
+
+test('uncertain classification keeps the event visible without a guessed category', async (context) => {
+  const repo = new Repository(':memory:', [source]);
+  categoriser(context, (titles) => ({
+    results: titles.map((_title, index) => ({
+      id: `e${index}`,
+      category: 'uncertain',
+      reason: '?',
+    })),
+  }));
+  const service = new WagzService(repo, settings(true), fetchOf([candidate]));
+  try {
+    await service.collect();
+    const [event] = await repo.events();
+    assert.equal(event.category, 'other');
+    assert.equal(event.publication, 'published');
+  } finally {
+    await repo.close();
+  }
+});
+
+test('a classification outage keeps the last known AI category and warns', async (context) => {
+  const repo = new Repository(':memory:', [source]);
+  const batches = categoriser(context, (titles) => ({
+    results: titles.map((_title, index) => ({ id: `e${index}`, category: 'music', reason: 'K.' })),
+  }));
+  const service = new WagzService(repo, settings(true), fetchOf([candidate]));
+  try {
+    await service.collect();
+    assert.equal((await repo.events())[0].category, 'music');
+    // Changed text misses the content cache; the provider now fails.
+    context.mock.restoreAll();
+    context.mock.method(globalThis, 'fetch', async () => new Response('down', { status: 503 }));
+    const changed = {
+      ...candidate,
+      description: 'Nova obavijest o događaju.',
+      category: 'culture' as const,
+    };
+    const second = new WagzService(repo, settings(true), fetchOf([changed]));
+    await second.collect();
+    assert.equal((await repo.events())[0].category, 'music', 'last AI verdict survives an outage');
+    const runs = await repo.runs();
+    assert.match(runs[0].warnings.join(' '), /Kategorizacija/);
+    assert.equal(batches.length, 1);
+  } finally {
+    await repo.close();
+  }
+});
+
+test('without an API key categorisation is off and the adapter category stands', async (context) => {
+  const repo = new Repository(':memory:', [source]);
+  context.mock.method(globalThis, 'fetch', async () => {
+    throw new Error('Network forbidden');
+  });
+  const service = new WagzService(repo, settings(false), fetchOf([candidate]));
+  try {
+    await service.collect();
+    assert.equal((await repo.events())[0].category, 'music');
+  } finally {
+    await repo.close();
   }
 });
