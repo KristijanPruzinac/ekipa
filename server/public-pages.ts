@@ -23,6 +23,15 @@ export function mountPublicPages(app: Express, directory: string, repository: Re
     res.set('Content-Security-Policy', PRODUCTION_CSP);
     next();
   });
+  app.get(['/', '/dogadaji/:id', '/robots.txt', '/sitemap.xml'], (req, res, next) => {
+    // Only public documents on the old production host move. Read the actual Host,
+    // not proxy-derived hostname, so localhost/preview/API/editor traffic stays put.
+    if (req.get('host')?.toLowerCase() === 'wagz.vercel.app') {
+      res.redirect(308, publicSiteUrl(req.originalUrl));
+      return;
+    }
+    next();
+  });
   app.get([ADMIN_PATH, `${ADMIN_PATH}/`], (_req, res) => {
     res.set('X-Robots-Tag', 'noindex, nofollow');
     res.set('Cache-Control', 'no-store');
