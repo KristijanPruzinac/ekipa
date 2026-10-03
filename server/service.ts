@@ -32,6 +32,7 @@ import type { Config } from './config.ts';
 import { inferDiscovery, isFree } from './discovery.ts';
 import { supportedTime } from './ai/evidence.ts';
 import { classifyCandidates } from './ai/classification.ts';
+import { isInstagramSource } from './ingestion/instagram.ts';
 
 function submittedTimeMatches(note: string, startsAt: string): boolean {
   const explicitTime =
@@ -375,7 +376,9 @@ export class WagzService {
               await this.repo.upsert(
                 candidate,
                 new Date(),
-                result.reviewExternalIds?.includes(candidate.externalId) ?? false,
+                // Instagram-derived events always wait for review while that source is a pilot.
+                isInstagramSource(source.id) ||
+                  (result.reviewExternalIds?.includes(candidate.externalId) ?? false),
               );
               run.imported++;
               savedIds.add(candidate.externalId);
@@ -461,7 +464,8 @@ export class WagzService {
               await this.repo.upsert(
                 candidate,
                 new Date(),
-                job.reviewExternalIds.includes(candidate.externalId),
+                isInstagramSource(job.sourceId) ||
+                  job.reviewExternalIds.includes(candidate.externalId),
               );
               if (!job.savedIds.has(candidate.externalId)) {
                 run.imported++;
