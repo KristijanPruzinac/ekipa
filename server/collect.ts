@@ -11,18 +11,22 @@ const repo = await createRepository(
 const service = new WagzService(repo, config);
 try {
   await service.collect();
-  for (const source of await repo.sourceHealth())
+  const health = await repo.sourceHealth();
+  for (const source of health) {
     console.log(
       `${source.name}: ${source.latestRun?.status} · ${source.latestRun?.imported ?? 0} imports`,
     );
+    for (const warning of source.latestRun?.warnings ?? [])
+      console.warn(`${source.name}: ${warning}`);
+  }
+  console.log(`AI: $${(await repo.aiSpent()).toFixed(4)} this month`);
   if (service.lastTipBatch) {
     const batch = service.lastTipBatch;
     console.log(
       `Dojave: ${batch.queued} queued · ${batch.processed} checked · ${batch.drafted} drafts · ${batch.archived} archived · ${batch.deferred} pending`,
     );
   }
-  if ((await repo.sourceHealth()).some((source) => source.latestRun?.status === 'error'))
-    process.exitCode = 1;
+  if (health.some((source) => source.latestRun?.status === 'error')) process.exitCode = 1;
 } finally {
   await repo.close();
 }
