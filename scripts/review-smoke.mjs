@@ -1,6 +1,7 @@
 import { chromium, expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { createServer as createHttpServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mock } from 'node:test';
@@ -8,6 +9,7 @@ import express from 'express';
 import { Repository } from '../server/repository.ts';
 import { WagzService } from '../server/service.ts';
 import { createApp } from '../server/app.ts';
+import { ADMIN_PATH } from '../shared/site.ts';
 
 // Repeatable browser regression with real captured source records, an in-memory
 // database and no AI/network source calls. No production writes or credentials.
@@ -36,12 +38,18 @@ const service = new WagzService(repo, config, async () => {
   return { events: [], pagesFetched: 0, discovered: 0, skipped: 0, warnings: [] };
 });
 const app = createApp(service);
+const server = createHttpServer(app);
 let vite;
 if (process.argv.includes('--dev')) {
   const { createServer } = await import('vite');
   vite = await createServer({
     envDir: false,
-    server: { middlewareMode: true, hmr: false },
+    server: {
+      middlewareMode: true,
+      hmr: false,
+      ws: { server },
+      watch: { ignored: ['**/.artifacts/**', '**/apps/mobile/build/**'] },
+    },
     appType: 'spa',
     logLevel: 'error',
   });
@@ -50,7 +58,7 @@ if (process.argv.includes('--dev')) {
   app.use(express.static(resolve('dist')));
   app.get('/{*path}', (_request, response) => response.sendFile(resolve('dist/index.html')));
 }
-const server = app.listen(0, '127.0.0.1');
+server.listen(0, '127.0.0.1');
 await new Promise((resolve) => server.once('listening', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 const checks = [];
@@ -115,7 +123,7 @@ try {
   });
   const admin = await context.newPage();
   admin.on('pageerror', (error) => errors.push(error.message));
-  await admin.goto(base + '/admin');
+  await admin.goto(base + ADMIN_PATH);
   await admin.getByLabel('Admin ključ').fill('incorrect-test-key');
   await admin.getByRole('button', { name: 'Otvori uredništvo' }).click();
   await expect(admin.getByRole('alert')).toContainText('nije ispravan');
@@ -141,7 +149,7 @@ try {
   await expect(skip).toBeVisible();
   await publicPage.keyboard.press('Enter');
   await expect(publicPage.locator('#upcoming-events')).toBeFocused();
-  const cardButton = publicPage.locator('.event-card').first().getByRole('button').first();
+  const cardButton = publicPage.locator('.event-card').first().getByRole('link').first();
   await cardButton.click();
   const dialog = publicPage.getByRole('dialog');
   await expect(dialog).toBeVisible();
@@ -164,13 +172,14 @@ try {
   await expect(dialog).toHaveCount(0);
   await expect(cardButton).toBeFocused();
   await cardButton.click();
-  const pageUrl = publicPage.url();
+  const eventUrl = publicPage.url();
   await publicPage.goBack();
   await expect(dialog).toHaveCount(0);
-  assert.equal(publicPage.url(), pageUrl);
+  const pageUrl = publicPage.url();
+  assert.ok(eventUrl.includes('/dogadaji/'));
   await publicPage.goForward();
-  await expect(dialog).toHaveCount(0);
-  await cardButton.click();
+  await expect(dialog).toBeVisible();
+  assert.equal(publicPage.url(), eventUrl);
   await closeButton.click();
   await expect(dialog).toHaveCount(0);
   await publicPage.getByRole('button', { name: 'Dojavi događaj', exact: true }).first().click();
@@ -222,10 +231,15 @@ try {
   await popup.close();
   await expect(dialog).toBeVisible();
   await context.unroute(sourceUrl);
-  await publicPage.goto(base + '/admin');
+  const openedEventTitle = await dialog.locator('h2').innerText();
+  const openedEventUrl = publicPage.url();
+  await publicPage.goto(base + ADMIN_PATH);
   await expect(publicPage.getByLabel('Admin ključ')).toBeVisible();
   await publicPage.goBack();
   await expect(publicPage.getByRole('dialog')).toHaveCount(0);
+  await expect(publicPage.locator('h1')).toHaveText(openedEventTitle);
+  await expect(publicPage).toHaveURL(openedEventUrl);
+  await publicPage.getByRole('link', { name: 'Svi događaji', exact: true }).click();
   await cardButton.click();
   await publicPage.goBack();
   await expect(publicPage.getByRole('dialog')).toHaveCount(0);
@@ -233,7 +247,7 @@ try {
     'next-tick close/reopen survives pending Back; repeated cycles add no phantom stops; source tabs and document navigation remain intact',
   );
   record(
-    'keyboard skip reaches upcoming cards;44px close stays visible after long320px scroll; close/Escape restore focus and Back/Forward never revive stale event or tip dialogs',
+    'keyboard skip reaches upcoming cards;44px close stays visible after long320px scroll; close/Escape restore focus; Back/Forward restores event permalinks and never revives stale tip dialogs',
   );
   await publicPage.setViewportSize({ width: 1280, height: 900 });
   await publicPage.getByRole('button', { name: 'Dojavi događaj', exact: true }).first().click();
@@ -335,7 +349,7 @@ try {
   await matchedRow.getByRole('button', { name: 'Pregledaj prijedlog' }).click();
   await admin.goBack();
   await expect(admin.getByRole('dialog')).toHaveCount(0);
-  assert.equal(admin.url(), base + '/admin');
+  assert.equal(admin.url(), base + ADMIN_PATH);
   await admin.goForward();
   await expect(admin.getByRole('dialog')).toHaveCount(0);
   await expect(admin.getByRole('heading', { name: 'Grad pod kontrolom.' })).toBeVisible();

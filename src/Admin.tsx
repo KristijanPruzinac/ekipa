@@ -709,10 +709,18 @@ function Sources({
       <div className="admin-section-header">
         <div>
           <h2 id="sources-title">Gradski radar.</h2>
-          <p>Stvarni izvori, zadnji dohvat i što je pošlo po planu.</p>
           <p>
-            Broj pronađenih i preskočenih zapisa uključuje i prošle događaje. Javni pregled
-            prikazuje samo nadolazeće.
+            Aktivne web-stranice: {dashboard.sources.filter((source) => source.enabled).length}.
+            Jedna stranica može sadržavati više najava — broj izvora nije broj događaja.
+          </p>
+          <p>
+            Ovdje su postavljeni izvori automatskog dohvata. Istražene stranice i poveznice iz
+            dojava ne postaju automatski novi izvori.
+          </p>
+          <p>
+            Broj događaja u bazi uključuje sve statuse i prošle događaje. Pronađeno i preskočeno
+            odnosi se na zadnji dohvat. Javni pregled prikazuje samo objavljene događaje koji tek
+            dolaze ili još traju.
           </p>
         </div>
         <button

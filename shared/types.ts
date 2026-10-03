@@ -1,6 +1,8 @@
 export const categories = [
   'music',
   'nightlife',
+  'dance',
+  'workshop',
   'theatre',
   'culture',
   'sport',
@@ -49,12 +51,14 @@ export interface EventEvidence {
   lastSeenAt: string;
 }
 
-export interface WagzEvent extends Omit<EventCandidate, 'sourceId' | 'sourceUrl' | 'externalId'> {
+export interface PublicEvent extends Omit<EventCandidate, 'sourceId' | 'sourceUrl' | 'externalId'> {
   id: string;
-  publication: Publication;
   sources: EventEvidence[];
   firstSeenAt: string;
   updatedAt: string;
+}
+export interface WagzEvent extends PublicEvent {
+  publication: Publication;
   manuallyEdited: boolean;
   autoPublishEligible?: boolean;
 }
@@ -122,7 +126,7 @@ export interface Tip {
   verification: 'unverified' | 'source_match';
 }
 export interface PublicFeed {
-  events: WagzEvent[];
+  events: PublicEvent[];
   meta: {
     city: string;
     timezone: string;
@@ -132,6 +136,12 @@ export interface PublicFeed {
     totalUpcoming: number;
   };
 }
+export interface PublicEventResponse {
+  event: PublicEvent;
+  meta: { now: string; timezone: string };
+}
+export type PublicPageData =
+  { kind: 'feed'; feed: PublicFeed } | { kind: 'event'; event: PublicEvent; now: string };
 export interface AdminDashboard {
   events: WagzEvent[];
   tips: Tip[];

@@ -2,7 +2,7 @@
 
 A movement, starting with a simple way to find upcoming events in Osijek.
 
-Live pilot: <https://wagz.vercel.app>. Owner inbox: <https://wagz.vercel.app/admin>.
+Live pilot: <https://wagz.vercel.app>. Owner inbox: <https://wagz.vercel.app/ured-231b67e86427>.
 
 This v1 collects public event sources, keeps their evidence links, merges exact duplicates, and gives the owner an inbox for community tips and incomplete imports. Matching and dating are deferred.
 
@@ -16,7 +16,7 @@ npm run admin-key
 npm run dev
 ```
 
-Open <http://127.0.0.1:3000>. The admin screen is at `/admin`; copy the `WAGZ_ADMIN_KEY` value from your local `.env`. The key is never printed or included in the browser build. Generating it again rotates access; restart the app afterwards.
+Open <http://127.0.0.1:3000>. The admin screen is at `/ured-231b67e86427`; copy the `WAGZ_ADMIN_KEY` value from your local `.env`. The key is never printed or included in the browser build. Generating it again rotates access; restart the app afterwards.
 
 Add an `OPENROUTER_API_KEY` to `.env` to enable AI. Set a **$1 monthly limit on this dedicated key in OpenRouter**, as well as the application's default $1 budget. No key means no paid calls. See [AI configuration](docs/AI.md).
 

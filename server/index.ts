@@ -1,10 +1,10 @@
 import { resolve } from 'node:path';
-import express from 'express';
 import { config } from './config.ts';
 import { sources } from './ingestion/index.ts';
 import { createRepository } from './repository.ts';
 import { WagzService } from './service.ts';
 import { createApp } from './app.ts';
+import { mountPublicPages } from './public-pages.ts';
 
 const repository = await createRepository(
   config.databasePath,
@@ -15,8 +15,7 @@ const repository = await createRepository(
 const service = new WagzService(repository, config);
 const app = createApp(service);
 if (process.argv.includes('--production')) {
-  app.use(express.static(resolve('dist')));
-  app.get('/{*path}', (_req, res) => res.sendFile(resolve('dist/index.html')));
+  mountPublicPages(app, resolve('dist'), repository);
 } else {
   const { createServer } = await import('vite');
   const vite = await createServer({ server: { middlewareMode: true }, appType: 'spa' });

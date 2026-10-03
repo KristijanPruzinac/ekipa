@@ -190,7 +190,7 @@ export function parseCountyDetail(
     .map((_index, element) => $(element).text())
     .get()
     .join(' ');
-  event.category = categoryFor(`${title} ${categories}`);
+  event.category = categoryFor(`${title} ${categories}`, title);
   // Only explicit admission metadata establishes a free event; free subprograms do not.
   const offer = object(node.offers);
   if (node.isAccessibleForFree === true || (offer && (offer.price === 0 || offer.price === '0')))

@@ -1,19 +1,56 @@
 import 'models.dart';
 
-enum DiscoveryTheme { goOut, culture, joinIn }
+enum DiscoveryTheme { goOut, dance, workshop, culture, joinIn }
 
 const discoveryThemes = {
   DiscoveryTheme.goOut: 'Glazba i izlasci',
+  DiscoveryTheme.dance: 'Ples',
+  DiscoveryTheme.workshop: 'Radionice',
   DiscoveryTheme.culture: 'Pozornica i kultura',
   DiscoveryTheme.joinIn: 'Pokret i druženje',
 };
 
 DiscoveryTheme? themeForCategory(String category) => switch (category) {
   'music' || 'nightlife' => DiscoveryTheme.goOut,
+  'dance' => DiscoveryTheme.dance,
+  'workshop' => DiscoveryTheme.workshop,
   'theatre' || 'culture' => DiscoveryTheme.culture,
   'sport' || 'community' => DiscoveryTheme.joinIn,
   _ => null,
 };
+
+String _categoryText(String value) => value
+    .toLowerCase()
+    .replaceAll(RegExp('[čć]'), 'c')
+    .replaceAll('š', 's')
+    .replaceAll('ž', 'z')
+    .replaceAll('đ', 'd');
+
+final _programmeTitle = RegExp(
+  r'\b(?:koncert[a-z]*|festival[a-z]*|predstav[a-z]*|izlozb[a-z]*|sajam[a-z]*|konferenc[a-z]*|vecer[a-z]*|plesnjak[a-z]*|dan(?:i)? otvorenih vrata|otvoren[ai] dan)\b',
+);
+
+bool isWorkshopTitle(String title) {
+  final value = _categoryText(title);
+  final workshop = RegExp(
+    r'\b(?:radionic[a-z]*|workshop[a-z]*)\b',
+  ).firstMatch(value);
+  if (workshop == null) return false;
+  final programme = _programmeTitle.firstMatch(value);
+  return programme == null || workshop.start < programme.start;
+}
+
+bool isWorkshopEvent(WagzEvent event) =>
+    isWorkshopTitle(event.title) ||
+    (!_programmeTitle.hasMatch(_categoryText(event.title)) &&
+        RegExp(
+          r'^(?:(?:ovo je|dogadaj je|program je|rijec je o)\s+)?(?:(?:plesna|plesnoj|kreativna|edukativna|besplatna|otvorena|jednodnevna)\s+)*(?:radionica|radionici|workshop)\b',
+        ).hasMatch(_categoryText(event.description.trim())));
+
+String eventCategoryLabel(WagzEvent event) =>
+    event.category == 'dance' && isWorkshopEvent(event)
+    ? 'Ples · Radionica'
+    : categoryNames[event.category] ?? 'Ostalo';
 
 class RankedEvent {
   const RankedEvent({required this.event, required this.index});

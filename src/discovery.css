@@ -1,3 +1,41 @@
+.activity-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 24px;
+}
+.activity-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 13px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.activity-filters button[aria-pressed='true'] {
+  color: #fffef9;
+  background: #17201b;
+  border-color: #17201b;
+}
+.activity-filters button:hover {
+  border-color: var(--ink);
+}
+.activity-filters button span {
+  font-size: 11px;
+  font-weight: 400;
+}
+.activity-empty {
+  padding: 16px 0 28px;
+}
+.activity-empty p {
+  margin: 0 0 18px;
+  line-height: 1.6;
+}
 .discovery-layout {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
@@ -128,6 +166,14 @@
 .theme-culture {
   --theme-ink: #914a2b;
   --theme-paper: #f3dfd0;
+}
+.theme-dance {
+  --theme-ink: #983d55;
+  --theme-paper: #f5dce1;
+}
+.theme-workshop {
+  --theme-ink: #356087;
+  --theme-paper: #dce7f5;
 }
 .theme-join-in {
   --theme-ink: #286d62;
@@ -359,7 +405,7 @@
   left: calc(var(--spine) - 4px);
   top: 20px;
 }
-.timeline-station button {
+.timeline-station > a {
   display: grid;
   gap: 5px;
   width: 100%;
@@ -385,7 +431,7 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
-.timeline-station button:hover {
+.timeline-station > a:hover {
   background: var(--theme-paper);
   border-color: var(--theme-ink);
 }

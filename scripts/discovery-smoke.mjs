@@ -181,7 +181,10 @@ try {
   const titles = page.locator('.event-card h3');
   const timeline = page.locator('.event-timeline');
   const stations = timeline.locator('.station-start');
-  const button = (name) => page.getByRole('button', { name, exact: true });
+  const button = (name) =>
+    page
+      .getByRole('button', { name, exact: true })
+      .or(page.getByRole('link', { name, exact: true }));
   const chronological = () => rankForAudience(currentFeed.events).map((row) => row.event);
   async function expectCards() {
     const ranked = rankForAudience(currentFeed.events);
@@ -269,7 +272,7 @@ try {
     }
     await page.keyboard.press('Escape');
   }
-  await cards.first().getByRole('button').click();
+  await cards.first().getByRole('link').click();
   await expect(page.locator('.detail-ongoing')).toHaveCount(0);
   await page.keyboard.press('Escape');
   // Starts still open details; the return endpoint is an informational date marker.
@@ -379,6 +382,185 @@ try {
       await expect(stations).toHaveCount(0);
       await expect(button('Otvori vremensku crtu')).toHaveAttribute('aria-expanded', 'false');
     }
+  }
+  if (!live) {
+    // Isolated examples informed by KCO's separately announced dance workshops and
+    // OLJK practical workshops; dates below are synthetic, never published/source edits.
+    // https://kulturni-centar.hr/dogadjanja/otvorene-prijave-za-4-vikend-radionicu-suvremenog-plesa--radionica-plesne-improvizacije
+    currentFeed = {
+      ...fixtureFeed,
+      events: [
+        fixture(
+          'dance-workshop',
+          'Radionica plesne improvizacije',
+          '2026-10-04T10:00:00+02:00',
+          'dance',
+          blankDiscovery,
+          { endsAt: '2026-10-04T12:00:00+02:00' },
+        ),
+        fixture(
+          'workshop',
+          'Radionica keramike',
+          '2026-10-04T11:00:00+02:00',
+          'workshop',
+          blankDiscovery,
+          { endsAt: '2026-10-04T13:00:00+02:00' },
+        ),
+        fixture('dance-social', 'Salsa i bachata party', '2026-10-04T20:00:00+02:00', 'dance'),
+      ],
+    };
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.reload();
+      await expectCards();
+      const dance = cards.filter({ hasText: 'Radionica plesne improvizacije' });
+      const workshop = cards.filter({ hasText: 'Radionica keramike' });
+      await expect(dance).toHaveClass(/theme-dance/);
+      await expect(workshop).toHaveClass(/theme-workshop/);
+      await expect(dance.locator('[data-motif="dance"]')).toHaveCount(1);
+      await expect(workshop.locator('[data-motif="workshop"]')).toHaveCount(1);
+      await expect(dance.locator('.category-label')).toHaveText('Ples · Radionica');
+      await expect(workshop.locator('.category-label')).toHaveText('Radionica');
+      await expect(
+        cards.filter({ hasText: 'Salsa i bachata party' }).locator('.category-label'),
+      ).toHaveText('Ples');
+      await expect(dance.locator('.card-visual')).toHaveCSS(
+        'background-color',
+        'rgb(245, 220, 225)',
+      );
+      await expect(workshop.locator('.card-visual')).toHaveCSS(
+        'background-color',
+        'rgb(220, 231, 245)',
+      );
+      await dance.screenshot({ path: resolve(directory, `dance-card-${width}.png`) });
+      await workshop.screenshot({ path: resolve(directory, `workshop-card-${width}.png`) });
+      await button('Detalji: Radionica plesne improvizacije').click();
+      await expect(page.locator('dialog .eyebrow').first()).toHaveText('Ples · Radionica');
+      await page.keyboard.press('Escape');
+      if (width <= 760) await button('Otvori vremensku crtu').click();
+      await expectTimeline(3);
+      await expect(timeline.locator('.timeline-legend span')).toHaveText([
+        'Izlasci',
+        'Ples',
+        'Radionice',
+        'Kultura',
+        'Druženje',
+      ]);
+      await expect(timeline.locator('.timeline-range.theme-dance')).toHaveCount(1);
+      await expect(timeline.locator('.timeline-range.theme-workshop')).toHaveCount(1);
+      await timeline.screenshot({ path: resolve(directory, `category-timeline-${width}.png`) });
+      const biggerLegend = await page.addStyleTag({
+        content: '.timeline-legend { font-size: 22px; }',
+      });
+      await noOverflow(width);
+      const legendBounds = await timeline.locator('.timeline-legend').boundingBox();
+      for (const item of await timeline.locator('.timeline-legend span').all()) {
+        const bounds = await item.boundingBox();
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(
+          legendBounds.x + legendBounds.width + 1,
+        );
+      }
+      await timeline
+        .locator('.timeline-legend')
+        .screenshot({ path: resolve(directory, `category-legend-large-${width}.png`) });
+      await biggerLegend.evaluate((element) => element.remove());
+    }
+    const activityFeed = {
+      ...currentFeed,
+      events: [
+        ...currentFeed.events,
+        fixture(
+          'dance-ongoing',
+          'Plesni susret u tijeku',
+          '2026-10-03T09:00:00+02:00',
+          'dance',
+          blankDiscovery,
+          { endsAt: '2026-10-03T18:00:00+02:00' },
+        ),
+        fixture(
+          'workshop-ongoing',
+          'Radionica u tijeku',
+          '2026-10-03T08:00:00+02:00',
+          'workshop',
+          blankDiscovery,
+          { endsAt: '2026-10-03T17:00:00+02:00' },
+        ),
+        fixture('community-filter', 'Susret zajednice', '2026-10-05', 'community'),
+      ],
+    };
+    for (const width of [1440, 390, 320]) {
+      currentFeed = activityFeed;
+      await page.setViewportSize({ width, height: 1000 });
+      await page.reload();
+      const filters = page.getByRole('group', { name: 'Vrsta događaja' });
+      await expect(filters.getByRole('button')).toHaveText([
+        'Sve 6',
+        'Ples 3',
+        'Radionica 2',
+        'Zajednica 1',
+      ]);
+      await expect(filters.getByRole('button', { name: 'Sve 6', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      await expectCards();
+      const danceFilter = filters.getByRole('button', { name: 'Ples 3', exact: true });
+      await danceFilter.focus();
+      await page.keyboard.press('Enter');
+      await expect(danceFilter).toHaveAttribute('aria-pressed', 'true');
+      await expect(filters.locator('[aria-pressed="true"]')).toHaveCount(1);
+      await expect(titles).toHaveText(['Radionica plesne improvizacije', 'Salsa i bachata party']);
+      await expect(page.locator('.ongoing-event strong')).toHaveText(['Plesni susret u tijeku']);
+      await expect(page.locator('.results-line')).toContainText('3 događaja');
+      if (width <= 760) await button('Otvori vremensku crtu').click();
+      await expect(stations.locator('strong')).toHaveText([
+        'Plesni susret u tijeku',
+        'Radionica plesne improvizacije',
+        'Salsa i bachata party',
+      ]);
+      await noOverflow(width);
+      await filters.screenshot({ path: resolve(directory, `activity-filters-${width}.png`) });
+      await page.screenshot({
+        path: resolve(directory, `dance-filtered-${width}.png`),
+        fullPage: true,
+      });
+      await filters.getByRole('button', { name: 'Radionica 2', exact: true }).click();
+      await expect(titles).toHaveText(['Radionica keramike']);
+      await expect(page.locator('.ongoing-event strong')).toHaveText(['Radionica u tijeku']);
+      await expect(stations.locator('strong')).toHaveText([
+        'Radionica u tijeku',
+        'Radionica keramike',
+      ]);
+      await filters.getByRole('button', { name: 'Sve 6', exact: true }).click();
+      await expectCards();
+      await danceFilter.click();
+      // A refreshed feed can remove the selected type: show zero and an explicit reset.
+      currentFeed = {
+        ...activityFeed,
+        events: activityFeed.events.filter((event) => event.category !== 'dance'),
+      };
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await expect(page.locator('.activity-empty')).toContainText(
+        'Trenutno nema događaja vrste ples',
+      );
+      await expect(filters.getByRole('button')).toHaveText(['Sve 3', 'Radionica 2', 'Zajednica 1']);
+      await expect(cards).toHaveCount(0);
+      await expect(page.locator('.ongoing-event')).toHaveCount(0);
+      await expect(stations).toHaveCount(0);
+      await button('Prikaži sve događaje').click();
+      await expectCards();
+      if (width === 320) {
+        const enlarged = await page.addStyleTag({
+          content:
+            '.activity-filters button { font-size: 26px; } .activity-filters button span { font-size: 22px; }',
+        });
+        await noOverflow(width);
+        await filters.screenshot({ path: resolve(directory, 'activity-filters-large-320.png') });
+        await enlarged.evaluate((element) => element.remove());
+      }
+    }
+    currentFeed = baseFeed;
+    await page.reload();
   }
   // Saved legacy preferences, including malformed data, never change the feed or add controls.
   for (const saved of [

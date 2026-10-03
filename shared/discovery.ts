@@ -1,4 +1,4 @@
-import { type Audience, type Category, type WagzEvent } from './types.ts';
+import { type Audience, type Category, type PublicEvent } from './types.ts';
 
 /** Display-only colors for event artwork, timeline points and duration branches. */
 export const discoveryThemes = [
@@ -7,6 +7,18 @@ export const discoveryThemes = [
     label: 'Glazba i izlasci',
     description: 'Koncerti, DJ večeri i noćni program.',
     categories: ['music', 'nightlife'],
+  },
+  {
+    id: 'dance',
+    label: 'Ples',
+    description: 'Plesne večeri, izvedbe i radionice.',
+    categories: ['dance'],
+  },
+  {
+    id: 'workshop',
+    label: 'Radionice',
+    description: 'Stvaranje, učenje i praktičan rad.',
+    categories: ['workshop'],
   },
   {
     id: 'culture',
@@ -29,8 +41,34 @@ export function themeForCategory(category: Category): DiscoveryTheme | null {
   );
 }
 
+const categoryText = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+
+/** A workshop must be the event itself, not an item in a festival/concert programme. */
+const programmeTitle =
+  /\b(?:koncert[a-z]*|festival[a-z]*|predstav[a-z]*|izlozb[a-z]*|sajam[a-z]*|konferenc[a-z]*|vecer[a-z]*|plesnjak[a-z]*|dan(?:i)? otvorenih vrata|otvoren[ai] dan)\b/;
+export function isWorkshopTitle(title: string): boolean {
+  const value = categoryText(title);
+  const workshop = value.search(/\b(?:radionic[a-z]*|workshop[a-z]*)\b/);
+  if (workshop < 0) return false;
+  const programme = value.search(programmeTitle);
+  return programme < 0 || workshop < programme;
+}
+
+export function isWorkshopEvent(event: Pick<PublicEvent, 'title' | 'description'>): boolean {
+  if (isWorkshopTitle(event.title)) return true;
+  if (programmeTitle.test(categoryText(event.title))) return false;
+  // A description may explicitly identify the primary event. Incidental later mentions do not.
+  return /^(?:(?:ovo je|dogadaj je|program je|rijec je o)\s+)?(?:(?:plesna|plesnoj|kreativna|edukativna|besplatna|otvorena|jednodnevna)\s+)*(?:radionica|radionici|workshop)\b/.test(
+    categoryText(event.description.trim()),
+  );
+}
+
 export interface RankedEvent {
-  event: WagzEvent;
+  event: PublicEvent;
   index: number;
 }
 
@@ -48,7 +86,7 @@ function localDay(value: Date | string): string {
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
-function chronological(a: WagzEvent, b: WagzEvent): number {
+function chronological(a: PublicEvent, b: PublicEvent): number {
   const dayOrder = localDay(a.startsAt).localeCompare(localDay(b.startsAt));
   if (dayOrder) return dayOrder;
   // Unknown times form the first group on their actual local day, never an invented hour.
@@ -59,7 +97,7 @@ function chronological(a: WagzEvent, b: WagzEvent): number {
 
 /** Every event stays in stable Zagreb chronology. Legacy audience arguments are ignored. */
 export function rankForAudience(
-  events: readonly WagzEvent[],
+  events: readonly PublicEvent[],
   _audience: 'all' | Audience = 'all',
   _now?: string,
 ): RankedEvent[] {
@@ -75,7 +113,7 @@ export const audienceLabels: Record<Audience, string> = {
 };
 
 /** Source mentions, never inferred eligibility. Require evidence from this event's sources. */
-export function sourceAudienceEvidence(event: WagzEvent) {
+export function sourceAudienceEvidence(event: PublicEvent) {
   const sources = new Set(event.sources.map((source) => source.url));
   const safeSource = (value: string) => {
     try {
@@ -99,11 +137,11 @@ export function sourceAudienceEvidence(event: WagzEvent) {
   });
 }
 
-export function sourceAudienceLabels(event: WagzEvent): string[] {
+export function sourceAudienceLabels(event: PublicEvent): string[] {
   return sourceAudienceEvidence(event).map((item) => audienceLabels[item.audience]);
 }
 
-export function knownEnd(event: WagzEvent): string | null {
+export function knownEnd(event: PublicEvent): string | null {
   const end = event.endsAt;
   if (!end || !Number.isFinite(Date.parse(end))) return null;
   return (
@@ -115,7 +153,7 @@ export function knownEnd(event: WagzEvent): string | null {
     : null;
 }
 
-export function durationLabel(event: WagzEvent): string | null {
+export function durationLabel(event: PublicEvent): string | null {
   const end = knownEnd(event);
   if (!end || end.length === 10 || event.startsAt.length === 10) return null;
   const minutes = Math.round((Date.parse(end) - Date.parse(event.startsAt)) / 60000);
@@ -128,7 +166,7 @@ export function durationLabel(event: WagzEvent): string | null {
   );
 }
 
-export function isOngoing(event: WagzEvent, now: string): boolean {
+export function isOngoing(event: PublicEvent, now: string): boolean {
   const end = knownEnd(event);
   if (!end || event.status !== 'scheduled') return false;
   const started =
@@ -139,7 +177,7 @@ export function isOngoing(event: WagzEvent, now: string): boolean {
 }
 
 /** Compact public copy. Date-only ranges count calendar dates, never guessed hours. */
-export function eventDurationText(event: WagzEvent, now?: string): string {
+export function eventDurationText(event: PublicEvent, now?: string): string {
   const end = knownEnd(event);
   if (!end) return 'Kraj nije naveden';
   const endDay = localDay(end);
@@ -168,12 +206,12 @@ export function eventDurationText(event: WagzEvent, now?: string): string {
 }
 
 export interface TimelineMoment {
-  event: WagzEvent;
+  event: PublicEvent;
   value: string;
   ending: boolean;
 }
 export interface TimelineRange {
-  event: WagzEvent;
+  event: PublicEvent;
   start: number;
   end: number;
   lane: number;
@@ -182,7 +220,7 @@ export interface TimelineRange {
 /** A single dated spine. Branches belong to event ranges, never categories.
  * Calendar-day endpoints stay date-only; space separates labels, not elapsed time.
  */
-export function timelineFor(events: readonly WagzEvent[]) {
+export function timelineFor(events: readonly PublicEvent[]) {
   const moments: TimelineMoment[] = events
     .flatMap((event) => {
       const end = knownEnd(event);

@@ -26,9 +26,7 @@ class EventScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Eyebrow(
-                (categoryNames[event.category] ?? 'Ostalo').toUpperCase(),
-              ),
+              Eyebrow(eventCategoryLabel(event).toUpperCase()),
               const SizedBox(height: 16),
               Text(
                 event.title,

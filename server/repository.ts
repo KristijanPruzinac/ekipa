@@ -5,6 +5,7 @@ import type {
   EventCandidate,
   EventDraft,
   Publication,
+  PublicEvent,
   SourceDefinition,
   SourceHealth,
   SourceRun,
@@ -21,6 +22,27 @@ import {
 } from './validation.ts';
 
 const decode = <T>(row: Row): T => JSON.parse(String(row.payload)) as T;
+
+/** Only these fields may cross the public API/HTML boundary. */
+function publicEventRecord(event: WagzEvent): PublicEvent {
+  return {
+    id: event.id,
+    title: event.title,
+    description: event.description,
+    startsAt: event.startsAt,
+    endsAt: event.endsAt,
+    venue: event.venue,
+    address: event.address,
+    city: event.city,
+    category: event.category,
+    price: event.price,
+    status: event.status,
+    discovery: event.discovery,
+    sources: event.sources,
+    firstSeenAt: event.firstSeenAt,
+    updatedAt: event.updatedAt,
+  };
+}
 
 export class Repository {
   private database: Database;
@@ -105,10 +127,31 @@ export class Repository {
   async event(id: string): Promise<WagzEvent | undefined> {
     return (await this.events()).find((event) => event.id === id);
   }
-  async publicEvents(now = new Date()) {
-    return (await this.events()).filter(
-      (event) => event.publication === 'published' && upcoming(event, now),
-    );
+  async publicEvents(now = new Date()): Promise<PublicEvent[]> {
+    return (await this.events())
+      .filter((event) => event.publication === 'published' && upcoming(event, now))
+      .map(publicEventRecord);
+  }
+  /** Published past events retain their stable public link after leaving the feed. */
+  async publicEvent(id: string): Promise<PublicEvent | undefined> {
+    return this.operation(async () => {
+      const [row] = await this.database.query('SELECT payload FROM events WHERE id=?', [id]);
+      if (!row) return undefined;
+      const event = decode<WagzEvent>(row);
+      if (event.publication !== 'published') return undefined;
+      const evidence = await this.database.query(
+        'SELECT * FROM evidence WHERE event_id=? ORDER BY last_seen DESC',
+        [id],
+      );
+      event.sources = evidence.map((item) => ({
+        sourceId: String(item.source_id),
+        sourceName:
+          this.sources.find((source) => source.id === item.source_id)?.name ?? 'Dojava zajednice',
+        url: String(item.url),
+        lastSeenAt: String(item.last_seen),
+      }));
+      return publicEventRecord(event);
+    });
   }
 
   async upsert(raw: EventCandidate, now = new Date(), forceDraft = false): Promise<WagzEvent> {

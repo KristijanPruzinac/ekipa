@@ -2,6 +2,8 @@ import express, { type ErrorRequestHandler } from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import { WagzService } from './service.ts';
 import { ConflictError, TIMEZONE, ValidationError } from './validation.ts';
+import { publicFeed } from './public-data.ts';
+import { ADMIN_PATH } from '../shared/site.ts';
 
 export function createApp(
   service: WagzService,
@@ -15,13 +17,18 @@ export function createApp(
       void promise;
     });
   app.disable('x-powered-by');
-  app.use((_request, response, next) => {
+  app.use((request, response, next) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('X-Frame-Options', 'DENY');
     response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    if (
+      /^\/(?:admin|api)(?:\/|$)/i.test(request.path) ||
+      request.path === ADMIN_PATH ||
+      request.path.startsWith(`${ADMIN_PATH}/`)
+    )
+      response.setHeader('X-Robots-Tag', 'noindex, nofollow');
     next();
   });
-  app.use('/api', express.json({ limit: '24kb' }));
   app.use('/api', (request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
     const origin = request.get('origin');
@@ -39,6 +46,7 @@ export function createApp(
     }
     next();
   });
+  app.use('/api', express.json({ limit: '24kb' }));
   const limits = new Map<string, { count: number; until: number }>();
   function allowed(key: string, count: number, minutes: number) {
     const now = Date.now();
@@ -50,21 +58,15 @@ export function createApp(
   }
   app.get('/api/health', (_req, res) => res.json({ ok: true, collecting: service.collecting }));
   app.get('/api/events', async (_req, res) => {
-    const now = new Date();
-    const events = await service.repo.publicEvents(now);
-    res.json({
-      events,
-      meta: {
-        city: 'Osijek',
-        timezone: TIMEZONE,
-        now: now.toISOString(),
-        lastCheckedAt:
-          (await service.repo.runs()).find((run) => ['success', 'partial'].includes(run.status))
-            ?.finishedAt ?? null,
-        sourceCount: service.repo.sources.filter((source) => source.enabled).length,
-        totalUpcoming: events.length,
-      },
-    });
+    res.json(await publicFeed(service.repo));
+  });
+  app.get('/api/events/:id', async (req, res) => {
+    const event = await service.repo.publicEvent(String(req.params.id));
+    if (!event) {
+      res.status(404).json({ error: 'Događaj nije pronađen.' });
+      return;
+    }
+    res.json({ event, meta: { now: new Date().toISOString(), timezone: TIMEZONE } });
   });
   app.post('/api/tips', async (req, res) => {
     if (!(await service.repo.consumeTipQuota(req.ip ?? 'unknown'))) {

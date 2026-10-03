@@ -1,14 +1,30 @@
-import type { Category, EventDraft, WagzEvent } from '../shared/types';
+import type { Category, EventDraft, PublicEvent } from '../shared/types';
+import { isWorkshopEvent } from '../shared/discovery';
+import type { MouseEvent } from 'react';
 
 export const categoryNames: Record<Category, string> = {
   music: 'Glazba',
   nightlife: 'Noćni život',
+  dance: 'Ples',
+  workshop: 'Radionica',
   theatre: 'Kazalište',
   culture: 'Kultura',
   sport: 'Sport',
   community: 'Zajednica',
   other: 'Ostalo',
 };
+export const eventCategoryLabel = (event: PublicEvent) =>
+  event.category === 'dance' && isWorkshopEvent(event)
+    ? 'Ples · Radionica'
+    : categoryNames[event.category];
+
+/** Preserve open-in-new-tab/window and native navigation while enhancing ordinary clicks. */
+export function openEventLink(click: MouseEvent<HTMLAnchorElement>, open: () => void) {
+  if (click.button !== 0 || click.metaKey || click.ctrlKey || click.shiftKey || click.altKey)
+    return;
+  click.preventDefault();
+  open();
+}
 export const TIMEZONE = 'Europe/Zagreb';
 export class ApiError extends Error {
   constructor(
@@ -78,7 +94,7 @@ export const normalize = (value: string) =>
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase();
 export type DateFilter = 'all' | 'today' | 'weekend' | 'week';
-export function inDateFilter(event: WagzEvent, filter: DateFilter, now: string) {
+export function inDateFilter(event: PublicEvent, filter: DateFilter, now: string) {
   if (filter === 'all') return true;
   const today = dayKey(now),
     weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
@@ -121,7 +137,7 @@ export function zonedTimestamp(day: string, time: string): string {
   }
   throw new Error('Odabrano vrijeme ne postoji zbog pomicanja sata. Provjeri vrijeme događaja.');
 }
-export function eventDraft(event: WagzEvent): EventDraft {
+export function eventDraft(event: PublicEvent): EventDraft {
   return {
     title: event.title,
     description: event.description,

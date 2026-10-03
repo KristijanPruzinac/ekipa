@@ -84,6 +84,31 @@ const extraction = (events: unknown[] = [candidate]) => ({
   reason: 'Izdvojeni podaci iz izvora.',
 });
 
+test('dance and workshop categories survive provider schema and validated extraction', async () => {
+  for (const category of ['dance', 'workshop']) {
+    const title = category === 'dance' ? 'Radionica bachate' : 'Radionica keramike';
+    const book = accounting();
+    const result = await extractEvents(
+      { ...page, text: `${title}: 5. listopada 2026., 20:00, Klub Osijek.` },
+      config,
+      book.ledger,
+      {
+        fetch: mock((_request, init) => {
+          const payload = JSON.parse(String(init?.body));
+          const enumValues =
+            payload.response_format.json_schema.schema.properties.events.items.properties.category
+              .enum;
+          assert.ok(enumValues.includes('dance'));
+          assert.ok(enumValues.includes('workshop'));
+          return response(extraction([{ ...candidate, title, category }]));
+        }),
+      },
+    );
+    assert.equal(result.complete, true);
+    assert.equal(result.events[0]?.category, category);
+  }
+});
+
 test('disabled, exhausted and invalid configuration never send requests or settle', async () => {
   for (const disabled of [
     { ...config, apiKey: '' },

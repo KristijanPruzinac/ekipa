@@ -4,6 +4,8 @@ import 'package:timezone/timezone.dart' as tz;
 const categoryNames = {
   'music': 'Glazba',
   'nightlife': 'Noćni život',
+  'dance': 'Ples',
+  'workshop': 'Radionica',
   'theatre': 'Kazalište',
   'culture': 'Kultura',
   'sport': 'Sport',

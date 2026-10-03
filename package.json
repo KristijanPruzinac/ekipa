@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx server/index.ts",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && vite build --ssr server/public-pages.ts --outDir .wagz-server",
     "start": "tsx server/index.ts --production",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
@@ -18,7 +18,8 @@
     "admin-key": "tsx scripts/admin-key.ts",
     "test:browser": "node scripts/smoke.mjs",
     "test:discovery": "node scripts/discovery-smoke.mjs",
-    "test:review": "node --import tsx scripts/review-smoke.mjs"
+    "test:review": "node --import tsx scripts/review-smoke.mjs",
+    "test:seo": "node --import tsx scripts/seo-smoke.mjs"
   },
   "dependencies": {
     "@vercel/functions": "^3.9.11",

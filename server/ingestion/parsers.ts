@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { load } from 'cheerio';
 import type { Category, EventCandidate, FetchResult } from '../../shared/types.ts';
+import { isWorkshopTitle } from '../../shared/discovery.ts';
 import { localDay, normalize } from '../validation.ts';
 import { inferDiscovery } from '../discovery.ts';
 import { trustedSourceUrl } from './reader.ts';
@@ -78,8 +79,42 @@ export function zagrebTime(day: string, time?: string): string {
   return matches.length === 1 ? matches[0] : day;
 }
 
-export function categoryFor(text: string): Category {
+export function categoryFor(text: string, title = text): Category {
   const value = normalize(text);
+  const primary = normalize(title);
+  const danceTopic =
+    /\b(?:ples[a-z]*|balet[a-z]*|sals[a-z]*|bachat[a-z]*|kizomb[a-z]*|tango|tanga|swing|dance)\b/.test(
+      primary,
+    ) &&
+    !/\b(?:kuh[a-z]*|kulin[a-z]*|umak[a-z]*|gastronom[a-z]*|fotograf[a-z]*|snimanj[a-z]*|crtanj[a-z]*|slikanj[a-z]*|music|glazb[a-z]*|produkcij[a-z]*)\b/.test(
+      primary,
+    );
+  if (isWorkshopTitle(title)) return danceTopic ? 'dance' : 'workshop';
+  const danceEvent =
+    /\b(?:plesnjak[a-z]*|balet)\b/.test(primary) ||
+    /\b(?:plesn[a-z]*|baletn[a-z]*)\s+(?:vecer[a-z]*|predstav[a-z]*|izvedb[a-z]*|performans[a-z]*|natjecanj[a-z]*|festival[a-z]*)\b/.test(
+      primary,
+    ) ||
+    /\b(?:sals[a-z]*|bachat[a-z]*|kizomb[a-z]*|tang[oa]|swing)(?:\s+(?:i|and))?(?:\s+(?:sals[a-z]*|bachat[a-z]*|kizomb[a-z]*|tang[oa]|swing))?\s+(?:social|party|night|festival|vecer)\b/.test(
+      primary,
+    ) ||
+    /\b(?:vecer|festival|party|social)\s+(?:plesa|sals[a-z]*|bachat[a-z]*|kizomb[a-z]*|tang[oa]|swing)\b/.test(
+      primary,
+    ) ||
+    (danceTopic &&
+      /\b(?:pocetak|pocinje|pocetn[a-z]*|prvi sat|nova grupa)\b/.test(primary) &&
+      /\b(?:tecaj[a-z]*|skol[a-z]*|grup[a-z]*)\b/.test(primary) &&
+      !/\b(?:svaki|svakog|tjedn[a-z]*|redovn[a-z]*)\b/.test(primary)) ||
+    (danceTopic &&
+      /\b(?:dan(?:i)? otvorenih vrata|otvoren[ai] dan)\b/.test(primary) &&
+      /\b(?:plesn[a-z]*|baletn[a-z]*)\s+(?:skol[a-z]*|studij[a-z]*)\b/.test(primary));
+  if (
+    danceEvent &&
+    !/\b(?:koncert[a-z]*|glazb[a-z]*|film[a-z]*|izlozb[a-z]*|knjig[a-z]*|predavanj[a-z]*)\b/.test(
+      primary,
+    )
+  )
+    return 'dance';
   if (/\b(predstava|kazalist|komedij|teatar)/.test(value)) return 'theatre';
   if (/\b(sport|utrka|maraton|atletik|nogomet|gimnastik|natjecanje|bicikl|rekreacij)/.test(value))
     return 'sport';
@@ -94,6 +129,8 @@ export function synopsis(event: EventCandidate): string {
   const labels: Record<Category, string> = {
     music: 'Glazbeni događaj',
     nightlife: 'Noćni program',
+    dance: 'Plesni događaj',
+    workshop: 'Radionica',
     theatre: 'Kazališna predstava',
     culture: 'Kulturni događaj',
     sport: 'Sportski događaj',
@@ -130,7 +167,7 @@ export function candidate(
     venue: null,
     address: null,
     city: 'Osijek',
-    category: categoryFor(`${title} ${sourceText}`),
+    category: categoryFor(`${title} ${sourceText}`, title),
     price: null,
     status: 'scheduled',
     discovery: inferDiscovery(title, sourceText, sourceUrl),

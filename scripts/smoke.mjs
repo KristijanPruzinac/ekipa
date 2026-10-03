@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { ADMIN_PATH } from '../shared/site.ts';
 
 // Real browser interaction in an isolated copy: never publishes QA content to the app database.
 const runId = Date.now().toString();
@@ -89,7 +90,7 @@ try {
   await page.getByRole('button', { name: 'Natrag na događaje' }).click();
   const junk = 'z'.repeat(32);
   await context.request.post(`${base}/api/tips`, { data: { note: junk } });
-  await page.goto(`${base}/admin`);
+  await page.goto(`${base}${ADMIN_PATH}`);
   await page.getByLabel('Admin ključ').fill('incorrect-test-key');
   await page.getByRole('button', { name: 'Otvori uredništvo' }).click();
   await expect(page.getByRole('alert')).toContainText('nije ispravan');

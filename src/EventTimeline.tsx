@@ -1,4 +1,4 @@
-﻿import { useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { useState, useSyncExternalStore, type CSSProperties } from 'react';
 import {
   durationLabel,
   isOngoing,
@@ -7,8 +7,9 @@ import {
   themeForCategory,
   timelineFor,
 } from '../shared/discovery';
-import type { WagzEvent } from '../shared/types';
-import { categoryNames, dateFormat, timeFormat } from './lib';
+import type { PublicEvent } from '../shared/types';
+import { eventPath } from '../shared/site';
+import { eventCategoryLabel, dateFormat, openEventLink, timeFormat } from './lib';
 
 const compactQuery = () => window.matchMedia('(max-width: 760px)');
 const subscribe = (callback: () => void) => {
@@ -22,13 +23,17 @@ export function EventTimeline({
   now,
   onSelect,
 }: {
-  events: WagzEvent[];
+  events: PublicEvent[];
   now: string;
-  onSelect: (event: WagzEvent) => void;
+  onSelect: (event: PublicEvent) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const compact = useSyncExternalStore(subscribe, () => compactQuery().matches);
+  const compact = useSyncExternalStore(
+    subscribe,
+    () => compactQuery().matches,
+    () => false,
+  );
   const chartOpen = !compact || mobileOpen;
   const chronological = rankForAudience(events).map(({ event }) => event);
   const limit = compact ? 3 : 6;
@@ -77,6 +82,8 @@ export function EventTimeline({
         <div id="timeline-chart">
           <div className="timeline-legend" aria-label="Vrste događaja">
             <span className="theme-go-out">Izlasci</span>
+            <span className="theme-dance">Ples</span>
+            <span className="theme-workshop">Radionice</span>
             <span className="theme-culture">Kultura</span>
             <span className="theme-join-in">Druženje</span>
           </div>
@@ -128,13 +135,14 @@ export function EventTimeline({
                     </time>
                     <span className="station-dot" aria-hidden="true" />
                     {!ending && (
-                      <button
-                        onClick={() => onSelect(event)}
+                      <a
+                        href={eventPath(event.id)}
+                        onClick={(click) => openEventLink(click, () => onSelect(event))}
                         aria-label={`Na vremenskoj crti: ${event.title}`}
                       >
                         {isOngoing(event, now) && <span className="station-live">U TIJEKU</span>}
                         <strong>{event.title}</strong>
-                        <span className="station-category">{categoryNames[event.category]}</span>
+                        <span className="station-category">{eventCategoryLabel(event)}</span>
                         <span className={`station-duration ${end ? 'has-end' : ''}`}>
                           {end ? (
                             <>
@@ -154,7 +162,7 @@ export function EventTimeline({
                         <span className="station-open">
                           Detalji <span aria-hidden="true">›</span>
                         </span>
-                      </button>
+                      </a>
                     )}
                   </li>
                 );

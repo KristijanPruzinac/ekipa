@@ -66,6 +66,8 @@ Ako se uvede oznaka veličine događaja, treba pohraniti konkretan podatak, godi
 
 ## Manji lokalni događaji: provjera 3. listopada 2026.
 
+Naknadni [audit gradske pokrivenosti](COVERAGE-AUDIT.md) uspoređuje konkretne najave s javnim popisom od 23 događaja, zasebno vodi aktualne nedostatke, nepotpune tragove i povijesne primjere te bilježi nove anonimne Reader provjere za GISKO, HNK, CoreEvent i druge kandidate. Njegove preporuke ažuriraju raniji redoslijed istraživanja niže; nijedan novi adapter time nije aktiviran. Potvrđeni opseg uključuje plesnjake, radionice, početke tečajeva i otvorene dane, ali ne svaki redovni tjedni sat.
+
 Ovo je istraživanje budućih izvora, **ne popis novih aktivnih adaptera**. Trenutačna tri izvora ne predstavljaju potpun pregled grada. Članak ili Instagram poveznica na postojećem izvoru ne znače da se automatski pregledava i cijeli profil organizatora.
 
 | Kandidat                                                                                                                                      | Potvrđeni primjer                                                                                                                                                                                                                         | Što treba prije uključivanja                                                                                                                                                 |

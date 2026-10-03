@@ -65,12 +65,14 @@ export function Modal({
   onClose,
   className = '',
   eyebrow,
+  manageHistory = true,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   className?: string;
   eyebrow?: string;
+  manageHistory?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null),
     titleId = useId();
@@ -115,8 +117,10 @@ export function Modal({
     };
     // A previous dialog may have closed just before this one opened. Let its
     // navigation finish before this dialog creates an entry or handles Back.
-    if (pendingModalBack) void pendingModalBack.then(claimHistory);
-    else claimHistory();
+    if (manageHistory) {
+      if (pendingModalBack) void pendingModalBack.then(claimHistory);
+      else claimHistory();
+    }
     dialog.showModal();
     const oldOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';

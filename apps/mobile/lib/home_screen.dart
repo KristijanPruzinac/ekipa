@@ -20,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? error;
   bool loading = false;
   bool refreshing = false;
+  String? activity;
   Timer? refreshTimer;
   final detailFeed = ValueNotifier<PublicFeed?>(null);
   Route<void>? eventRoute;
@@ -116,7 +117,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final events = rankForAudience(feed?.events ?? []);
+    final allEvents = rankForAudience(feed?.events ?? []);
+    final activityCounts = {
+      for (final category in categoryNames.keys)
+        if (allEvents.any((row) => row.event.category == category))
+          category: allEvents
+              .where((row) => row.event.category == category)
+              .length,
+    };
+    final events = allEvents
+        .where((row) => activity == null || row.event.category == activity)
+        .toList();
     final ongoing = events
         .where((row) => isOngoing(row.event, feed!.now))
         .toList();
@@ -214,10 +225,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             semanticsLabel: 'Učitavanje događaja',
                           ),
                         ),
+                      if (allEvents.isNotEmpty || activity != null) ...[
+                        const SizedBox(height: 24),
+                        const Eyebrow('VRSTA DOGAĐAJA'),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            for (final entry in {
+                              'all': allEvents.length,
+                              ...activityCounts,
+                            }.entries)
+                              ChoiceChip(
+                                key: ValueKey('activity-filter-${entry.key}'),
+                                label: Text(
+                                  '${entry.key == 'all' ? 'Sve' : categoryNames[entry.key]} · ${entry.value}',
+                                ),
+                                selected: (activity ?? 'all') == entry.key,
+                                showCheckmark: false,
+                                side: BorderSide(
+                                  color: (activity ?? 'all') == entry.key
+                                      ? ink
+                                      : line,
+                                  width: (activity ?? 'all') == entry.key
+                                      ? 1.5
+                                      : 1,
+                                ),
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.padded,
+                                onSelected: (_) => setState(() {
+                                  activity = entry.key == 'all'
+                                      ? null
+                                      : entry.key;
+                                }),
+                              ),
+                          ],
+                        ),
+                      ],
                       if (events.isNotEmpty) ...[
                         const SizedBox(height: 26),
                         EventTimeline(
-                          events: feed!.events,
+                          events: events.map((row) => row.event).toList(),
                           now: feed!.now,
                           onOpen: openEvent,
                         ),
@@ -246,8 +295,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               color: lime,
                               child: Text(
                                 '${events.length}',
-                                semanticsLabel:
-                                    '${events.length} događaja, svi prikazani',
+                                semanticsLabel: activity == null
+                                    ? '${events.length} događaja, svi prikazani'
+                                    : '${categoryNames[activity]}, ${events.length} od ${allEvents.length} događaja',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -259,7 +309,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                            'Svi planovi, od najbližeg datuma.',
+                            activity == null
+                                ? 'Svi planovi, od najbližeg datuma.'
+                                : '${categoryNames[activity]} · ${events.length} od ${allEvents.length} planova, od najbližeg datuma.',
                             style: const TextStyle(
                               fontSize: 12,
                               height: 1.5,
@@ -278,22 +330,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Novi planovi su na putu.',
-                          style: TextStyle(
+                        Text(
+                          activity == null
+                              ? 'Novi planovi su na putu.'
+                              : 'Nema događaja ove vrste.',
+                          style: const TextStyle(
                             fontSize: 25,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                         const SizedBox(height: 12),
-                        const Text(
-                          'Znaš što se sprema u Osijeku? Podijeli s ekipom.',
-                          style: TextStyle(color: muted, height: 1.5),
+                        Text(
+                          activity == null
+                              ? 'Znaš što se sprema u Osijeku? Podijeli s ekipom.'
+                              : '${categoryNames[activity]} trenutačno nema najavljenih događaja. Pogledaj ostale vrste ili prikaži sve.',
+                          style: const TextStyle(color: muted, height: 1.5),
                         ),
                         const SizedBox(height: 20),
                         FilledButton(
-                          onPressed: openTip,
-                          child: const Text('Dojavi događaj'),
+                          onPressed: activity == null
+                              ? openTip
+                              : () => setState(() => activity = null),
+                          child: Text(
+                            activity == null
+                                ? 'Dojavi događaj'
+                                : 'Prikaži sve događaje',
+                          ),
                         ),
                       ],
                     ),
@@ -455,9 +517,7 @@ class _EventCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Eyebrow(
-                      (categoryNames[event.category] ?? 'Ostalo').toUpperCase(),
-                    ),
+                    child: Eyebrow(eventCategoryLabel(event).toUpperCase()),
                   ),
                   Text(
                     '/${(index + 1).toString().padLeft(2, '0')}',

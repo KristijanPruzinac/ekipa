@@ -9,24 +9,186 @@ import {
   sourceAudienceLabels,
   themeForCategory,
 } from '../shared/discovery';
-import { type PublicFeed, type WagzEvent } from '../shared/types';
+import {
+  categories,
+  type Category,
+  type PublicFeed,
+  type PublicEvent,
+  type PublicEventResponse,
+} from '../shared/types';
+import { ADMIN_PATH, eventPath, publicSiteUrl } from '../shared/site';
 import { Admin } from './Admin';
 import { EventArt } from './EventArt';
 import { EventTimeline } from './EventTimeline';
-import { api, categoryNames, dateFormat, errorText, safeLink, timeFormat } from './lib';
+import {
+  api,
+  ApiError,
+  categoryNames,
+  dateFormat,
+  dayKey,
+  errorText,
+  eventCategoryLabel,
+  openEventLink,
+  safeLink,
+  timeFormat,
+} from './lib';
 import { Arrow, Brand, Message, Modal, Pin, Spark, Spinner } from './ui';
 
 export function App() {
-  return /^\/admin\/?$/.test(window.location.pathname) ? <Admin /> : <PublicApp />;
+  const path = window.location.pathname;
+  if (path === ADMIN_PATH || path === `${ADMIN_PATH}/`) return <Admin />;
+  if (path === '/') return <PublicApp />;
+  const event = path.match(/^\/dogadaji\/([^/]+)\/?$/);
+  if (event) {
+    try {
+      return <EventRoute id={decodeURIComponent(event[1])} />;
+    } catch {
+      /* malformed URL */
+    }
+  }
+  return <PublicMissing />;
 }
 
-function PublicApp() {
-  const [feed, setFeed] = useState<PublicFeed | null>(null),
+function PublicMissing() {
+  return (
+    <>
+      <header className="site-header wrap">
+        <Brand />
+      </header>
+      <main className="event-page wrap">
+        <h1>Događaj nije pronađen.</h1>
+        <p>Najava možda više nije dostupna.</p>
+        <a className="button button-dark" href="/#dogadaji">
+          Svi događaji <Arrow />
+        </a>
+      </main>
+    </>
+  );
+}
+
+function EventRoute({ id }: { id: string }) {
+  const [data, setData] = useState<PublicEventResponse | null>(null);
+  const [error, setError] = useState('');
+  const [missing, setMissing] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    setError('');
+    void api<PublicEventResponse>(`/api/events/${encodeURIComponent(id)}`)
+      .then((value) => {
+        if (!cancelled) setData(value);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        if (error instanceof ApiError && error.status === 404) setMissing(true);
+        else setError(errorText(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, attempt]);
+  if (data) return <EventPage event={data.event} now={data.meta.now} />;
+  if (missing) return <PublicMissing />;
+  return (
+    <>
+      <header className="site-header wrap">
+        <Brand />
+      </header>
+      <main className="event-page wrap">
+        {error ? (
+          <>
+            <Message error>{error}</Message>
+            <button className="button button-dark" onClick={() => setAttempt(attempt + 1)}>
+              Pokušaj ponovno
+            </button>
+          </>
+        ) : (
+          <Spinner label="Učitavanje događaja…" />
+        )}
+      </main>
+    </>
+  );
+}
+
+export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
+  const [feed, setFeed] = useState<PublicFeed | null>(initialFeed ?? null),
     [error, setError] = useState(''),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(!initialFeed);
   const refreshing = useRef(false);
-  const [selected, setSelected] = useState<WagzEvent | null>(null),
+  const [selected, setSelected] = useState<PublicEvent | null>(null),
     [tipOpen, setTipOpen] = useState(false);
+  const [activity, setActivity] = useState<Category | null>(null);
+  const latestFeed = useRef(feed);
+  latestFeed.current = feed;
+  const homeTitle = useRef<string | null>(null);
+  const pendingEventBack = useRef<Promise<void> | null>(null);
+  const eventOpener = useRef<HTMLElement | null>(null);
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const selectEvent = async (event: PublicEvent) => {
+    const opener = document.activeElement;
+    if (pendingEventBack.current) await pendingEventBack.current;
+    eventOpener.current = opener instanceof HTMLElement ? opener : null;
+    // Forward can revisit a closed tip dialog's entry without reopening it.
+    // Reuse that entry, just as Modal does, instead of adding a phantom Back stop.
+    const closedModal = window.history.state?.wagzModal;
+    const previousState = closedModal ? closedModal.previous : window.history.state;
+    const eventState = {
+      ...(previousState && typeof previousState === 'object' ? previousState : {}),
+      wagzPublicEvent: event.id,
+    };
+    if (closedModal) window.history.replaceState(eventState, '', eventPath(event.id));
+    else window.history.pushState(eventState, '', eventPath(event.id));
+    setSelected(event);
+  };
+  const closeEvent = () => {
+    setSelected(null);
+    if (window.history.state?.wagzPublicEvent && !pendingEventBack.current) {
+      pendingEventBack.current = new Promise<void>((resolve) => {
+        window.addEventListener(
+          'popstate',
+          () => {
+            window.setTimeout(() => {
+              pendingEventBack.current = null;
+              resolve();
+            }, 0);
+          },
+          { once: true },
+        );
+      });
+      window.history.back();
+    }
+  };
+  useEffect(() => {
+    const onPopState = () => {
+      const id = window.history.state?.wagzPublicEvent;
+      const event = id ? latestFeed.current?.events.find((item) => item.id === id) : null;
+      if (id && !event) window.location.reload();
+      else {
+        setSelected(event ?? null);
+        if (!event) {
+          const opener = eventOpener.current;
+          // History may restore an earlier hash target after the dialog cleanup.
+          // Return to its actual opener once that browser restoration has finished.
+          window.setTimeout(() => {
+            window.requestAnimationFrame(() => {
+              if (opener?.isConnected && !document.querySelector('dialog[open]'))
+                opener.focus({ preventScroll: true });
+            });
+          }, 0);
+        }
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+  useEffect(() => {
+    homeTitle.current ??= document.title;
+    document.title = selected ? `${selected.title} — WagZ` : homeTitle.current;
+    document
+      .querySelector('link[rel="canonical"]')
+      ?.setAttribute('href', publicSiteUrl(selected ? eventPath(selected.id) : '/'));
+  }, [selected]);
   async function refresh(background = false) {
     if (refreshing.current) return;
     refreshing.current = true;
@@ -37,6 +199,11 @@ function PublicApp() {
     try {
       const fresh = await api<PublicFeed>('/api/events');
       setFeed(fresh);
+      if (
+        selectedRef.current &&
+        !fresh.events.some((event) => event.id === selectedRef.current!.id)
+      )
+        closeEvent();
       setSelected((current) =>
         current ? (fresh.events.find((event) => event.id === current.id) ?? null) : null,
       );
@@ -49,7 +216,7 @@ function PublicApp() {
     }
   }
   useEffect(() => {
-    void refresh();
+    if (!initialFeed) void refresh();
     const foregroundRefresh = () => {
       if (document.visibilityState === 'visible') void refresh(true);
     };
@@ -72,8 +239,17 @@ function PublicApp() {
     };
   }, []);
   const events = useMemo(() => rankForAudience(feed?.events ?? []), [feed]);
-  const ongoing = events.filter(({ event }) => isOngoing(event, feed!.meta.now));
-  const upcoming = events.filter(({ event }) => !isOngoing(event, feed!.meta.now));
+  const activityCounts = new Map(
+    categories.map((category) => [
+      category,
+      events.filter(({ event }) => event.category === category).length,
+    ]),
+  );
+  const visibleEvents = activity
+    ? events.filter(({ event }) => event.category === activity)
+    : events;
+  const ongoing = visibleEvents.filter(({ event }) => isOngoing(event, feed!.meta.now));
+  const upcoming = visibleEvents.filter(({ event }) => !isOngoing(event, feed!.meta.now));
   return (
     <>
       <a className="skip-link" href="#dogadaji">
@@ -123,15 +299,35 @@ function PublicApp() {
                 ✳
               </span>
               <h2 id="feed-title">Uhvati grad.</h2>
-              <span
-                className="event-count"
-                aria-label={`${feed?.events.length ?? 0} nadolazećih događaja`}
-              >
+              <span className="event-count" aria-label={`${feed?.events.length ?? 0} događaja`}>
                 {loading && !feed ? '—' : (feed?.events.length ?? '—')}
               </span>
             </div>
             <p className="section-note">DOBRI PLANOVI POČINJU OVDJE.</p>
           </div>
+          {!loading && !error && (events.length > 0 || activity) && (
+            <div className="activity-filters" role="group" aria-label="Vrsta događaja">
+              <button
+                type="button"
+                aria-pressed={activity === null}
+                onClick={() => setActivity(null)}
+              >
+                Sve <span>{events.length}</span>
+              </button>
+              {categories
+                .filter((category) => activityCounts.get(category)! > 0)
+                .map((category) => (
+                  <button
+                    type="button"
+                    key={category}
+                    aria-pressed={activity === category}
+                    onClick={() => setActivity(category)}
+                  >
+                    {categoryNames[category]} <span>{activityCounts.get(category)}</span>
+                  </button>
+                ))}
+            </div>
+          )}
           {loading ? (
             <div className="feed-loading">
               <Spinner label="Tražimo tvoj sljedeći plan…" />
@@ -144,17 +340,22 @@ function PublicApp() {
                 Pokušaj ponovno <Arrow />
               </button>
             </div>
-          ) : events.length ? (
+          ) : events.length || activity ? (
             <>
               <a className="skip-to-events" href="#upcoming-events">
                 Preskoči na nadolazeće događaje
               </a>
               <div className="discovery-layout">
-                <EventTimeline events={feed!.events} now={feed!.meta.now} onSelect={setSelected} />
+                <EventTimeline
+                  events={visibleEvents.map(({ event }) => event)}
+                  now={feed!.meta.now}
+                  onSelect={selectEvent}
+                />
                 <div className="card-feed">
                   <div className="results-line" aria-live="polite">
                     <span>
-                      {events.length} {events.length === 1 ? 'događaj' : 'događaja'} na tvom radaru
+                      {visibleEvents.length} {visibleEvents.length === 1 ? 'događaj' : 'događaja'}{' '}
+                      na tvom radaru
                     </span>
                     <span>PO DATUMU</span>
                   </div>
@@ -162,7 +363,7 @@ function PublicApp() {
                     <OngoingEvents
                       events={ongoing.map(({ event }) => event)}
                       now={feed!.meta.now}
-                      onSelect={setSelected}
+                      onSelect={selectEvent}
                     />
                   )}
                   {ongoing.length > 0 && (
@@ -170,14 +371,27 @@ function PublicApp() {
                       Sljedeće u gradu <span>{upcoming.length}</span>
                     </p>
                   )}
-                  {upcoming.length === 0 && (
-                    <p className="audience-result-note">
-                      Nove najave stižu uskoro. Programi koji traju dostupni su iznad.
-                    </p>
+                  {visibleEvents.length === 0 && activity ? (
+                    <div className="activity-empty">
+                      <p>
+                        Trenutno nema događaja vrste{' '}
+                        {categoryNames[activity].toLocaleLowerCase('hr')}. Najave su se možda
+                        promijenile.
+                      </p>
+                      <button className="button button-dark" onClick={() => setActivity(null)}>
+                        Prikaži sve događaje <Arrow />
+                      </button>
+                    </div>
+                  ) : (
+                    upcoming.length === 0 && (
+                      <p className="audience-result-note">
+                        Nove najave stižu uskoro. Programi koji traju dostupni su iznad.
+                      </p>
+                    )
                   )}
                   <div className="event-grid" id="upcoming-events" tabIndex={-1}>
                     {upcoming.map(({ event }) => (
-                      <EventCard key={event.id} event={event} onSelect={() => setSelected(event)} />
+                      <EventCard key={event.id} event={event} onSelect={() => selectEvent(event)} />
                     ))}
                   </div>
                 </div>
@@ -230,14 +444,9 @@ function PublicApp() {
         <div className="footer-right">
           <span>NEOVISNI PREGLED DOGAĐANJA U OSIJEKU</span>
           <p>Detalje prije odlaska provjeri kod organizatora.</p>
-          <a href="/admin">
-            Uredništvo <Arrow diagonal />
-          </a>
         </div>
       </footer>
-      {selected && (
-        <EventDetail event={selected} now={feed!.meta.now} onClose={() => setSelected(null)} />
-      )}
+      {selected && <EventDetail event={selected} now={feed!.meta.now} onClose={closeEvent} />}
       {tipOpen && <TipDialog onClose={() => setTipOpen(false)} />}
     </>
   );
@@ -248,9 +457,9 @@ function OngoingEvents({
   now,
   onSelect,
 }: {
-  events: WagzEvent[];
+  events: PublicEvent[];
   now: string;
-  onSelect: (event: WagzEvent) => void;
+  onSelect: (event: PublicEvent) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? events : events.slice(0, 2);
@@ -267,10 +476,11 @@ function OngoingEvents({
       <p className="ongoing-note">Još stigneš. Točne termine provjeri u najavi.</p>
       <div id="ongoing-list">
         {shown.map((event) => (
-          <button
+          <a
             className={`ongoing-event theme-${themeForCategory(event.category) ?? 'other'}`}
             key={event.id}
-            onClick={() => onSelect(event)}
+            href={eventPath(event.id)}
+            onClick={(click) => openEventLink(click, () => onSelect(event))}
             aria-label={`U tijeku: ${event.title}`}
           >
             <span className="ongoing-dot" aria-hidden="true" />
@@ -282,7 +492,7 @@ function OngoingEvents({
               </small>
             </span>
             <Arrow />
-          </button>
+          </a>
         ))}
       </div>
       {events.length > 2 && (
@@ -299,23 +509,24 @@ function OngoingEvents({
   );
 }
 
-function EventCard({ event, onSelect }: { event: WagzEvent; onSelect: () => void }) {
+function EventCard({ event, onSelect }: { event: PublicEvent; onSelect: () => void }) {
   const audiences = sourceAudienceLabels(event);
   const prominence = event.status === 'scheduled' ? event.discovery?.prominence : null;
   return (
     <article
       className={`event-card theme-${themeForCategory(event.category) ?? 'other'} ${prominence ? 'card-prominent' : ''} ${event.status !== 'scheduled' ? 'card-inactive' : ''}`}
     >
-      <button
+      <a
         className="event-card-button"
-        onClick={onSelect}
+        href={eventPath(event.id)}
+        onClick={(click) => openEventLink(click, onSelect)}
         aria-label={`Detalji: ${event.title}`}
       >
         <div className="card-visual">
           <EventArt category={event.category} />
         </div>
         <div className="card-topline">
-          <span className="category-label">{categoryNames[event.category]}</span>
+          <span className="category-label">{eventCategoryLabel(event)}</span>
         </div>
         {audiences.length > 0 && <p className="card-audience">{audiences.join(' · ')}</p>}
         <div className="card-title-area">
@@ -356,7 +567,7 @@ function EventCard({ event, onSelect }: { event: WagzEvent; onSelect: () => void
             </span>
           </div>
         </div>
-      </button>
+      </a>
     </article>
   );
 }
@@ -366,20 +577,29 @@ function EventDetail({
   now,
   onClose,
 }: {
-  event: WagzEvent;
+  event: PublicEvent;
   now: string;
   onClose: () => void;
 }) {
+  return (
+    <Modal
+      title={event.title}
+      eyebrow={eventCategoryLabel(event)}
+      onClose={onClose}
+      className="event-modal"
+      manageHistory={false}
+    >
+      <EventFacts event={event} now={now} />
+    </Modal>
+  );
+}
+
+export function EventFacts({ event, now }: { event: PublicEvent; now: string }) {
   const sources = event.sources.filter((source) => safeLink(source.url));
   const audienceEvidence = sourceAudienceEvidence(event);
   const discovery = event.discovery;
   return (
-    <Modal
-      title={event.title}
-      eyebrow={categoryNames[event.category]}
-      onClose={onClose}
-      className="event-modal"
-    >
+    <>
       {event.status !== 'scheduled' && (
         <Message error>
           {event.status === 'cancelled'
@@ -493,7 +713,120 @@ function EventDetail({
           za Osijek.
         </p>
       </div>
-    </Modal>
+    </>
+  );
+}
+
+export function EventPage({
+  event: initialEvent,
+  now: initialNow,
+}: {
+  event: PublicEvent;
+  now: string;
+}) {
+  const [event, setEvent] = useState(initialEvent);
+  const [now, setNow] = useState(initialNow);
+  const [missing, setMissing] = useState(false);
+  const [tipOpen, setTipOpen] = useState(false);
+  const refreshing = useRef(false);
+  useEffect(() => {
+    document.title = `${event.title} — WagZ`;
+    document
+      .querySelector('link[rel="canonical"]')
+      ?.setAttribute('href', publicSiteUrl(eventPath(event.id)));
+  }, [event.id, event.title]);
+  useEffect(() => {
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible' || refreshing.current) return;
+      refreshing.current = true;
+      try {
+        const response = await fetch(`/api/events/${encodeURIComponent(initialEvent.id)}`);
+        if (response.status === 404) {
+          setMissing(true);
+          return;
+        }
+        if (!response.ok) return;
+        const fresh = (await response.json()) as { event: PublicEvent; meta: { now: string } };
+        setEvent(fresh.event);
+        setNow(fresh.meta.now);
+      } catch {
+        // Keep the previously loaded source-backed event during a transient outage.
+      } finally {
+        refreshing.current = false;
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 60000);
+    const foreground = () => void refresh();
+    document.addEventListener('visibilitychange', foreground);
+    window.addEventListener('focus', foreground);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', foreground);
+      window.removeEventListener('focus', foreground);
+    };
+  }, [initialEvent.id]);
+  const until = event.endsAt ?? event.startsAt;
+  const past =
+    until.length === 10
+      ? until < dayKey(now)
+      : event.endsAt
+        ? Date.parse(until) <= Date.parse(now)
+        : Date.parse(until) < Date.parse(now);
+  return (
+    <>
+      <header className="site-header wrap">
+        <Brand />
+        <a className="button button-dark event-back" href="/#dogadaji">
+          Svi događaji <Arrow />
+        </a>
+      </header>
+      <main className={`event-page wrap theme-${themeForCategory(event.category) ?? 'other'}`}>
+        {missing ? (
+          <section className="event-page-content">
+            <h1>Događaj više nije dostupan.</h1>
+            <p>Pogledaj aktualne najave u pregledu događaja.</p>
+            <a className="button button-dark" href="/#dogadaji">
+              Pronađi novi plan <Arrow />
+            </a>
+          </section>
+        ) : (
+          <article>
+            <div className="event-page-art">
+              <EventArt category={event.category} />
+            </div>
+            <div className="event-page-content">
+              <p className="eyebrow">{eventCategoryLabel(event)}</p>
+              <h1>{event.title}</h1>
+              {past && (
+                <div className="event-past" role="note">
+                  <strong>
+                    {event.endsAt && event.status === 'scheduled'
+                      ? 'Događaj je završio.'
+                      : 'Najavljeni termin je prošao.'}
+                  </strong>
+                  <p>
+                    {event.endsAt
+                      ? 'Ova najava ostaje dostupna kao zapis događaja.'
+                      : 'Kraj nije naveden u izvoru. Ova najava više nije među nadolazećima.'}
+                  </p>
+                  <a href="/#dogadaji">
+                    Pogledaj što slijedi u gradu <Arrow />
+                  </a>
+                </div>
+              )}
+              <EventFacts event={event} now={now} />
+            </div>
+          </article>
+        )}
+        <footer className="event-page-footer">
+          <a href="/#dogadaji">← Svi događaji u Osijeku</a>
+          <button className="button button-dark" onClick={() => setTipOpen(true)}>
+            Dojavi događaj <Arrow diagonal />
+          </button>
+        </footer>
+      </main>
+      {tipOpen && <TipDialog onClose={() => setTipOpen(false)} />}
+    </>
   );
 }
 

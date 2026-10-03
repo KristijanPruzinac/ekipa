@@ -5,6 +5,8 @@ import 'models.dart';
 
 Color themeColor(DiscoveryTheme? theme) => switch (theme) {
   DiscoveryTheme.goOut => const Color(0xff674587),
+  DiscoveryTheme.dance => const Color(0xff983d55),
+  DiscoveryTheme.workshop => const Color(0xff356087),
   DiscoveryTheme.culture => const Color(0xff914a2b),
   DiscoveryTheme.joinIn => const Color(0xff286d62),
   null => muted,
@@ -12,6 +14,8 @@ Color themeColor(DiscoveryTheme? theme) => switch (theme) {
 
 Color eventPaper(WagzEvent event) => switch (themeForCategory(event.category)) {
   DiscoveryTheme.goOut => const Color(0xffe8ddf3),
+  DiscoveryTheme.dance => const Color(0xfff5dce1),
+  DiscoveryTheme.workshop => const Color(0xffdce7f5),
   DiscoveryTheme.culture => const Color(0xfff3dfd0),
   DiscoveryTheme.joinIn => const Color(0xffd9ebe2),
   null => const Color(0xffe9e7df),
@@ -44,6 +48,8 @@ class _MotifPainter extends CustomPainter {
     final pen = Paint()
       ..color = themeColor(theme)
       ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
     final fill = Paint()..color = themeColor(theme).withValues(alpha: 0.13);
     canvas.drawRRect(
@@ -66,6 +72,133 @@ class _MotifPainter extends CustomPainter {
           pen,
         );
         canvas.drawLine(const Offset(73, 16), const Offset(93, 16), pen);
+      case DiscoveryTheme.dance:
+        // Hanging mirror ball and reflected light, matching the web illustration.
+        canvas.drawLine(const Offset(77, 2), const Offset(77, 13), pen);
+        canvas.drawCircle(
+          const Offset(77, 40),
+          27,
+          Paint()..color = pen.color.withValues(alpha: 0.04),
+        );
+        canvas.drawCircle(const Offset(77, 40), 27, pen);
+        canvas.drawPath(
+          Path()
+            ..moveTo(63.5, 28)
+            ..quadraticBezierTo(70.25, 30.25, 77, 30.25)
+            ..lineTo(77, 45.25)
+            ..quadraticBezierTo(68, 45.25, 61.25, 43)
+            ..quadraticBezierTo(61.25, 34.75, 63.5, 28)
+            ..close()
+            ..moveTo(77, 45.25)
+            ..quadraticBezierTo(86, 45.25, 92.75, 43)
+            ..quadraticBezierTo(92, 52.75, 87.5, 61)
+            ..quadraticBezierTo(82.25, 63.25, 77, 63.25)
+            ..close(),
+          fill,
+        );
+        final gridPen = Paint()
+          ..color = pen.color.withValues(alpha: 0.8)
+          ..strokeWidth = 1.6
+          ..strokeCap = StrokeCap.round
+          ..style = PaintingStyle.stroke;
+        canvas.drawPath(
+          Path()
+            ..moveTo(77, 13)
+            ..cubicTo(56.75, 25.75, 56.75, 54.25, 77, 67)
+            ..moveTo(77, 13)
+            ..cubicTo(97.25, 25.75, 97.25, 54.25, 77, 67)
+            ..moveTo(77, 13)
+            ..lineTo(77, 67)
+            ..moveTo(56, 23.5)
+            ..quadraticBezierTo(77, 35.5, 98, 23.5)
+            ..moveTo(50, 40)
+            ..quadraticBezierTo(77, 50.5, 104, 40)
+            ..moveTo(56.75, 57.25)
+            ..quadraticBezierTo(77, 68.5, 97.25, 57.25),
+          gridPen,
+        );
+        final sparkle = Path()
+          ..moveTo(21, 19)
+          ..quadraticBezierTo(24, 34, 39, 38)
+          ..quadraticBezierTo(24, 41, 21, 57)
+          ..quadraticBezierTo(18, 41, 3, 38)
+          ..quadraticBezierTo(18, 34, 21, 19)
+          ..close();
+        canvas.drawPath(
+          sparkle,
+          Paint()..color = pen.color.withValues(alpha: 0.06),
+        );
+        canvas.drawPath(sparkle, pen);
+        canvas.drawPath(
+          Path()
+            ..moveTo(42, 9)
+            ..lineTo(42, 19)
+            ..moveTo(37, 14)
+            ..lineTo(47, 14)
+            ..moveTo(105, 64)
+            ..lineTo(105, 72)
+            ..moveTo(101, 68)
+            ..lineTo(109, 68),
+          pen,
+        );
+        pen.color = pen.color.withValues(alpha: 0.5);
+        canvas.drawPath(
+          Path()
+            ..moveTo(39, 64)
+            ..lineTo(44, 62)
+            ..moveTo(106, 18)
+            ..lineTo(109, 20),
+          pen,
+        );
+      case DiscoveryTheme.workshop:
+        canvas.drawPath(
+          Path()
+            ..moveTo(10, 43)
+            ..lineTo(25, 13)
+            ..lineTo(32, 17)
+            ..lineTo(17, 47)
+            ..lineTo(7, 53)
+            ..close()
+            ..moveTo(22, 19)
+            ..lineTo(29, 23)
+            ..moveTo(10, 43)
+            ..lineTo(17, 47),
+          pen,
+        );
+        canvas.drawCircle(const Offset(33, 61), 7, pen);
+        canvas.drawCircle(const Offset(51, 64), 7, pen);
+        canvas.drawPath(
+          Path()
+            ..moveTo(36, 55)
+            ..lineTo(53, 26)
+            ..lineTo(49, 57)
+            ..moveTo(45, 58)
+            ..lineTo(29, 27)
+            ..lineTo(44, 44),
+          pen,
+        );
+        canvas.drawCircle(
+          const Offset(44, 48),
+          1.5,
+          Paint()..color = pen.color,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(67, 13)
+            ..lineTo(89, 10)
+            ..lineTo(101, 20)
+            ..lineTo(105, 56)
+            ..lineTo(73, 61)
+            ..close()
+            ..moveTo(89, 10)
+            ..lineTo(91, 23)
+            ..lineTo(101, 20)
+            ..moveTo(77, 34)
+            ..lineTo(95, 31)
+            ..moveTo(78, 44)
+            ..lineTo(91, 42),
+          pen,
+        );
       case DiscoveryTheme.culture:
         canvas.drawRRect(
           RRect.fromRectAndRadius(
@@ -249,6 +382,8 @@ class _EventTimelineState extends State<EventTimeline> {
               children: [
                 for (final entry in const {
                   DiscoveryTheme.goOut: 'Izlasci',
+                  DiscoveryTheme.dance: 'Ples',
+                  DiscoveryTheme.workshop: 'Radionice',
                   DiscoveryTheme.culture: 'Kultura',
                   DiscoveryTheme.joinIn: 'Druženje',
                 }.entries)
@@ -449,7 +584,7 @@ class _TimelineStation extends StatelessWidget {
                             ),
                             const SizedBox(height: 5),
                             Text(
-                              categoryNames[event.category] ?? 'Ostalo',
+                              eventCategoryLabel(event),
                               style: TextStyle(fontSize: 11, color: color),
                             ),
                             const SizedBox(height: 5),
@@ -484,12 +619,14 @@ class _TimelineStation extends StatelessWidget {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(
-                                    'Detalji',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: color,
+                                  Flexible(
+                                    child: Text(
+                                      'Detalji',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: color,
+                                      ),
                                     ),
                                   ),
                                   Icon(

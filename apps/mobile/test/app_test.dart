@@ -135,6 +135,7 @@ void main() {
       await tester.ensureVisible(
         find.byKey(const ValueKey('event-card-timed')),
       );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('event-card-timed')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('detail-ongoing')), findsNothing);
