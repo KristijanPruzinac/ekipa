@@ -44,10 +44,13 @@ export default async function handler(request: Request, response: Response) {
   try {
     (await application())(request, response);
   } catch {
-    response
-      .set('Cache-Control', 'no-store')
-      .set('X-Robots-Tag', 'noindex, nofollow')
-      .status(503)
-      .json({ error: 'Usluga se trenutačno ne može spojiti na bazu. Pokušaj ponovno.' });
+    // Startup can fail before Express decorates Vercel's native ServerResponse.
+    response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    response.setHeader('Content-Type', 'application/json; charset=utf-8');
+    response.statusCode = 503;
+    response.end(
+      JSON.stringify({ error: 'Usluga se trenutačno ne može spojiti na bazu. Pokušaj ponovno.' }),
+    );
   }
 }
