@@ -40,6 +40,8 @@ The homepage uses an explicit route before filesystem matching so that static `i
 
 Preview admin API reads fail closed with 503 because no preview admin key is configured. Seven anonymous GETs against the existing production admin API returned 401 with error-only/no-store responses; no real key was read and no mutation API was called. Wrong-key, retry, cross-origin and authorized-operation checks use isolated fixtures.
 
+**Production verified, 3 October 2026 at 07:24 UTC:** release `f696ae2` is live at <https://wagz.vercel.app>. The deployment owner's GET-only matrix passed for the current assets and initial SSR HTML, 23 events from three sources, a real detail page with schema/canonical and 24 sitemap URLs. Both editor variants return 200 with no-store/noindex/CSP; old `/admin` variants return 404 without redirecting; anonymous admin access returns 401. Evidence: `.artifacts/release-live-report.json`. Domain DNS/TLS, Search Console and the residual operational/accessibility checks remain separate.
+
 ```powershell
 npm run format:check
 npm test
