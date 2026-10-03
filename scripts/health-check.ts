@@ -2,6 +2,13 @@ import { appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { SITE_ORIGIN } from '../shared/site.ts';
 
+/**
+ * Collection runs Tuesday and Friday 18:00 Zagreb. The longest normal gap is Fri to Tue (96 h);
+ * the daily 07:41 UTC check sees at most ~88 h of age before the Tuesday run. A missed run
+ * is therefore flagged by the next morning's check (~112 h).
+ */
+export const MAX_FEED_AGE_HOURS = 100;
+
 export function assertFreshFeed(value: unknown, now = Date.now()) {
   const feed = value as {
     events?: unknown;
@@ -15,9 +22,13 @@ export function assertFreshFeed(value: unknown, now = Date.now()) {
     Number(feed.meta?.sourceCount) < 1
   )
     throw new Error('The public event feed is invalid.');
-  if (!Number.isFinite(checked) || checked > now + 5 * 60_000 || now - checked > 36 * 60 * 60_000)
+  if (
+    !Number.isFinite(checked) ||
+    checked > now + 5 * 60_000 ||
+    now - checked > MAX_FEED_AGE_HOURS * 60 * 60_000
+  )
     throw new Error(
-      'No successful source check in the last 36 hours. Inspect the collection workflow and source health.',
+      `No successful source check in the last ${MAX_FEED_AGE_HOURS} hours. Inspect the collection workflow and source health.`,
     );
   return {
     sources: feed.meta!.sourceCount,

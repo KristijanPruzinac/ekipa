@@ -15,6 +15,7 @@ import {
   type ReaderOptions,
 } from './reader.ts';
 import { COUNTY_URL, parseCountyDetail, parseCountyListing } from './county.ts';
+import { fetchInstagramProfile, instagramSources, isInstagramSource } from './instagram.ts';
 import {
   localSources,
   parseLocalListing,
@@ -50,6 +51,7 @@ export const sources: SourceDefinition[] = [
     enabled: true,
   },
   ...localSources,
+  ...instagramSources,
 ];
 
 export interface FetchOptions extends ReaderOptions {
@@ -62,6 +64,8 @@ export async function fetchSource(id: string, options: FetchOptions = {}): Promi
   const source = sources.find((item) => item.id === id);
   if (!source) throw new Error('Nepoznat izvor događaja.');
   const now = options.now ?? new Date();
+  // Instagram is read through Apify, not the page reader, and yields extraction pages only.
+  if (isInstagramSource(id)) return fetchInstagramProfile(id, { ...options, now });
   const listing = await readSourcePage(source.url, options);
   if (localSources.some((item) => item.id === id)) {
     const result = emptyResult();

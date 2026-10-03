@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assertFreshFeed } from '../scripts/health-check.ts';
+import { assertFreshFeed, MAX_FEED_AGE_HOURS } from '../scripts/health-check.ts';
 
 test('health monitor rejects broken, stale and future checks while allowing a fresh empty feed', () => {
   const now = Date.parse('2026-10-03T12:00:00Z');
@@ -9,8 +9,12 @@ test('health monitor rejects broken, stale and future checks while allowing a fr
     meta: { sourceCount: 7, lastCheckedAt },
   });
   assert.equal(assertFreshFeed(feed('2026-10-03T06:00:00Z'), now).events, 0);
-  for (const timestamp of [null, 'not-a-date', '2026-10-01T06:00:00Z', '2026-10-04T06:00:00Z'])
-    assert.throws(() => assertFreshFeed(feed(timestamp), now), /36 hours/);
+  // Friday evening to the Tuesday-morning health check is normal for twice-weekly collection.
+  assert.equal(assertFreshFeed(feed('2026-09-29T20:00:00Z'), now).events, 0);
+  assert.equal(MAX_FEED_AGE_HOURS, 100);
+  // 102 h old: a Tuesday run was missed, so the next morning's check must fail.
+  for (const timestamp of [null, 'not-a-date', '2026-09-29T06:00:00Z', '2026-10-04T06:00:00Z'])
+    assert.throws(() => assertFreshFeed(feed(timestamp), now), /100 hours/);
   for (const value of [null, {}, { events: {}, meta: {} }])
     assert.throws(() => assertFreshFeed(value, now));
 });

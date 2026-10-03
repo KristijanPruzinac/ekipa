@@ -21,6 +21,7 @@ import {
   ValidationError,
 } from './validation.ts';
 import { fetchSource } from './ingestion/index.ts';
+import { isInstagramSource } from './ingestion/instagram.ts';
 import {
   prepareTip as aiPrepareTip,
   extractEvents,
@@ -389,7 +390,9 @@ export class WagzService {
               await this.repo.upsert(
                 candidate,
                 new Date(),
-                result.reviewExternalIds?.includes(candidate.externalId) ?? false,
+                // Instagram-derived events always wait for review while that source is a pilot.
+                isInstagramSource(source.id) ||
+                  (result.reviewExternalIds?.includes(candidate.externalId) ?? false),
               );
               run.imported++;
             } catch (error) {

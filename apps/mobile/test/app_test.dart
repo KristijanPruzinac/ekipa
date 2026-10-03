@@ -16,7 +16,7 @@ void main() {
     await initializeDateFormatting('hr');
   });
 
-  testWidgets('narrow phone timeline, details and tip submission work', (
+  testWidgets('narrow phone cards, details and tip submission work', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(360, 800);
@@ -38,30 +38,18 @@ void main() {
     await tester.pumpWidget(WagzApp(api: api));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+    // Phones go straight to the event cards; there is no timeline to open.
+    expect(find.byKey(const ValueKey('timeline-toggle')), findsNothing);
+    expect(find.byKey(const ValueKey('event-timeline')), findsNothing);
     await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('timeline-toggle')),
-      250,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(
-      find.byKey(const ValueKey('timeline-event-student-concert')),
-      findsNothing,
-    );
-    await tester.ensureVisible(find.byKey(const ValueKey('timeline-toggle')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('timeline-toggle')));
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('timeline-event-student-concert')),
+      find.byKey(const ValueKey('event-card-student-concert')),
       250,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsNothing);
     expect(find.byTooltip('Tvoj radar'), findsNothing);
-    await tester.tap(
-      find.byKey(const ValueKey('timeline-event-student-concert')),
-    );
+    await tester.tap(find.byKey(const ValueKey('event-card-student-concert')));
     await tester.pumpAndSettle();
     expect(find.text('Detalji događaja'), findsOneWidget);
     expect(find.textContaining('20:00'), findsWidgets);

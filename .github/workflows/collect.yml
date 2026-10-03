@@ -1,7 +1,11 @@
 name: Collect Osijek events
 on:
   schedule:
-    - cron: '23 5 * * *'
+    # Tuesday and Friday at 18:00 Europe/Zagreb. GitHub cron is UTC-only, so both offsets are
+    # scheduled and the gate job lets through only the one that falls in the 18:00 local hour:
+    # 16:05 UTC while CEST (UTC+2) applies, 17:05 UTC while CET (UTC+1) applies.
+    - cron: '5 16 * * 2,5'
+    - cron: '5 17 * * 2,5'
   workflow_dispatch:
 concurrency:
   group: wagz-collection
@@ -9,7 +13,24 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      run: ${{ steps.when.outputs.run }}
+    steps:
+      - id: when
+        run: |
+          hour="$(TZ=Europe/Zagreb date +%H)"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$hour" = "18" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping: Zagreb local hour is $hour, not 18 (the other DST cron handles this slot)."
+          fi
   collect:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -19,6 +40,10 @@ jobs:
       OPENROUTER_MODEL: google/gemini-2.5-flash-lite
       WAGZ_AI_MONTHLY_BUDGET_USD: '1'
       WAGZ_AUTO_PUBLISH: 'true'
+      # Instagram pilot: with no APIFY_TOKEN secret the sources stay off and cost nothing.
+      APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+      WAGZ_APIFY_MAX_COST_USD: '0.10'
+      WAGZ_INSTAGRAM_POSTS: '5'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

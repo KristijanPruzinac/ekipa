@@ -263,14 +263,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ],
                         ),
                       ],
-                      if (events.isNotEmpty) ...[
-                        const SizedBox(height: 26),
-                        EventTimeline(
-                          events: events.map((row) => row.event).toList(),
-                          now: feed!.now,
-                          onOpen: openEvent,
-                        ),
-                      ],
                       const SizedBox(height: 28),
                       Row(
                         children: [

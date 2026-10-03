@@ -541,50 +541,6 @@
 .timeline-expand span {
   font-size: 1.25rem;
 }
-.timeline-mobile-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  min-height: 44px;
-  margin-top: 7px;
-  padding: 8px 0;
-  border: 0;
-  background: transparent;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-align: left;
-}
-.timeline-mobile-toggle > span:last-child {
-  font-size: 1.25rem;
-}
-.timeline-toggle-copy {
-  display: grid;
-  gap: 3px;
-}
-.timeline-toggle-copy small {
-  font-size: 0.6875rem;
-  color: var(--muted);
-  font-weight: 400;
-  line-height: 1.4;
-}
-.event-timeline.timeline-collapsed {
-  padding: 6px 16px;
-}
-.timeline-collapsed .timeline-mobile-toggle {
-  margin: 0;
-  padding: 7px 0;
-}
-.timeline-collapsed .timeline-heading h3 {
-  font-size: 1.25rem;
-  max-width: none;
-}
-.timeline-collapsed .timeline-direction {
-  font-size: 1.5rem;
-}
-.mobile-expand-only {
-  display: none;
-}
 @media (max-width: 1100px) {
   .discovery-layout {
     grid-template-columns: 320px minmax(0, 1fr);
@@ -600,13 +556,7 @@
     gap: 25px;
   }
   .event-timeline {
-    padding: 18px 16px 6px;
-  }
-  .timeline-legend {
-    margin-block: 13px;
-  }
-  .mobile-expand-only {
-    display: flex;
+    display: none;
   }
   .event-art {
     height: 90px;

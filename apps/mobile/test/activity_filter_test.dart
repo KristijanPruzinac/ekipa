@@ -52,6 +52,21 @@ Map<String, dynamic> activityFeed() => {
   ],
 };
 
+/// Number shown beside "Uhvati grad." — every event the active filter leaves visible.
+void expectShownCount(WidgetTester tester, int count) {
+  expect(
+    tester
+        .widget<Text>(
+          find.descendant(
+            of: find.byKey(const ValueKey('all-events-count')),
+            matching: find.byType(Text),
+          ),
+        )
+        .data,
+    '$count',
+  );
+}
+
 void main() {
   WidgetController.hitTestWarningShouldBeFatal = true;
   setUpAll(() async {
@@ -122,13 +137,7 @@ void main() {
         }
 
         await select('dance');
-        expect(
-          tester
-              .widget<EventTimeline>(find.byType(EventTimeline))
-              .events
-              .map((event) => event.id),
-          ['dance-ongoing', 'dance-early', 'dance-late'],
-        );
+        expectShownCount(tester, 3);
         await tester.scrollUntilVisible(
           find.byType(OngoingEvents),
           200,
@@ -154,13 +163,7 @@ void main() {
           2,
         );
         await select('workshop');
-        expect(
-          tester
-              .widget<EventTimeline>(find.byType(EventTimeline))
-              .events
-              .map((event) => event.id),
-          ['workshop'],
-        );
+        expectShownCount(tester, 1);
         expect(find.byType(OngoingEvents), findsNothing);
         await tester.scrollUntilVisible(
           find.byKey(const ValueKey('event-card-workshop')),
@@ -179,13 +182,7 @@ void main() {
           findsNothing,
         );
         await select('all');
-        expect(
-          tester
-              .widget<EventTimeline>(find.byType(EventTimeline))
-              .events
-              .map((event) => event.id),
-          ['dance-ongoing', 'dance-early', 'workshop', 'music', 'dance-late'],
-        );
+        expectShownCount(tester, 5);
         await tester.scrollUntilVisible(
           find.byKey(const ValueKey('event-card-dance-early')),
           200,
@@ -260,14 +257,7 @@ void main() {
             .selected,
         isTrue,
       );
-      expect(
-        tester
-            .widget<EventTimeline>(find.byType(EventTimeline))
-            .events
-            .single
-            .id,
-        'workshop',
-      );
+      expectShownCount(tester, 1);
       expect(find.text('Sve · 1'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
