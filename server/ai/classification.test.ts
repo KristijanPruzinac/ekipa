@@ -107,7 +107,7 @@ test('semantic request uses shared written criteria, strict quotes and the same 
       assert.equal(payload.tool_choice, 'none');
       assert.ok(payload.messages[0].content.includes(SEMANTIC_CRITERIA));
       assert.match(SEMANTIC_CRITERIA, /ballet performance that people watch is theatre/);
-      assert.match(SEMANTIC_CRITERIA, /career fairs/);
+      assert.match(SEMANTIC_CRITERIA, /fairs and markets of any kind/);
       assert.match(SEMANTIC_CRITERIA, /Special evidence overrides repeated dates/);
       return envelope({ classifications: [decision(input)] });
     },
