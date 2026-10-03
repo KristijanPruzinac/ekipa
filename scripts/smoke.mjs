@@ -22,6 +22,8 @@ const child = spawn(process.execPath, ['--import', 'tsx', 'server/index.ts', '--
     HOST: '127.0.0.1',
     PORT: port,
     WAGZ_DATABASE_PATH: database,
+    DATABASE_URL: '',
+    VERCEL: '0',
     WAGZ_ADMIN_KEY: key,
     WAGZ_FETCH_ON_START: 'false',
     OPENROUTER_API_KEY: '',

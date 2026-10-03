@@ -66,9 +66,9 @@ test('public feed stays public; inbox and settings require admin; tip can publis
     assert.equal(response.status, 201);
     assert.equal((await response.json()).ok, true);
     await new Promise((resolve) => setTimeout(resolve, 20));
-    const tip = repo.tips()[0];
+    const tip = (await repo.tips())[0];
     assert.equal(tip.status, 'inbox');
-    assert.equal(repo.publicEvents().length, 0);
+    assert.equal((await repo.publicEvents()).length, 0);
     const draft = { ...event, sourceUrl: null };
     const accept = () =>
       fetch(`${base}/api/admin/tips/${tip.id}`, {
@@ -89,7 +89,7 @@ test('public feed stays public; inbox and settings require admin; tip can publis
       ).status,
       200,
     );
-    assert.equal(repo.autoPublish(), false);
+    assert.equal(await repo.autoPublish(), false);
     assert.equal(
       (
         await fetch(`${base}/api/admin/settings`, {
@@ -114,13 +114,13 @@ test('public feed stays public; inbox and settings require admin; tip can publis
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
-    repo.close();
+    await repo.close();
   }
 });
 
 test('failed sources do not remove events; one failing source does not prevent another import', async () => {
   const repo = new Repository(':memory:', [source, { ...source, id: 'second' }]);
-  repo.upsert(event);
+  await repo.upsert(event);
   const service = new WagzService(repo, testConfig, async (id) => {
     if (id === 'test') throw new Error('Source unavailable');
     return {
@@ -133,12 +133,12 @@ test('failed sources do not remove events; one failing source does not prevent a
   });
   try {
     await service.collect();
-    assert.equal(repo.events().length, 2);
-    assert.equal(repo.runs().find((run) => run.sourceId === 'test')?.status, 'error');
-    assert.equal(repo.runs().find((run) => run.sourceId === 'second')?.status, 'success');
+    assert.equal((await repo.events()).length, 2);
+    assert.equal((await repo.runs()).find((run) => run.sourceId === 'test')?.status, 'error');
+    assert.equal((await repo.runs()).find((run) => run.sourceId === 'second')?.status, 'success');
     assert.equal(service.collecting, false);
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
 
@@ -146,9 +146,9 @@ test('a tip URL shared by multiple source events does not choose an arbitrary ma
   const repo = new Repository(':memory:', [source]);
   const service = new WagzService(repo, testConfig);
   try {
-    repo.upsert(event);
-    repo.upsert({ ...event, externalId: '2', title: 'Drugi koncert' });
-    const tip = service.submitTip({
+    await repo.upsert(event);
+    await repo.upsert({ ...event, externalId: '2', title: 'Drugi koncert' });
+    const tip = await service.submitTip({
       note: 'Tu je neki događaj koji nedostaje',
       url: event.sourceUrl,
     });
@@ -156,7 +156,7 @@ test('a tip URL shared by multiple source events does not choose an arbitrary ma
     assert.equal(result.matchedEventId, null);
     assert.equal(result.status, 'inbox');
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
 
@@ -176,11 +176,15 @@ test('the administrator refresh endpoint forces a fresh reader request', async (
       headers: { authorization: 'Bearer test-only-key' },
     });
     assert.equal(response.status, 202);
+    for (let i = 0; !flags.length && i < 40; i++)
+      await new Promise((resolve) => setTimeout(resolve, 10));
     assert.deepEqual(flags, [true]);
+    for (let i = 0; service.collecting && i < 40; i++)
+      await new Promise((resolve) => setTimeout(resolve, 10));
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
-    repo.close();
+    await repo.close();
   }
 });

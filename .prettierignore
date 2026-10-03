@@ -8,3 +8,5 @@ data/
 .idea/
 .env
 package-lock.json
+apps/mobile/
+.vercel/

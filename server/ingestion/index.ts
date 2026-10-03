@@ -8,7 +8,13 @@ import {
   TZ_URL,
   emptyResult,
 } from './parsers.ts';
-import { readSourcePage, type ReaderOptions } from './reader.ts';
+import {
+  checkSourceDeadline,
+  readSourcePage,
+  SourceDeadlineError,
+  type ReaderOptions,
+} from './reader.ts';
+import { COUNTY_URL, parseCountyDetail, parseCountyListing } from './county.ts';
 
 export const sources: SourceDefinition[] = [
   {
@@ -25,6 +31,14 @@ export const sources: SourceDefinition[] = [
     url: KC_URL,
     description:
       'Službeni događaji Kulturnog centra i Dvorane Franjo Krežma, s poveznicama na najave.',
+    enabled: true,
+  },
+  {
+    id: 'tz-obz',
+    name: 'Turistička zajednica Osječko-baranjske županije',
+    url: COUNTY_URL,
+    description:
+      'Službene pojedinačne najave županijskog kalendara; uvoze se samo događaji s potvrđenim gradom Osijekom.',
     enabled: true,
   },
 ];
@@ -44,7 +58,9 @@ export async function fetchSource(id: string, options: FetchOptions = {}): Promi
     result.pagesFetched = listing.cached ? 0 : 1;
     return result;
   }
-  const parsed = parseKcListing(listing.html, now);
+  const county = id === 'tz-obz';
+  const label = county ? 'TZ OBŽ' : 'KC';
+  const parsed = county ? parseCountyListing(listing.html, now) : parseKcListing(listing.html, now);
   const result = emptyResult();
   result.pagesFetched = listing.cached ? 0 : 1;
   result.discovered = parsed.discovered;
@@ -54,27 +70,42 @@ export async function fetchSource(id: string, options: FetchOptions = {}): Promi
   if (parsed.entries.length > limit) {
     result.skipped += parsed.entries.length - limit;
     result.warnings.push(
-      `KC: ${parsed.entries.length - limit} budućih najava čeka dohvat; ograničenje je ${limit} detaljnih stranica po pokretanju.`,
+      `${label}: ${parsed.entries.length - limit} budućih najava čeka dohvat; ograničenje je ${limit} detaljnih stranica po pokretanju.`,
     );
   }
-  for (const entry of parsed.entries.slice(0, limit)) {
+  const entries = parsed.entries.slice(0, limit);
+  for (const [index, entry] of entries.entries()) {
     try {
+      checkSourceDeadline(options);
       const page = await readSourcePage(entry.url, options);
       if (!page.cached) result.pagesFetched++;
-      const detail = parseKcDetail(page.html, entry);
-      result.events.push(detail.event);
+      const detail = county
+        ? parseCountyDetail(page.html, entry, now)
+        : parseKcDetail(page.html, entry);
+      if (detail.event) result.events.push(detail.event);
+      else result.skipped++;
       result.warnings.push(...detail.warnings);
       if (detail.extraction) addExtraction(result, detail.extraction.url, detail.extraction.text);
     } catch (error) {
+      if (error instanceof SourceDeadlineError || Date.now() >= (options.deadlineMs ?? Infinity)) {
+        const pending = entries.length - index;
+        result.skipped += pending;
+        result.warnings.push(
+          `${label}: vremensko ograničenje dohvata; ${pending} najava čeka sljedeće pokretanje. Već dohvaćeni događaji bit će spremljeni.`,
+        );
+        break;
+      }
       result.skipped++;
       result.warnings.push(
         `${entry.title}: ${error instanceof Error ? error.message : 'dohvat nije uspio'}`,
       );
-      addExtraction(
-        result,
-        entry.url,
-        `Naslov iz službenog popisa: ${entry.title}\nDatum početka iz izvora: ${entry.startsAt}\nDatum završetka iz izvora: ${entry.endsAt ?? 'nije naveden'}\nDetaljna stranica nije dostupna. Mjesto i cijena nisu poznati.`,
-      );
+      // County listing destination includes other towns. Do not label failed details as Osijek.
+      if (!county)
+        addExtraction(
+          result,
+          entry.url,
+          `Naslov iz službenog popisa: ${entry.title}\nDatum početka iz izvora: ${entry.startsAt}\nDatum završetka iz izvora: ${entry.endsAt ?? 'nije naveden'}\nDetaljna stranica nije dostupna. Mjesto i cijena nisu poznati.`,
+        );
     }
   }
   return result;

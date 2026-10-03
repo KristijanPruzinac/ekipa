@@ -10,6 +10,8 @@ export const config = {
   host: process.env.HOST || '127.0.0.1',
   port: number('PORT', 3000, 1),
   databasePath: process.env.WAGZ_DATABASE_PATH || 'data/wagz.sqlite',
+  databaseUrl: process.env.DATABASE_URL,
+  hosted: process.env.VERCEL === '1',
   adminKey: process.env.WAGZ_ADMIN_KEY || '',
   autoPublish: process.env.WAGZ_AUTO_PUBLISH !== 'false',
   fetchOnStart: process.env.WAGZ_FETCH_ON_START !== 'false',
@@ -21,4 +23,7 @@ export const config = {
     searchEnabled: process.env.WAGZ_AI_SEARCH_ENABLED !== 'false',
   },
 };
-export type Config = typeof config;
+export type Config = Omit<typeof config, 'databaseUrl' | 'hosted'> & {
+  databaseUrl?: string;
+  hosted?: boolean;
+};

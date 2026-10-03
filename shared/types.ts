@@ -11,6 +11,19 @@ export type Category = (typeof categories)[number];
 export type EventStatus = 'scheduled' | 'cancelled' | 'postponed';
 export type Publication = 'published' | 'draft' | 'rejected';
 
+export type Audience = 'students' | 'adults' | 'seniors';
+export interface EventDiscovery {
+  audiences: Audience[];
+  audienceEvidence: Array<{ audience: Audience; reason: string; sourceUrl: string }>;
+  prominence: {
+    kind: 'festival' | 'city_event';
+    label: string;
+    reason: string;
+    sourceUrl: string;
+  } | null;
+  free: boolean;
+}
+
 export interface EventCandidate {
   sourceId: string;
   sourceUrl: string;
@@ -26,6 +39,7 @@ export interface EventCandidate {
   category: Category;
   price: string | null;
   status: EventStatus;
+  discovery?: EventDiscovery;
 }
 
 export interface EventEvidence {
@@ -92,6 +106,7 @@ export interface EventDraft {
 }
 export interface Tip {
   id: string;
+  revision?: number;
   note: string;
   url: string | null;
   status: 'inbox' | 'archived' | 'draft' | 'accepted' | 'rejected';

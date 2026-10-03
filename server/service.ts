@@ -1,5 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { AdminDashboard, EventDraft, SourceRun, Tip } from '../shared/types.ts';
+import type {
+  AdminDashboard,
+  EventCandidate,
+  EventDraft,
+  SourceRun,
+  Tip,
+} from '../shared/types.ts';
 import { Repository } from './repository.ts';
 import {
   classifyTip,
@@ -10,8 +16,174 @@ import {
   ValidationError,
 } from './validation.ts';
 import { fetchSource } from './ingestion/index.ts';
-import { prepareTip as aiPrepareTip, extractEvents } from './ai/openrouter.ts';
+import { prepareTip as aiPrepareTip, extractEvents, EXTRACTION_VERSION } from './ai/openrouter.ts';
 import type { Config } from './config.ts';
+import { inferDiscovery, isFree } from './discovery.ts';
+
+function titleKey(title: string): string {
+  return normalize(
+    title
+      .replace(/^\s*\d{1,2}\.\s*(?:(?:[-–—]|i)\s*\d{1,2}\.\s*)?\d{1,2}\.(?:\s*20\d{2}\.)?\s*/, '')
+      .replace(/\s*[/([]\s*(?:predstava|koncert|festival)\s*[/)\]]\s*$/i, '')
+      .replace(/\s*,\s*Osijek\s*$/i, ''),
+  )
+    .replace(/\b20\d{2}\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function relatedTitles(first: string, second: string, sourceText: string): boolean {
+  const a = titleKey(first),
+    b = titleKey(second);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const core = (value: string) =>
+    value
+      .replace(/\b(?:festival|koncert|predstava)\b/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  if (core(a).length >= 6 && core(a) === core(b)) return true;
+  const short = a.length < b.length ? a : b;
+  const long = a.length < b.length ? b : a;
+  // A full source title can add the organizer to a substantial event name.
+  // Short artist names and shared individual words cannot establish identity.
+  return (
+    short.length >= 12 &&
+    short.split(' ').length >= 2 &&
+    long.startsWith(`${short} `) &&
+    normalize(sourceText).includes(long) &&
+    !/\b(?:koncert|predstava|izvedba|nastup|radionica|otvorenje|program)\b/.test(
+      long.slice(short.length),
+    )
+  );
+}
+
+const sameTime = (a: string, b: string) =>
+  a.slice(0, 10) === b.slice(0, 10) &&
+  (a.length === 10 || b.length === 10 || Date.parse(a) === Date.parse(b));
+
+function pageHasDate(text: string, day: string): boolean {
+  const dates = tipDates(text);
+  return (
+    dates.dates.includes(day) ||
+    (new RegExp(`\\b${day.slice(0, 4)}\\b`).test(text) && dates.dates.includes(`--${day.slice(5)}`))
+  );
+}
+
+function pageHasTime(text: string, startsAt: string): boolean {
+  if (startsAt.length === 10) return true;
+  const hour = Number(startsAt.slice(11, 13));
+  const minute = startsAt.slice(14, 16);
+  return (
+    new RegExp(`(?<!\\d)0?${hour}[:.]${minute}(?!\\d)`).test(text) ||
+    (minute === '00' &&
+      new RegExp(`\\b(?:u|od)\\s+0?${hour}(?=\\s+(?:sati|h\\b|do\\b)|\\s*[-–])`, 'i').test(text))
+  );
+}
+
+/** Merge page interpretations before persistence so structured identity always wins. */
+export function reconcileExtraction(
+  originals: EventCandidate[],
+  extracted: EventCandidate[],
+  page: { url: string; text: string },
+): { events: EventCandidate[]; skipped: number; warnings: string[] } {
+  const events = originals.map((event) => ({ ...event }));
+  const warnings: string[] = [];
+  let skipped = 0;
+  const reject = (event: EventCandidate, reason: string) => {
+    skipped++;
+    warnings.push(`${page.url}: AI prijedlog „${event.title}” nije uvezen: ${reason}.`);
+  };
+  const targets = originals.filter((event) => event.sourceUrl === page.url);
+  const planned = extracted.map((event) => ({
+    event,
+    related: targets.filter(
+      (target) =>
+        target.sourceId === event.sourceId && relatedTitles(target.title, event.title, page.text),
+    ),
+  }));
+  const mapped = planned.map(({ event, related }) => ({
+    event,
+    related,
+    matches: related.filter((target) => sameTime(target.startsAt, event.startsAt)),
+  }));
+  for (const { event, related, matches } of mapped) {
+    if (event.sourceUrl !== page.url) {
+      reject(event, 'poveznica ne odgovara obrađenom izvoru');
+      continue;
+    }
+    if (matches.length > 1) {
+      reject(event, 'više izvedbi odgovara datumu bez dovoljne potvrde satnice');
+      continue;
+    }
+    if (matches.length === 1) {
+      const target = matches[0];
+      const alternatives = mapped.filter((item) => item.matches.includes(target));
+      if (alternatives.length > 1) {
+        reject(event, 'više AI tumačenja odgovara istom izvornom događaju');
+        continue;
+      }
+      if (target.endsAt && event.endsAt && !sameTime(target.endsAt, event.endsAt)) {
+        reject(event, 'datum završetka proturječi preciznom izvornom zapisu');
+        continue;
+      }
+      // AI can fill missing fields but cannot rewrite a source title, time, status or identity.
+      const merged = { ...target };
+      for (const key of ['venue', 'address', 'price', 'endsAt'] as const) {
+        if (merged[key] === null) merged[key] = event[key];
+      }
+      if (merged.category === 'other') merged.category = event.category;
+      const discovery =
+        target.discovery ?? inferDiscovery(target.title, page.text, page.url, merged.price);
+      merged.discovery = { ...discovery, free: isFree(merged.price) };
+      events[originals.indexOf(target)] = merged;
+      continue;
+    }
+    if (related.length) {
+      const separateDate = related.every((target) => {
+        const day = event.startsAt.slice(0, 10);
+        return (
+          day < target.startsAt.slice(0, 10) ||
+          day > (target.endsAt ?? target.startsAt).slice(0, 10)
+        );
+      });
+      const separateShowtime = related.every(
+        (target) =>
+          target.startsAt.length > 10 &&
+          event.startsAt.length > 10 &&
+          !sameTime(target.startsAt, event.startsAt) &&
+          pageHasTime(page.text, target.startsAt),
+      );
+      if (
+        (!separateDate && !separateShowtime) ||
+        !pageHasDate(page.text, event.startsAt.slice(0, 10)) ||
+        !pageHasTime(page.text, event.startsAt)
+      ) {
+        reject(event, 'termin se razlikuje od izvora bez potvrde zasebne izvedbe');
+        continue;
+      }
+    } else if (
+      targets.length &&
+      (targets.some((target) => sameTime(target.startsAt, event.startsAt)) ||
+        !normalize(page.text).includes(titleKey(event.title)) ||
+        !pageHasDate(page.text, event.startsAt.slice(0, 10)) ||
+        !pageHasTime(page.text, event.startsAt))
+    ) {
+      reject(event, 'nije potvrđen zaseban događaj uz postojeći izvorni zapis');
+      continue;
+    }
+    events.push({
+      ...event,
+      discovery: inferDiscovery(
+        event.title,
+        extracted.length === 1 ? page.text : '',
+        page.url,
+        event.price,
+      ),
+    });
+  }
+  return { events, skipped, warnings };
+}
 
 export class WagzService {
   collecting = false;
@@ -25,27 +197,51 @@ export class WagzService {
     reserve: (ceiling: number) => this.repo.reserveAi(ceiling, this.config.ai.monthlyBudgetUsd),
     settle: (id: string, actual: number | null) => this.repo.settleAi(id, actual),
   };
-  dashboard(): AdminDashboard {
+  async dashboard(): Promise<AdminDashboard> {
+    const [events, tips, sources, runs, autoPublish, aiSpent, collectionLease] = await Promise.all([
+      this.repo.events(),
+      this.repo.tips(),
+      this.repo.sourceHealth(),
+      this.repo.runs(),
+      this.repo.autoPublish(),
+      this.repo.aiSpent(),
+      this.repo.isLeaseActive('collection'),
+    ]);
     return {
-      events: this.repo.events(),
-      tips: this.repo.tips(),
-      sources: this.repo.sourceHealth(),
-      runs: this.repo.runs(),
-      collecting: this.collecting,
-      autoPublish: this.repo.autoPublish(),
+      events,
+      tips,
+      sources,
+      runs,
+      collecting: this.collecting || collectionLease,
+      autoPublish,
       ai: {
         enabled: Boolean(this.config.ai.apiKey) && this.config.ai.monthlyBudgetUsd > 0,
         description: this.config.ai.apiKey
-          ? `OpenRouter · ${this.config.ai.model} · ovaj mjesec $${this.repo.aiSpent().toFixed(3)} / $${this.config.ai.monthlyBudgetUsd.toFixed(2)}. AI prijedlozi čekaju pregled.`
+          ? `OpenRouter · ${this.config.ai.model} · ovaj mjesec $${aiSpent.toFixed(3)} / $${this.config.ai.monthlyBudgetUsd.toFixed(2)}. AI prijedlozi čekaju pregled.`
           : 'OpenRouter je pripremljen. Dodaj OPENROUTER_API_KEY u .env. Mjesečni proračun: $1. Bez ključa nema AI poziva ni troška.',
       },
     };
   }
-  async collect(force = false): Promise<boolean> {
+  async collect(force = false, maxDurationMs?: number): Promise<boolean> {
     if (this.collecting) return false;
+    if (maxDurationMs !== undefined && (!Number.isFinite(maxDurationMs) || maxDurationMs <= 0))
+      throw new ValidationError('Neispravno vremensko ograničenje prikupljanja.');
+    const deadlineMs = maxDurationMs === undefined ? Infinity : Date.now() + maxDurationMs;
     this.collecting = true;
+    let lease: string | null = null;
     try {
-      for (const source of this.repo.sources.filter((source) => source.enabled)) {
+      lease = await this.repo.acquireLease('collection', 30 * 60_000);
+      if (!lease) return false;
+      const enabledSources = this.repo.sources.filter((source) => source.enabled);
+      for (const [sourceIndex, source] of enabledSources.entries()) {
+        const sourceStarted = Date.now();
+        // A slow source must leave the remaining sources a fair share of the run.
+        // Fast/cache-backed sources give their unused time to subsequent sources.
+        const sourceDeadlineMs =
+          sourceStarted +
+          Math.max(0, deadlineMs - sourceStarted) / (enabledSources.length - sourceIndex);
+        // Leave time for database imports, completed run records and lease release.
+        const fetchDeadlineMs = sourceDeadlineMs - 15_000;
         const run: SourceRun = {
           id: randomUUID(),
           sourceId: source.id,
@@ -58,13 +254,26 @@ export class WagzService {
           pagesFetched: 0,
           warnings: [],
         };
-        this.repo.saveRun(run);
+        await this.repo.saveRun(run);
         try {
-          const result = await this.fetcher(source.id, { force });
+          if (Date.now() >= fetchDeadlineMs) {
+            run.status = 'partial';
+            run.warnings.push(
+              'Vremensko ograničenje prikupljanja: izvor čeka sljedeće pokretanje. Prethodni događaji ostaju sačuvani.',
+            );
+            run.finishedAt = new Date().toISOString();
+            await this.repo.saveRun(run);
+            continue;
+          }
+          const result = await this.fetcher(source.id, {
+            force,
+            ...(Number.isFinite(fetchDeadlineMs) ? { deadlineMs: fetchDeadlineMs } : {}),
+          });
           run.discovered = result.discovered;
           run.skipped = result.skipped;
           run.pagesFetched = result.pagesFetched;
           run.warnings = result.warnings;
+          let candidates = result.events;
           for (const page of result.extractionPages ?? []) {
             const key = createHash('sha256')
               .update(
@@ -73,27 +282,45 @@ export class WagzService {
                   url: page.url,
                   text: page.text,
                   model: this.config.ai.model,
+                  version: EXTRACTION_VERSION,
                 }),
               )
               .digest('hex');
             type Extraction = Awaited<ReturnType<typeof extractEvents>>;
-            let extraction = this.repo.cached<Extraction>(`extract:${key}`);
-            if (!extraction) {
-              extraction = await extractEvents(
-                { ...page, sourceId: source.id, now: new Date().toISOString() },
-                this.config.ai,
-                this.ledger,
+            let extraction: Extraction | null;
+            try {
+              extraction = await this.repo.cached<Extraction>(`extract:${key}`);
+              if (!extraction) {
+                if (sourceDeadlineMs - Date.now() < 50_000) {
+                  run.warnings.push(
+                    `${page.url}: AI obrada odgođena zbog vremenskog ograničenja; izvorni događaji bit će spremljeni.`,
+                  );
+                  continue;
+                }
+                extraction = await extractEvents(
+                  { ...page, sourceId: source.id, now: new Date().toISOString() },
+                  this.config.ai,
+                  this.ledger,
+                );
+                if (extraction.complete || extraction.events.length)
+                  await this.repo.cache(`extract:${key}`, extraction);
+              }
+            } catch {
+              run.warnings.push(
+                `${page.url}: AI obrada nije uspjela; izvorni događaji bit će spremljeni.`,
               );
-              if (extraction.complete || extraction.events.length)
-                this.repo.cache(`extract:${key}`, extraction);
+              continue;
             }
             if (!extraction.events.length || !extraction.complete)
               run.warnings.push(`${page.url}: ${extraction.reason}`);
-            result.events.push(...extraction.events);
+            const reconciled = reconcileExtraction(candidates, extraction.events, page);
+            candidates = reconciled.events;
+            run.skipped += reconciled.skipped;
+            run.warnings.push(...reconciled.warnings);
           }
-          for (const candidate of result.events) {
+          for (const candidate of candidates) {
             try {
-              this.repo.upsert(candidate);
+              await this.repo.upsert(candidate);
               run.imported++;
             } catch (error) {
               run.skipped++;
@@ -108,53 +335,70 @@ export class WagzService {
           run.warnings.push(error instanceof Error ? error.message : 'Izvor nije dostupan.');
         }
         run.finishedAt = new Date().toISOString();
-        this.repo.saveRun(run);
+        await this.repo.saveRun(run);
       }
       return true;
     } finally {
       this.collecting = false;
+      if (lease) await this.repo.releaseLease('collection', lease);
     }
   }
-  submitTip(input: { note?: unknown; url?: unknown; website?: unknown }): Tip {
+  async submitTip(input: { note?: unknown; url?: unknown; website?: unknown }): Promise<Tip> {
     if (typeof input.note !== 'string' || input.note.trim().length < 3 || input.note.length > 2000)
       throw new ValidationError('Napiši dojavu od 3 do 2000 znakova.');
     const note = input.note.trim();
     const url = safeUrl(input.url);
-    const existing = this.repo
-      .tips()
-      .find(
+    return this.repo.transaction(async () => {
+      const existing = (await this.repo.tips()).find(
         (tip) =>
           tip.note === note &&
           tip.url === url &&
           Date.now() - Date.parse(tip.submittedAt) < 86400000,
       );
-    if (existing) return existing;
-    const classification = classifyTip(
-      note,
-      typeof input.website === 'string' ? input.website : '',
-    );
-    const stamp = new Date().toISOString();
-    return this.repo.saveTip({
-      id: randomUUID(),
-      note,
-      url,
-      status: classification.archive ? 'archived' : 'inbox',
-      reason: classification.reason,
-      submittedAt: stamp,
-      updatedAt: stamp,
-      draft: null,
-      matchedEventId: null,
-      verification: 'unverified',
+      if (existing) return existing;
+      const classification = classifyTip(
+        note,
+        typeof input.website === 'string' ? input.website : '',
+      );
+      const stamp = new Date().toISOString();
+      return this.repo.saveTip({
+        id: randomUUID(),
+        note,
+        url,
+        status: classification.archive ? 'archived' : 'inbox',
+        reason: classification.reason,
+        submittedAt: stamp,
+        updatedAt: stamp,
+        draft: null,
+        matchedEventId: null,
+        verification: 'unverified',
+      });
+    });
+  }
+  private async savePreparedTip(tip: Tip, changes: Partial<Tip>): Promise<Tip> {
+    return this.repo.transaction(async () => {
+      const latest = await this.repo.tip(tip.id);
+      if (!latest) throw new ValidationError('Dojava ne postoji.');
+      // Revisions detect edits even when timestamps are equal or status is restored.
+      // The read and write must hold the same database transaction across instances.
+      if ((latest.revision ?? 0) !== (tip.revision ?? 0) || latest.status !== tip.status)
+        return latest;
+      return this.repo.saveTip({ ...latest, ...changes, updatedAt: new Date().toISOString() });
     });
   }
   async prepareTip(id: string): Promise<Tip> {
-    const tip = this.repo.tip(id);
-    if (!tip) throw new ValidationError('Dojava ne postoji.');
-    if (['archived', 'accepted', 'rejected'].includes(tip.status) || this.preparing.has(id))
-      return tip;
+    const existing = await this.repo.tip(id);
+    if (!existing) throw new ValidationError('Dojava ne postoji.');
+    if (['archived', 'accepted', 'rejected'].includes(existing.status) || this.preparing.has(id))
+      return existing;
     this.preparing.add(id);
+    let lease: string | null = null;
     try {
-      const all = this.repo.events();
+      lease = await this.repo.acquireLease(`tip:${id}`, 5 * 60_000);
+      const tip = await this.repo.tip(id);
+      if (!tip) throw new ValidationError('Dojava ne postoji.');
+      if (!lease || !['inbox', 'draft'].includes(tip.status)) return tip;
+      const all = await this.repo.events();
       const byUrl = tip.url
         ? all.filter((event) => event.sources.some((source) => source.url === tip.url))
         : [];
@@ -197,15 +441,13 @@ export class WagzService {
           status: matched.status,
           sourceUrl: matched.sources[0]?.url ?? null,
         };
-        return this.repo.saveTip({
-          ...tip,
+        return await this.savePreparedTip(tip, {
           status: 'draft',
           draft,
           matchedEventId: matched.id,
           verification: 'source_match',
           reason:
             'Pronađen je mogući isti događaj u prikupljenim izvorima. Prihvaćanje povezuje dojavu bez stvaranja duplikata.',
-          updatedAt: new Date().toISOString(),
         });
       }
       const key = createHash('sha256')
@@ -220,14 +462,15 @@ export class WagzService {
         )
         .digest('hex');
       type Result = Awaited<ReturnType<typeof aiPrepareTip>>;
-      let result = this.repo.cached<Result>(`tip:${key}`);
+      let result = await this.repo.cached<Result>(`tip:${key}`);
       if (!result) {
         result = await aiPrepareTip(
           { note: tip.note, url: tip.url, now: new Date().toISOString() },
           this.config.ai,
           this.ledger,
         );
-        if (result.attempted && result.costUsd !== null) this.repo.cache(`tip:${key}`, result);
+        if (result.attempted && result.costUsd !== null)
+          await this.repo.cache(`tip:${key}`, result);
       }
       // Uncertain classifications remain in the inbox. Spam stays recoverable.
       let draft: EventDraft | null = null;
@@ -238,67 +481,65 @@ export class WagzService {
           /* Keep the original tip in the inbox. */
         }
       }
-      const latest = this.repo.tip(id)!;
-      if (latest.updatedAt !== tip.updatedAt || !['inbox', 'draft'].includes(latest.status))
-        return latest;
-      return this.repo.saveTip({
-        ...latest,
-        draft: draft ?? latest.draft,
+      return await this.savePreparedTip(tip, {
+        draft: draft ?? tip.draft,
         status:
-          result.classification === 'spam' && !draft ? 'archived' : draft ? 'draft' : latest.status,
+          result.classification === 'spam' && !draft ? 'archived' : draft ? 'draft' : tip.status,
         reason: result.reason,
         matchedEventId: null,
         verification: 'unverified',
-        updatedAt: new Date().toISOString(),
       });
     } finally {
       this.preparing.delete(id);
+      if (lease) await this.repo.releaseLease(`tip:${id}`, lease);
     }
   }
-  updateTip(id: string, action: string, rawDraft?: unknown): Tip {
-    const tip = this.repo.tip(id);
-    if (!tip) throw new ValidationError('Dojava ne postoji.');
-    const stamp = new Date().toISOString();
-    if (action === 'archive')
+  async updateTip(id: string, action: string, rawDraft?: unknown): Promise<Tip> {
+    return this.repo.transaction(async () => {
+      const tip = await this.repo.tip(id);
+      if (!tip) throw new ValidationError('Dojava ne postoji.');
+      const stamp = new Date().toISOString();
+      if (action === 'archive')
+        return this.repo.saveTip({
+          ...tip,
+          status: 'archived',
+          reason: 'Ručno arhivirano. Dojava se može vratiti.',
+          updatedAt: stamp,
+        });
+      if (action === 'restore')
+        return this.repo.saveTip({
+          ...tip,
+          status: tip.draft ? 'draft' : 'inbox',
+          reason: 'Dojava je vraćena na pregled.',
+          updatedAt: stamp,
+        });
+      if (action === 'reject')
+        return this.repo.saveTip({
+          ...tip,
+          status: 'rejected',
+          reason: 'Odbijeno nakon pregleda.',
+          updatedAt: stamp,
+        });
+      if (!['save', 'accept'].includes(action)) throw new ValidationError('Nepoznata radnja.');
+      const draft = validateDraft(rawDraft ?? tip.draft);
+      if (action === 'save')
+        return this.repo.saveTip({ ...tip, draft, status: 'draft', updatedAt: stamp });
+      if (tip.status === 'accepted') return tip;
+      if (!draft.venue)
+        throw new ValidationError('Za objavu je potrebno potvrđeno mjesto održavanja.');
+      let eventId = tip.matchedEventId;
+      if (eventId) await this.repo.editEvent(eventId, 'published', draft);
+      else {
+        eventId = (await this.repo.publishTip(tip.id, draft)).id;
+      }
       return this.repo.saveTip({
         ...tip,
-        status: 'archived',
-        reason: 'Ručno arhivirano. Dojava se može vratiti.',
+        draft,
+        matchedEventId: eventId,
+        status: 'accepted',
+        reason: 'Događaj je odobren i objavljen.',
         updatedAt: stamp,
       });
-    if (action === 'restore')
-      return this.repo.saveTip({
-        ...tip,
-        status: tip.draft ? 'draft' : 'inbox',
-        reason: 'Dojava je vraćena na pregled.',
-        updatedAt: stamp,
-      });
-    if (action === 'reject')
-      return this.repo.saveTip({
-        ...tip,
-        status: 'rejected',
-        reason: 'Odbijeno nakon pregleda.',
-        updatedAt: stamp,
-      });
-    if (!['save', 'accept'].includes(action)) throw new ValidationError('Nepoznata radnja.');
-    const draft = validateDraft(rawDraft ?? tip.draft);
-    if (action === 'save')
-      return this.repo.saveTip({ ...tip, draft, status: 'draft', updatedAt: stamp });
-    if (tip.status === 'accepted') return tip;
-    if (!draft.venue)
-      throw new ValidationError('Za objavu je potrebno potvrđeno mjesto održavanja.');
-    let eventId = tip.matchedEventId;
-    if (eventId) this.repo.editEvent(eventId, 'published', draft);
-    else {
-      eventId = this.repo.publishTip(tip.id, draft).id;
-    }
-    return this.repo.saveTip({
-      ...tip,
-      draft,
-      matchedEventId: eventId,
-      status: 'accepted',
-      reason: 'Događaj je odobren i objavljen.',
-      updatedAt: stamp,
     });
   }
 }

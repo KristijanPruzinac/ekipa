@@ -1,0 +1,10 @@
+.env*
+.git/
+.kilo/
+.artifacts/
+data/
+apps/
+node_modules/
+server/**/*.test.ts
+scripts/
+docs/

@@ -52,8 +52,7 @@ test('tourism calendar leaves unknown venue/time empty and warns about month-onl
   assert.equal(result.events[0].startsAt, '2026-10-23');
   assert.equal(result.events[0].venue, null);
   assert.equal(result.events[0].endsAt, '2026-10-25');
-  assert.equal(result.extractionPages.length, 1);
-  assert.match(result.extractionPages[0].text, /2026.*HeadOnEast/s);
+  assert.equal(result.extractionPages.length, 0);
   assert.equal(result.warnings.length, 1);
   const moved = parseTourismCalendar(
     html.replace('23. – 25.10.', '24. – 26.10.'),

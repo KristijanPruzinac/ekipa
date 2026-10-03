@@ -1,6 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { Repository } from './repository.ts';
+import {
+  PostgresDatabase,
+  postgresSql,
+  postgresConnectionString,
+  type PostgresConnection,
+  type Row,
+} from './database.ts';
 import { classifyTip, tipDates, upcoming, validDate, validateDraft } from './validation.ts';
 import type { EventCandidate } from '../shared/types.ts';
 
@@ -28,23 +38,23 @@ const candidate = (overrides: Partial<EventCandidate> = {}): EventCandidate => (
   ...overrides,
 });
 
-test('rerunning collection updates the occurrence instead of duplicating it; reschedule is kept', () => {
+test('rerunning collection updates the occurrence instead of duplicating it; reschedule is kept', async () => {
   const repo = new Repository(':memory:', [source]);
   try {
-    const first = repo.upsert(candidate());
-    const second = repo.upsert(candidate({ startsAt: '2026-10-11T20:00:00+02:00' }));
+    const first = await repo.upsert(candidate());
+    const second = await repo.upsert(candidate({ startsAt: '2026-10-11T20:00:00+02:00' }));
     assert.equal(second.id, first.id);
-    assert.equal(repo.events().length, 1);
+    assert.equal((await repo.events()).length, 1);
     assert.equal(second.startsAt, '2026-10-11T20:00:00+02:00');
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
-test('exact cross-source duplicates retain both provenance links; different performances stay separate', () => {
+test('exact cross-source duplicates retain both provenance links; different performances stay separate', async () => {
   const repo = new Repository(':memory:', [source]);
   try {
-    const first = repo.upsert(candidate());
-    const duplicate = repo.upsert(
+    const first = await repo.upsert(candidate());
+    const duplicate = await repo.upsert(
       candidate({
         sourceId: 'b',
         sourceUrl: 'https://other.org/1',
@@ -54,81 +64,81 @@ test('exact cross-source duplicates retain both provenance links; different perf
     );
     assert.equal(duplicate.id, first.id);
     assert.equal(duplicate.sources.length, 2);
-    repo.upsert(candidate({ externalId: '2', startsAt: '2026-10-10T22:00:00+02:00' }));
-    assert.equal(repo.events().length, 2);
+    await repo.upsert(candidate({ externalId: '2', startsAt: '2026-10-10T22:00:00+02:00' }));
+    assert.equal((await repo.events()).length, 2);
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
-test('unknown venue stays draft, toggle affects new imports only, rejection survives refetch', () => {
+test('unknown venue stays draft, toggle affects new imports only, rejection survives refetch', async () => {
   const repo = new Repository(':memory:', [source]);
   try {
-    assert.equal(repo.upsert(candidate({ venue: null })).publication, 'draft');
-    repo.setAutoPublish(false);
-    const next = repo.upsert(candidate({ externalId: '2', title: 'Drugi koncert' }));
+    assert.equal((await repo.upsert(candidate({ venue: null }))).publication, 'draft');
+    await repo.setAutoPublish(false);
+    const next = await repo.upsert(candidate({ externalId: '2', title: 'Drugi koncert' }));
     assert.equal(next.publication, 'draft');
-    repo.editEvent(next.id, 'rejected');
-    repo.setAutoPublish(true);
+    await repo.editEvent(next.id, 'rejected');
+    await repo.setAutoPublish(true);
     assert.equal(
-      repo.upsert(candidate({ externalId: '2', title: 'Drugi koncert' })).publication,
+      (await repo.upsert(candidate({ externalId: '2', title: 'Drugi koncert' }))).publication,
       'rejected',
     );
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
-test('an incomplete automatic import can publish when source facts arrive, but a manually held draft stays held', () => {
+test('an incomplete automatic import can publish when source facts arrive, but a manually held draft stays held', async () => {
   const repo = new Repository(':memory:', [source]);
   try {
-    const first = repo.upsert(candidate({ venue: null }));
+    const first = await repo.upsert(candidate({ venue: null }));
     assert.equal(first.publication, 'draft');
-    assert.equal(repo.upsert(candidate()).publication, 'published');
-    repo.editEvent(first.id, 'draft');
-    assert.equal(repo.upsert(candidate()).publication, 'draft');
+    assert.equal((await repo.upsert(candidate())).publication, 'published');
+    await repo.editEvent(first.id, 'draft');
+    assert.equal((await repo.upsert(candidate())).publication, 'draft');
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
-test('operator corrections survive later imports; cancellation is stored for unedited events', () => {
+test('operator corrections survive later imports; cancellation is stored for unedited events', async () => {
   const repo = new Repository(':memory:', [source]);
   try {
-    const event = repo.upsert(candidate());
-    assert.equal(repo.upsert(candidate({ status: 'cancelled' })).status, 'cancelled');
-    repo.editEvent(event.id, undefined, { title: 'Potvrđeni naslov', venue: 'Novo mjesto' });
-    assert.equal(repo.upsert(candidate()).title, 'Potvrđeni naslov');
-    assert.equal(repo.event(event.id)?.venue, 'Novo mjesto');
+    const event = await repo.upsert(candidate());
+    assert.equal((await repo.upsert(candidate({ status: 'cancelled' }))).status, 'cancelled');
+    await repo.editEvent(event.id, undefined, { title: 'Potvrđeni naslov', venue: 'Novo mjesto' });
+    assert.equal((await repo.upsert(candidate())).title, 'Potvrđeni naslov');
+    assert.equal((await repo.event(event.id))?.venue, 'Novo mjesto');
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
-test('budget reservation blocks overspending concurrently and preserves unknown charges', () => {
+test('budget reservation blocks overspending concurrently and preserves unknown charges', async () => {
   const repo = new Repository(':memory:', []);
   try {
-    const first = repo.reserveAi(0.6, 1)!;
+    const first = (await repo.reserveAi(0.6, 1))!;
     assert.ok(first);
-    assert.equal(repo.reserveAi(0.6, 1), null);
-    repo.settleAi(first, 0.01);
-    assert.ok(repo.reserveAi(0.6, 1));
-    const unknown = repo.reserveAi(0.3, 1)!;
-    repo.settleAi(unknown, null);
-    assert.equal(repo.reserveAi(0.1, 1), null);
+    assert.equal(await repo.reserveAi(0.6, 1), null);
+    await repo.settleAi(first, 0.01);
+    assert.ok(await repo.reserveAi(0.6, 1));
+    const unknown = (await repo.reserveAi(0.3, 1))!;
+    await repo.settleAi(unknown, null);
+    assert.equal(await repo.reserveAi(0.1, 1), null);
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
-test('approved linkless community tip is idempotent and does not invent a source URL', () => {
+test('approved linkless community tip is idempotent and does not invent a source URL', async () => {
   const repo = new Repository(':memory:', []);
   try {
     const draft = { ...candidate(), sourceUrl: null };
-    const first = repo.publishTip('same-tip', draft);
-    assert.equal(repo.publishTip('same-tip', draft).id, first.id);
-    assert.equal(repo.events().length, 1);
+    const first = await repo.publishTip('same-tip', draft);
+    assert.equal((await repo.publishTip('same-tip', draft)).id, first.id);
+    assert.equal((await repo.events()).length, 1);
     assert.deepEqual(first.sources, []);
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
-test('calendar dates, unknown times, Zagreb day boundaries and ongoing ranges stay honest', () => {
+test('calendar dates, unknown times, Zagreb day boundaries and ongoing ranges stay honest', async () => {
   assert.equal(validDate('2026-02-30'), false);
   assert.equal(validDate('2026-10-25T20:00:00'), false);
   assert.equal(validDate('2026-10-25'), true);
@@ -150,27 +160,27 @@ test('calendar dates, unknown times, Zagreb day boundaries and ongoing ranges st
     '2026-10-10T00:30:00+02:00',
   );
 });
-test('only unmistakable automated junk archives; vague real tips stay for review', () => {
+test('only unmistakable automated junk archives; vague real tips stay for review', async () => {
   assert.equal(classifyTip('aaaaaaaaaaaaaaaaaaaaaaaa').archive, true);
   assert.equal(classifyTip('Čuo sam da uskoro ima svirka u Osijeku').archive, false);
   assert.equal(classifyTip('festival').archive, false);
 });
 
-test('ambiguous date-only evidence never attaches to or overwrites a true showtime', () => {
+test('ambiguous date-only evidence never attaches to or overwrites a true showtime', async () => {
   const repo = new Repository(':memory:', [source]);
   try {
-    const early = repo.upsert(candidate());
-    const late = repo.upsert(
+    const early = await repo.upsert(candidate());
+    const late = await repo.upsert(
       candidate({ externalId: 'late', startsAt: '2026-10-10T22:00:00+02:00' }),
     );
-    const unresolved = repo.upsert(
+    const unresolved = await repo.upsert(
       candidate({ sourceId: 'b', externalId: 'unknown', startsAt: '2026-10-10' }),
     );
     assert.notEqual(unresolved.id, early.id);
     assert.notEqual(unresolved.id, late.id);
     assert.equal(unresolved.publication, 'draft');
     assert.equal(unresolved.autoPublishEligible, false);
-    const resolved = repo.upsert(
+    const resolved = await repo.upsert(
       candidate({ sourceId: 'b', externalId: 'unknown', startsAt: '2026-10-10T22:00:00+02:00' }),
     );
     assert.equal(resolved.id, unresolved.id);
@@ -179,85 +189,87 @@ test('ambiguous date-only evidence never attaches to or overwrites a true showti
       'draft',
       'resolved collision remains visible for manual reconciliation',
     );
-    assert.equal(repo.event(early.id)?.startsAt, '2026-10-10T20:00:00+02:00');
-    assert.equal(repo.event(late.id)?.startsAt, '2026-10-10T22:00:00+02:00');
-    assert.equal(repo.event(early.id)?.sources.length, 1);
-    assert.equal(repo.event(late.id)?.sources.length, 1);
+    assert.equal((await repo.event(early.id))?.startsAt, '2026-10-10T20:00:00+02:00');
+    assert.equal((await repo.event(late.id))?.startsAt, '2026-10-10T22:00:00+02:00');
+    assert.equal((await repo.event(early.id))?.sources.length, 1);
+    assert.equal((await repo.event(late.id))?.sources.length, 1);
     assert.equal(
-      repo.upsert(candidate()).publication,
+      (await repo.upsert(candidate())).publication,
       'published',
       'a held unknown row does not demote the true occurrence',
     );
     assert.equal(
-      repo.upsert(candidate({ externalId: 'late', startsAt: '2026-10-10T22:00:00+02:00' }))
+      (await repo.upsert(candidate({ externalId: 'late', startsAt: '2026-10-10T22:00:00+02:00' })))
         .publication,
       'published',
       'a resolved but held duplicate does not demote the true occurrence',
     );
-    assert.equal(repo.event(late.id)?.publication, 'published');
+    assert.equal((await repo.event(late.id))?.publication, 'published');
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
 
-test('unknown venue is not an alias even with one plausible match; later venue facts cannot hijack it', () => {
+test('unknown venue is not an alias even with one plausible match; later venue facts cannot hijack it', async () => {
   const repo = new Repository(':memory:', [source]);
   try {
-    const original = repo.upsert(candidate());
-    const unknown = repo.upsert(candidate({ sourceId: 'b', externalId: 'unknown', venue: null }));
+    const original = await repo.upsert(candidate());
+    const unknown = await repo.upsert(
+      candidate({ sourceId: 'b', externalId: 'unknown', venue: null }),
+    );
     assert.notEqual(unknown.id, original.id);
     assert.equal(unknown.publication, 'draft');
-    const changed = repo.upsert(
+    const changed = await repo.upsert(
       candidate({ sourceId: 'b', externalId: 'unknown', venue: 'Druga dvorana' }),
     );
     assert.equal(changed.id, unknown.id);
     assert.equal(changed.publication, 'draft');
-    assert.equal(repo.event(original.id)?.venue, 'Dvorana');
-    assert.equal(repo.event(original.id)?.publication, 'published');
+    assert.equal((await repo.event(original.id))?.venue, 'Dvorana');
+    assert.equal((await repo.event(original.id))?.publication, 'published');
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
 
-test('a weaker refresh on an exact cross-source alias preserves known time and venue', () => {
+test('a weaker refresh on an exact cross-source alias preserves known time and venue', async () => {
   const repo = new Repository(':memory:', [source]);
   try {
-    const original = repo.upsert(candidate());
-    const alias = repo.upsert(candidate({ sourceId: 'b', externalId: 'alias' }));
+    const original = await repo.upsert(candidate());
+    const alias = await repo.upsert(candidate({ sourceId: 'b', externalId: 'alias' }));
     assert.equal(alias.id, original.id);
-    repo.upsert(candidate({ externalId: 'later', startsAt: '2026-10-10T22:00:00+02:00' }));
-    const weak = repo.upsert(
+    await repo.upsert(candidate({ externalId: 'later', startsAt: '2026-10-10T22:00:00+02:00' }));
+    const weak = await repo.upsert(
       candidate({ sourceId: 'b', externalId: 'alias', startsAt: '2026-10-10', venue: null }),
     );
     assert.equal(weak.id, original.id);
     assert.equal(weak.startsAt, original.startsAt);
     assert.equal(weak.venue, original.venue);
     assert.equal(weak.publication, 'published');
-    assert.equal(repo.events().length, 2);
+    assert.equal((await repo.events()).length, 2);
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
 
-test('a reschedule colliding with another exact occurrence is held without changing its evidence', () => {
+test('a reschedule colliding with another exact occurrence is held without changing its evidence', async () => {
   const repo = new Repository(':memory:', [source]);
   try {
-    const first = repo.upsert(candidate());
-    const second = repo.upsert(
+    const first = await repo.upsert(candidate());
+    const second = await repo.upsert(
       candidate({ externalId: 'second', startsAt: '2026-10-11T20:00:00+02:00' }),
     );
-    const moved = repo.upsert(candidate({ startsAt: second.startsAt }));
+    const moved = await repo.upsert(candidate({ startsAt: second.startsAt }));
     assert.equal(moved.id, first.id);
     assert.equal(moved.publication, 'draft');
-    assert.equal(repo.event(second.id)?.publication, 'published');
-    assert.equal(repo.event(second.id)?.sources.length, 1);
-    assert.equal(repo.events().length, 2);
+    assert.equal((await repo.event(second.id))?.publication, 'published');
+    assert.equal((await repo.event(second.id))?.sources.length, 1);
+    assert.equal((await repo.events()).length, 2);
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
 
-test('a partial run with imports counts as last successful contact without losing warnings', () => {
+test('a partial run with imports counts as last successful contact without losing warnings', async () => {
   const repo = new Repository(':memory:', [source]);
   try {
     const base = {
@@ -271,19 +283,19 @@ test('a partial run with imports counts as last successful contact without losin
       pagesFetched: 2,
       warnings: ['Optional enrichment unavailable'],
     };
-    repo.saveRun({ ...base, id: 'imported' });
-    repo.saveRun({ ...base, id: 'empty', imported: 0, finishedAt: '2026-10-02T10:01:00Z' });
-    const health = repo.sourceHealth()[0];
+    await repo.saveRun({ ...base, id: 'imported' });
+    await repo.saveRun({ ...base, id: 'empty', imported: 0, finishedAt: '2026-10-02T10:01:00Z' });
+    const health = (await repo.sourceHealth())[0];
     assert.equal(health.lastSuccessAt, base.finishedAt);
     assert.equal(health.latestRun?.id, 'empty');
     assert.equal(health.latestRun?.status, 'partial');
     assert.deepEqual(health.latestRun?.warnings, base.warnings);
   } finally {
-    repo.close();
+    await repo.close();
   }
 });
 
-test('date ranges compare Zagreb-normalized dates and still reject reversed instants', () => {
+test('date ranges compare Zagreb-normalized dates and still reject reversed instants', async () => {
   const draft = validateDraft({
     ...candidate(),
     startsAt: '2026-10-04T00:30:00+02:00',
@@ -306,7 +318,7 @@ test('date ranges compare Zagreb-normalized dates and still reject reversed inst
   );
 });
 
-test('tip dates preserve explicit ISO and Croatian dates without inferring missing years', () => {
+test('tip dates preserve explicit ISO and Croatian dates without inferring missing years', async () => {
   for (const date of [
     '2026-10-10',
     '10.10.2026.',
@@ -328,4 +340,167 @@ test('tip dates preserve explicit ISO and Croatian dates without inferring missi
   });
   assert.equal(tipDates('Koncert 31. veljače 2026.').invalid, true);
   assert.equal(tipDates('Koncert 2026-02-30').invalid, true);
+});
+
+test('concurrent calls serialize deduplication and AI reservations on one connection', async () => {
+  const repo = new Repository(':memory:', [source]);
+  try {
+    const imports = await Promise.all(Array.from({ length: 8 }, () => repo.upsert(candidate())));
+    assert.equal(new Set(imports.map((event) => event.id)).size, 1);
+    assert.equal((await repo.events()).length, 1);
+    const reservations = await Promise.all(Array.from({ length: 8 }, () => repo.reserveAi(0.3, 1)));
+    assert.equal(reservations.filter(Boolean).length, 3);
+    assert.ok((await repo.aiSpent()) <= 1);
+  } finally {
+    await repo.close();
+  }
+});
+
+test('separate connections share leases, deduplication and budget and preserve data after reopen', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wagz-repository-'));
+  const path = join(directory, 'test.sqlite');
+  const first = new Repository(path, [source]);
+  const second = new Repository(path, [source]);
+  let reopened: Repository | undefined;
+  try {
+    const acquired = await Promise.all([
+      first.acquireLease('collection', 30_000),
+      second.acquireLease('collection', 30_000),
+    ]);
+    assert.equal(acquired.filter(Boolean).length, 1);
+    assert.equal(await second.isLeaseActive('collection'), true);
+    await second.releaseLease('collection', 'wrong-token');
+    assert.equal(await first.acquireLease('collection', 30_000), null);
+    await second.releaseLease('collection', acquired.find(Boolean)!);
+    assert.equal(await first.isLeaseActive('collection'), false);
+    const next = await second.acquireLease('collection', 30_000);
+    assert.ok(next);
+    const [one, two] = await Promise.all([first.upsert(candidate()), second.upsert(candidate())]);
+    assert.equal(one.id, two.id);
+    const reservations = await Promise.all([first.reserveAi(0.6, 1), second.reserveAi(0.6, 1)]);
+    assert.equal(reservations.filter(Boolean).length, 1);
+    await first.setAutoPublish(false);
+    await first.close();
+    await second.close();
+    reopened = new Repository(path, [source], true);
+    assert.equal(await reopened.autoPublish(), false);
+    assert.equal((await reopened.events()).length, 1);
+    assert.equal(await reopened.aiSpent(), 0.6);
+    assert.equal(await reopened.acquireLease('collection', 30_000), null);
+    await reopened.releaseLease('collection', next);
+  } finally {
+    await reopened?.close();
+    await first.close();
+    await second.close();
+    // This directory is created by the test under the OS temporary directory.
+    assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('composed transactions roll back settings, imports and AI reservations together', async () => {
+  const repo = new Repository(':memory:', [source]);
+  try {
+    await assert.rejects(
+      repo.transaction(async (transaction) => {
+        await transaction.setAutoPublish(false);
+        await transaction.upsert(candidate());
+        await transaction.reserveAi(0.6, 1);
+        throw new Error('Abort the composed operation');
+      }),
+      /Abort the composed operation/,
+    );
+    assert.equal(await repo.autoPublish(), true);
+    assert.deepEqual(await repo.events(), []);
+    assert.equal(await repo.aiSpent(), 0);
+    assert.equal((await repo.upsert(candidate())).publication, 'published');
+  } finally {
+    await repo.close();
+  }
+});
+
+test('Postgres adapter confines identifiers and keeps values parameterized', () => {
+  assert.equal(
+    postgresSql('SELECT payload FROM runs WHERE id=? ORDER BY rowid DESC'),
+    'SELECT payload FROM public.wagz_runs WHERE id=$1 ORDER BY ordinal DESC',
+  );
+  assert.equal(
+    postgresSql('INSERT INTO evidence(source_id,event_id) VALUES (?,?)'),
+    'INSERT INTO public.wagz_evidence(source_id,event_id) VALUES ($1,$2)',
+  );
+});
+
+test('hosted require-mode database URLs explicitly verify the TLS certificate and hostname', () => {
+  assert.equal(
+    new URL(
+      postgresConnectionString('postgresql://user:example@database.example/wagz?sslmode=require'),
+    ).searchParams.get('sslmode'),
+    'verify-full',
+  );
+  assert.equal(
+    postgresConnectionString('postgresql://localhost/wagz'),
+    'postgresql://localhost/wagz',
+  );
+  assert.equal(
+    new URL(
+      postgresConnectionString('postgresql://127.0.0.1/wagz?sslmode=require'),
+    ).searchParams.get('sslmode'),
+    'require',
+  );
+});
+
+test('Postgres writes lock a dedicated connection and release it after commit or rollback', async () => {
+  const sessions: Array<{
+    statements: Array<{ sql: string; values?: unknown[] }>;
+    released: boolean;
+  }> = [];
+  const database = new PostgresDatabase({
+    async connect(): Promise<PostgresConnection> {
+      const session = {
+        statements: [] as Array<{ sql: string; values?: unknown[] }>,
+        released: false,
+      };
+      sessions.push(session);
+      return {
+        async query(sql, values) {
+          session.statements.push({ sql, values });
+          return { rows: [] as Row[] };
+        },
+        release() {
+          session.released = true;
+        },
+      };
+    },
+    async end() {},
+  });
+  await database.transaction(async () => {
+    await database.query('INSERT INTO tips(id,payload) VALUES (?,?)', [
+      'user-id',
+      'untrusted payload',
+    ]);
+    await database.transaction(async () => {
+      await database.query('SELECT payload FROM tips WHERE id=?', ['user-id']);
+    }, false);
+  });
+  assert.equal(sessions.length, 1, 'nested repository calls reuse the same transaction');
+  assert.equal(sessions[0].statements[0].sql, 'BEGIN');
+  assert.match(sessions[0].statements[1].sql, /pg_advisory_xact_lock/);
+  assert.deepEqual(sessions[0].statements[2].values, ['user-id', 'untrusted payload']);
+  assert.equal(sessions[0].statements.at(-1)?.sql, 'COMMIT');
+  assert.equal(sessions[0].released, true);
+  await assert.rejects(
+    database.transaction(async () => {
+      throw new Error('write failed');
+    }),
+    /write failed/,
+  );
+  assert.equal(sessions[1].statements.at(-1)?.sql, 'ROLLBACK');
+  assert.equal(sessions[1].released, true);
+  await database.transaction(() => database.query('SELECT payload FROM events'), false);
+  assert.equal(sessions[2].statements[0].sql, 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+  assert.equal(
+    sessions[2].statements.some((item) => item.sql.includes('advisory')),
+    false,
+  );
+  assert.equal(sessions[2].released, true);
 });

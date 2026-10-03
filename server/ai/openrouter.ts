@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto';
 import { categories, type EventCandidate, type EventDraft } from '../../shared/types.ts';
+import { supportedDays, supportedTime } from './evidence.ts';
+
+// Included in extraction cache keys: changes to runtime evidence rules invalidate old results.
+export const EXTRACTION_VERSION = 3;
 
 export const DEFAULT_MODEL = 'google/gemini-2.5-flash-lite';
 export const MAX_EXTRACTION_INPUT_CHARS = 12_000;
@@ -140,8 +144,8 @@ Every event has title, description, startsAt, endsAt, venue, address, city (Osij
 function event(value: unknown, sourceUrl: string | null, evidence: string[]): EventDraft {
   if (!object(value)) throw new Error('invalid event');
   exactKeys(value, Object.keys(eventProperties));
-  const startsAt = eventDate(value.startsAt);
-  const endsAt = value.endsAt === null ? null : eventDate(value.endsAt);
+  let startsAt = eventDate(value.startsAt);
+  let endsAt = value.endsAt === null ? null : eventDate(value.endsAt);
   if (
     endsAt &&
     (endsAt.slice(0, 10) < startsAt.slice(0, 10) ||
@@ -155,6 +159,11 @@ function event(value: unknown, sourceUrl: string | null, evidence: string[]): Ev
     (endsAt && !new RegExp(`\\b${endsAt.slice(0, 4)}\\b`).test(quote))
   )
     throw new Error('unsupported year');
+  const dates = supportedDays(quote);
+  if (!dates.has(startsAt.slice(0, 10)) || (endsAt && !dates.has(endsAt.slice(0, 10))))
+    throw new Error('unsupported calendar day');
+  startsAt = supportedTime(startsAt, quote);
+  endsAt = endsAt ? supportedTime(endsAt, quote) : null;
   if (
     value.city !== 'Osijek' ||
     !categories.includes(value.category as never) ||

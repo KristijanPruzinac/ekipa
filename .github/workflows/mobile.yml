@@ -1,0 +1,115 @@
+name: WagZ mobile
+
+on:
+  push:
+    paths:
+      - apps/mobile/**
+      - .github/workflows/mobile.yml
+  pull_request:
+    paths:
+      - apps/mobile/**
+      - .github/workflows/mobile.yml
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: Public HTTPS WagZ origin (no /api path, credentials, or secrets)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate public API origin
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          WAGZ_API_BASE_URL: ${{ inputs.api_base_url }}
+        run: |
+          python3 - <<'PY'
+          import ipaddress
+          import os
+          import re
+          from urllib.parse import urlsplit
+
+          value = os.environ['WAGZ_API_BASE_URL']
+          url = urlsplit(value)
+          host = url.hostname or ''
+          valid = (
+              value == value.strip()
+              and not re.search(r'[\s\\]', value)
+              and url.scheme == 'https'
+              and url.username is None and url.password is None
+              and url.path in ('', '/')
+              and '?' not in value and '#' not in value
+              and not host.endswith(('.localhost', '.local', '.invalid', '.test', '.example'))
+          )
+          try:
+              valid = valid and ipaddress.ip_address(host).is_global
+          except ValueError:
+              valid = valid and bool(re.fullmatch(
+                  r'(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}', host
+              ))
+          try:
+              valid = valid and (url.port is None or url.port == 443)
+          except ValueError:
+              valid = False
+          if not valid:
+              raise SystemExit('api_base_url must be a public HTTPS origin without credentials, a path, query, or fragment.')
+          print('Public HTTPS API origin accepted.')
+          PY
+
+      - name: Set up Java
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.7'
+
+      - name: Install locked dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze mobile code
+        run: flutter analyze --no-pub
+
+      - name: Run mobile tests
+        run: flutter test --no-pub --concurrency=2
+
+      - name: Build Android debug APK
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          WAGZ_API_BASE_URL: ${{ inputs.api_base_url }}
+        run: >-
+          flutter build apk --debug --no-pub
+          --dart-define="WAGZ_API_BASE_URL=$WAGZ_API_BASE_URL"
+
+      - name: Upload installable Android APK
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: wagz-android-debug-${{ github.run_number }}
+          path: apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

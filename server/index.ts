@@ -2,11 +2,16 @@ import { resolve } from 'node:path';
 import express from 'express';
 import { config } from './config.ts';
 import { sources } from './ingestion/index.ts';
-import { Repository } from './repository.ts';
+import { createRepository } from './repository.ts';
 import { WagzService } from './service.ts';
 import { createApp } from './app.ts';
 
-const repository = new Repository(config.databasePath, sources, config.autoPublish);
+const repository = await createRepository(
+  config.databasePath,
+  sources,
+  config.autoPublish,
+  config.databaseUrl,
+);
 const service = new WagzService(repository, config);
 const app = createApp(service);
 if (process.argv.includes('--production')) {
@@ -29,8 +34,8 @@ timer.unref();
 for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.on(signal, () => {
     clearInterval(timer);
-    server.close(() => {
-      repository.close();
+    server.close(async () => {
+      await repository.close();
       process.exit(0);
     });
   });

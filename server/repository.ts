@@ -1,7 +1,6 @@
-import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { PostgresDatabase, SqliteDatabase, type Database, type Row } from './database.ts';
+import { isFree, mergeDiscovery } from './discovery.ts';
 import type {
   EventCandidate,
   EventDraft,
@@ -20,90 +19,107 @@ import {
   ValidationError,
 } from './validation.ts';
 
-type Row = Record<string, unknown>;
 const decode = <T>(row: Row): T => JSON.parse(String(row.payload)) as T;
 
 export class Repository {
-  db: DatabaseSync;
+  private database: Database;
+  private closePromise?: Promise<void>;
+  readonly ready: Promise<void>;
   sources: SourceDefinition[];
-  constructor(path: string, sources: SourceDefinition[], autoPublish = true) {
-    if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
-    this.db = new DatabaseSync(path, { timeout: 5000 });
+  constructor(path: string, sources: SourceDefinition[], autoPublish = true, database?: Database) {
+    this.database = database ?? new SqliteDatabase(path);
     this.sources = sources;
-    this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
-      CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS evidence (source_id TEXT NOT NULL, external_id TEXT NOT NULL, event_id TEXT NOT NULL REFERENCES events(id), url TEXT NOT NULL, last_seen TEXT NOT NULL, PRIMARY KEY(source_id, external_id));
-      CREATE INDEX IF NOT EXISTS evidence_event ON evidence(event_id);
-      CREATE TABLE IF NOT EXISTS tips (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS ai_charges (id TEXT PRIMARY KEY, month TEXT NOT NULL, amount REAL NOT NULL, state TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS ai_cache (key TEXT PRIMARY KEY, payload TEXT NOT NULL);
-    `);
-    this.db
-      .prepare('INSERT OR IGNORE INTO settings(key,value) VALUES (?,?)')
-      .run('autoPublish', JSON.stringify(autoPublish));
+    this.ready = this.database.initialize(autoPublish);
   }
-  close() {
-    this.db.close();
+  static async fromPostgres(databaseUrl: string, sources: SourceDefinition[], autoPublish = true) {
+    const repository = new Repository(
+      ':memory:',
+      sources,
+      autoPublish,
+      PostgresDatabase.connect(databaseUrl),
+    );
+    try {
+      await repository.ready;
+      return repository;
+    } catch (error) {
+      await repository.close();
+      throw error;
+    }
   }
-  autoPublish(): boolean {
-    return JSON.parse(
-      String(this.db.prepare('SELECT value FROM settings WHERE key=?').get('autoPublish')!.value),
+  async close() {
+    this.closePromise ??= this.ready.catch(() => undefined).then(() => this.database.close());
+    await this.closePromise;
+  }
+  private async operation<T>(work: () => Promise<T>, write = false): Promise<T> {
+    await this.ready;
+    return this.database.transaction(work, write);
+  }
+  async transaction<T>(work: (repository: Repository) => Promise<T>): Promise<T> {
+    return this.operation(() => work(this), true);
+  }
+  async autoPublish(): Promise<boolean> {
+    return this.operation(async () => {
+      const [setting] = await this.database.query('SELECT value FROM settings WHERE key=?', [
+        'autoPublish',
+      ]);
+      return JSON.parse(String(setting.value));
+    });
+  }
+  async setAutoPublish(value: boolean) {
+    await this.operation(async () => {
+      await this.database.query('UPDATE settings SET value=? WHERE key=?', [
+        JSON.stringify(value),
+        'autoPublish',
+      ]);
+    }, true);
+  }
+  private async saveEvent(event: WagzEvent) {
+    await this.database.query(
+      'INSERT INTO events(id,payload) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',
+      [event.id, JSON.stringify(event)],
     );
   }
-  setAutoPublish(value: boolean) {
-    this.db
-      .prepare('UPDATE settings SET value=? WHERE key=?')
-      .run(JSON.stringify(value), 'autoPublish');
+  async events(): Promise<WagzEvent[]> {
+    return this.operation(async () => {
+      const rows = await this.database.query('SELECT payload FROM events');
+      const evidence = await this.database.query('SELECT * FROM evidence ORDER BY last_seen DESC');
+      return rows
+        .map((row) => {
+          const event = decode<WagzEvent>(row);
+          event.sources = evidence
+            .filter((item) => item.event_id === event.id)
+            .map((item) => ({
+              sourceId: String(item.source_id),
+              sourceName:
+                this.sources.find((source) => source.id === item.source_id)?.name ??
+                'Dojava zajednice',
+              url: String(item.url),
+              lastSeenAt: String(item.last_seen),
+            }));
+          return event;
+        })
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.title.localeCompare(b.title));
+    });
   }
-  private saveEvent(event: WagzEvent) {
-    this.db
-      .prepare(
-        'INSERT INTO events(id,payload) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',
-      )
-      .run(event.id, JSON.stringify(event));
+  async event(id: string): Promise<WagzEvent | undefined> {
+    return (await this.events()).find((event) => event.id === id);
   }
-  events(): WagzEvent[] {
-    return (this.db.prepare('SELECT payload FROM events').all() as Row[])
-      .map((row) => {
-        const event = decode<WagzEvent>(row);
-        event.sources = (
-          this.db
-            .prepare('SELECT * FROM evidence WHERE event_id=? ORDER BY last_seen DESC')
-            .all(event.id) as Row[]
-        ).map((evidence) => ({
-          sourceId: String(evidence.source_id),
-          sourceName:
-            this.sources.find((source) => source.id === evidence.source_id)?.name ??
-            'Dojava zajednice',
-          url: String(evidence.url),
-          lastSeenAt: String(evidence.last_seen),
-        }));
-        return event;
-      })
-      .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.title.localeCompare(b.title));
-  }
-  event(id: string): WagzEvent | undefined {
-    return this.events().find((event) => event.id === id);
-  }
-  publicEvents(now = new Date()) {
-    return this.events().filter(
+  async publicEvents(now = new Date()) {
+    return (await this.events()).filter(
       (event) => event.publication === 'published' && upcoming(event, now),
     );
   }
 
-  upsert(raw: EventCandidate, now = new Date(), forceDraft = false): WagzEvent {
+  async upsert(raw: EventCandidate, now = new Date(), forceDraft = false): Promise<WagzEvent> {
     const candidate = validateCandidate(raw);
     const stamp = now.toISOString();
     // Identity lookup and writes share the transaction, including CLI/server overlap.
-    this.db.exec('BEGIN IMMEDIATE');
-    let eventId: string;
-    try {
-      const known = this.db
-        .prepare('SELECT event_id FROM evidence WHERE source_id=? AND external_id=?')
-        .get(candidate.sourceId, candidate.externalId);
-      const all = this.events();
+    return this.operation(async () => {
+      const [known] = await this.database.query(
+        'SELECT event_id FROM evidence WHERE source_id=? AND external_id=?',
+        [candidate.sourceId, candidate.externalId],
+      );
+      const all = await this.events();
       let current = known ? all.find((event) => event.id === known.event_id) : undefined;
       const otherEvidence =
         current?.sources.some((source) => source.sourceId !== candidate.sourceId) ?? false;
@@ -190,6 +206,13 @@ export class Repository {
                 status: fields.status !== 'scheduled' ? fields.status : current.status,
               };
         event = { ...current, ...nextFields, updatedAt: stamp };
+        if (!current.manuallyEdited)
+          event.discovery = mergeDiscovery(
+            current.discovery,
+            fields.discovery,
+            sourceUrl,
+            event.price,
+          );
         const eligible =
           current.autoPublishEligible ??
           (current.publication === 'draft' && !current.venue && !current.manuallyEdited);
@@ -204,12 +227,12 @@ export class Repository {
           event.publication === 'draft' &&
           eligible &&
           !forceDraft &&
-          this.autoPublish() &&
+          (await this.autoPublish()) &&
           event.venue
         )
           event.publication = 'published';
       } else {
-        const eligible = !forceDraft && !ambiguous && this.autoPublish();
+        const eligible = !forceDraft && !ambiguous && (await this.autoPublish());
         event = {
           ...fields,
           id: randomUUID(),
@@ -221,162 +244,232 @@ export class Repository {
           autoPublishEligible: eligible,
         };
       }
-      this.saveEvent(event);
-      this.db
-        .prepare(
-          'INSERT INTO evidence(source_id,external_id,event_id,url,last_seen) VALUES (?,?,?,?,?) ON CONFLICT(source_id,external_id) DO UPDATE SET event_id=excluded.event_id,url=excluded.url,last_seen=excluded.last_seen',
-        )
-        .run(sourceId, externalId, event.id, sourceUrl, stamp);
-      eventId = event.id;
-      this.db.exec('COMMIT');
-    } catch (error) {
-      this.db.exec('ROLLBACK');
-      throw error;
-    }
-    return this.event(eventId)!;
+      await this.saveEvent(event);
+      await this.database.query(
+        'INSERT INTO evidence(source_id,external_id,event_id,url,last_seen) VALUES (?,?,?,?,?) ON CONFLICT(source_id,external_id) DO UPDATE SET event_id=excluded.event_id,url=excluded.url,last_seen=excluded.last_seen',
+        [sourceId, externalId, event.id, sourceUrl, stamp],
+      );
+      return (await this.event(event.id))!;
+    }, true);
   }
 
-  editEvent(id: string, publication?: Publication, fields?: Partial<EventDraft>): WagzEvent {
-    const current = this.event(id);
-    if (!current) throw new ValidationError('Događaj ne postoji.');
-    if (publication && !['published', 'draft', 'rejected'].includes(publication))
-      throw new ValidationError('Neispravan status objave.');
-    const draft = fields
-      ? validateDraft({ ...current, sourceUrl: current.sources[0]?.url ?? null, ...fields })
-      : null;
-    const event = {
-      ...current,
-      ...(draft
-        ? Object.fromEntries(Object.entries(draft).filter(([key]) => key !== 'sourceUrl'))
-        : {}),
-      publication: publication ?? current.publication,
-      updatedAt: new Date().toISOString(),
-      manuallyEdited: fields ? true : current.manuallyEdited,
-      autoPublishEligible: false,
-    };
-    if (event.publication === 'published' && !event.venue)
-      throw new ValidationError('Prije objave upiši potvrđeno mjesto održavanja.');
-    this.saveEvent(event);
-    if (draft?.sourceUrl && draft.sourceUrl !== current.sources[0]?.url)
-      this.db
-        .prepare(
-          'INSERT OR REPLACE INTO evidence(source_id,external_id,event_id,url,last_seen) VALUES (?,?,?,?,?)',
-        )
-        .run('manual', id, id, draft.sourceUrl, event.updatedAt);
-    return this.event(id)!;
+  async editEvent(
+    id: string,
+    publication?: Publication,
+    fields?: Partial<EventDraft>,
+  ): Promise<WagzEvent> {
+    return this.operation(async () => {
+      const current = await this.event(id);
+      if (!current) throw new ValidationError('Događaj ne postoji.');
+      if (publication && !['published', 'draft', 'rejected'].includes(publication))
+        throw new ValidationError('Neispravan status objave.');
+      const draft = fields
+        ? validateDraft({ ...current, sourceUrl: current.sources[0]?.url ?? null, ...fields })
+        : null;
+      const event = {
+        ...current,
+        ...(draft
+          ? Object.fromEntries(Object.entries(draft).filter(([key]) => key !== 'sourceUrl'))
+          : {}),
+        publication: publication ?? current.publication,
+        updatedAt: new Date().toISOString(),
+        manuallyEdited: fields ? true : current.manuallyEdited,
+        autoPublishEligible: false,
+      };
+      if (draft)
+        event.discovery = {
+          audiences: [],
+          audienceEvidence: [],
+          prominence: null,
+          free: isFree(event.price),
+        };
+      if (event.publication === 'published' && !event.venue)
+        throw new ValidationError('Prije objave upiši potvrđeno mjesto održavanja.');
+      await this.saveEvent(event);
+      if (draft?.sourceUrl && draft.sourceUrl !== current.sources[0]?.url)
+        await this.database.query(
+          'INSERT INTO evidence(source_id,external_id,event_id,url,last_seen) VALUES (?,?,?,?,?) ON CONFLICT(source_id,external_id) DO UPDATE SET event_id=excluded.event_id,url=excluded.url,last_seen=excluded.last_seen',
+          ['manual', id, id, draft.sourceUrl, event.updatedAt],
+        );
+      return (await this.event(id))!;
+    }, true);
   }
-  publishTip(tipId: string, input: EventDraft): WagzEvent {
+  async publishTip(tipId: string, input: EventDraft): Promise<WagzEvent> {
     const draft = validateDraft(input);
     if (!draft.venue)
       throw new ValidationError('Za objavu je potrebno potvrđeno mjesto održavanja.');
-    const id = `tip-${tipId}`;
-    if (this.event(id)) return this.editEvent(id, 'published', draft);
-    const { sourceUrl, ...fields } = draft;
-    const stamp = new Date().toISOString();
-    this.saveEvent({
-      ...fields,
-      id,
-      publication: 'published',
-      sources: [],
-      firstSeenAt: stamp,
-      updatedAt: stamp,
-      manuallyEdited: true,
-    });
-    if (sourceUrl)
-      this.db
-        .prepare(
+    return this.operation(async () => {
+      const id = `tip-${tipId}`;
+      if (await this.event(id)) return this.editEvent(id, 'published', draft);
+      const { sourceUrl, ...fields } = draft;
+      const stamp = new Date().toISOString();
+      await this.saveEvent({
+        ...fields,
+        id,
+        publication: 'published',
+        sources: [],
+        firstSeenAt: stamp,
+        updatedAt: stamp,
+        manuallyEdited: true,
+      });
+      if (sourceUrl)
+        await this.database.query(
           'INSERT INTO evidence(source_id,external_id,event_id,url,last_seen) VALUES (?,?,?,?,?)',
-        )
-        .run('community', tipId, id, sourceUrl, stamp);
-    return this.event(id)!;
+          ['community', tipId, id, sourceUrl, stamp],
+        );
+      return (await this.event(id))!;
+    }, true);
   }
-  tips(): Tip[] {
-    return (this.db.prepare('SELECT payload FROM tips').all() as Row[])
-      .map((row) => decode<Tip>(row))
-      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
-  }
-  tip(id: string) {
-    return this.tips().find((tip) => tip.id === id);
-  }
-  saveTip(tip: Tip): Tip {
-    this.db
-      .prepare(
-        'INSERT INTO tips(id,payload) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',
-      )
-      .run(tip.id, JSON.stringify(tip));
-    return tip;
-  }
-  runs(): SourceRun[] {
-    return (
-      this.db.prepare('SELECT payload FROM runs ORDER BY rowid DESC LIMIT 100').all() as Row[]
-    ).map((row) => decode<SourceRun>(row));
-  }
-  saveRun(run: SourceRun) {
-    this.db
-      .prepare(
-        'INSERT INTO runs(id,payload) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',
-      )
-      .run(run.id, JSON.stringify(run));
-  }
-  sourceHealth(): SourceHealth[] {
-    const runs = this.runs();
-    return this.sources.map((source) => ({
-      ...source,
-      latestRun: runs.find((run) => run.sourceId === source.id) ?? null,
-      lastSuccessAt:
-        runs.find(
-          (run) =>
-            run.sourceId === source.id &&
-            (run.status === 'success' || (run.status === 'partial' && run.imported > 0)),
-        )?.finishedAt ?? null,
-      eventCount: Number(
-        this.db
-          .prepare('SELECT COUNT(DISTINCT event_id) AS n FROM evidence WHERE source_id=?')
-          .get(source.id)!.n,
-      ),
-    }));
-  }
-  cached<T>(key: string): T | null {
-    const row = this.db.prepare('SELECT payload FROM ai_cache WHERE key=?').get(key);
-    return row ? decode<T>(row as Row) : null;
-  }
-  cache(key: string, value: unknown) {
-    this.db
-      .prepare('INSERT OR REPLACE INTO ai_cache(key,payload) VALUES (?,?)')
-      .run(key, JSON.stringify(value));
-  }
-  aiSpent(now = new Date()): number {
-    return Number(
-      this.db
-        .prepare('SELECT COALESCE(SUM(amount),0) AS n FROM ai_charges WHERE month=?')
-        .get(now.toISOString().slice(0, 7))!.n,
+  async tips(): Promise<Tip[]> {
+    return this.operation(async () =>
+      (await this.database.query('SELECT payload FROM tips'))
+        .map((row) => decode<Tip>(row))
+        .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
     );
   }
-  reserveAi(ceiling: number, budget: number): string | null {
+  async tip(id: string) {
+    return (await this.tips()).find((tip) => tip.id === id);
+  }
+  async saveTip(tip: Tip): Promise<Tip> {
+    return this.operation(async () => {
+      const current = await this.tip(tip.id);
+      const saved = { ...tip, revision: (current?.revision ?? 0) + 1 };
+      await this.database.query(
+        'INSERT INTO tips(id,payload) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',
+        [tip.id, JSON.stringify(saved)],
+      );
+      return saved;
+    }, true);
+  }
+  async runs(): Promise<SourceRun[]> {
+    return this.operation(async () =>
+      (await this.database.query('SELECT payload FROM runs ORDER BY rowid DESC LIMIT 100')).map(
+        (row) => decode<SourceRun>(row),
+      ),
+    );
+  }
+  async saveRun(run: SourceRun) {
+    await this.operation(async () => {
+      await this.database.query(
+        'INSERT INTO runs(id,payload) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',
+        [run.id, JSON.stringify(run)],
+      );
+    }, true);
+  }
+  async sourceHealth(): Promise<SourceHealth[]> {
+    return this.operation(async () => {
+      const runs = await this.runs();
+      const counts = await this.database.query(
+        'SELECT source_id,COUNT(DISTINCT event_id) AS n FROM evidence GROUP BY source_id',
+      );
+      return this.sources.map((source) => ({
+        ...source,
+        latestRun: runs.find((run) => run.sourceId === source.id) ?? null,
+        lastSuccessAt:
+          runs.find(
+            (run) =>
+              run.sourceId === source.id &&
+              (run.status === 'success' || (run.status === 'partial' && run.imported > 0)),
+          )?.finishedAt ?? null,
+        eventCount: Number(counts.find((row) => row.source_id === source.id)?.n ?? 0),
+      }));
+    });
+  }
+  async cached<T>(key: string): Promise<T | null> {
+    return this.operation(async () => {
+      const [row] = await this.database.query('SELECT payload FROM ai_cache WHERE key=?', [key]);
+      return row ? decode<T>(row) : null;
+    });
+  }
+  async cache(key: string, value: unknown) {
+    await this.operation(async () => {
+      await this.database.query(
+        'INSERT INTO ai_cache(key,payload) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET payload=excluded.payload',
+        [key, JSON.stringify(value)],
+      );
+    }, true);
+  }
+  async aiSpent(now = new Date()): Promise<number> {
+    return this.operation(async () => {
+      const [row] = await this.database.query(
+        'SELECT COALESCE(SUM(amount),0) AS n FROM ai_charges WHERE month=?',
+        [now.toISOString().slice(0, 7)],
+      );
+      return Number(row.n);
+    });
+  }
+  async reserveAi(ceiling: number, budget: number): Promise<string | null> {
     if (!Number.isFinite(ceiling) || ceiling <= 0 || !Number.isFinite(budget) || budget <= 0)
       return null;
-    this.db.exec('BEGIN IMMEDIATE');
-    try {
-      if (this.aiSpent() + ceiling > budget) {
-        this.db.exec('ROLLBACK');
-        return null;
-      }
+    return this.operation(async () => {
+      if ((await this.aiSpent()) + ceiling > budget) return null;
       const id = randomUUID();
-      this.db
-        .prepare('INSERT INTO ai_charges(id,month,amount,state) VALUES (?,?,?,?)')
-        .run(id, new Date().toISOString().slice(0, 7), ceiling, 'reserved');
-      this.db.exec('COMMIT');
+      await this.database.query('INSERT INTO ai_charges(id,month,amount,state) VALUES (?,?,?,?)', [
+        id,
+        new Date().toISOString().slice(0, 7),
+        ceiling,
+        'reserved',
+      ]);
       return id;
-    } catch (error) {
-      this.db.exec('ROLLBACK');
-      throw error;
-    }
+    }, true);
   }
-  settleAi(id: string, actual: number | null) {
-    if (actual !== null && Number.isFinite(actual) && actual >= 0)
-      this.db
-        .prepare('UPDATE ai_charges SET amount=?,state=? WHERE id=?')
-        .run(actual, 'settled', id);
-    else this.db.prepare('UPDATE ai_charges SET state=? WHERE id=?').run('unknown', id);
+  async settleAi(id: string, actual: number | null) {
+    await this.operation(async () => {
+      if (actual !== null && Number.isFinite(actual) && actual >= 0)
+        await this.database.query('UPDATE ai_charges SET amount=?,state=? WHERE id=?', [
+          actual,
+          'settled',
+          id,
+        ]);
+      else await this.database.query('UPDATE ai_charges SET state=? WHERE id=?', ['unknown', id]);
+    }, true);
+  }
+
+  async acquireLease(name: string, ttlMs: number): Promise<string | null> {
+    if (!name || !Number.isFinite(ttlMs) || ttlMs <= 0)
+      throw new ValidationError('Neispravno trajanje ili naziv zaključavanja.');
+    return this.operation(async () => {
+      if (await this.isLeaseActive(name)) return null;
+      const token = randomUUID();
+      await this.database.query(
+        'INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+        [`lease:${name}`, JSON.stringify({ token, until: Date.now() + ttlMs })],
+      );
+      return token;
+    }, true);
+  }
+  async releaseLease(name: string, token: string): Promise<void> {
+    await this.operation(async () => {
+      const [row] = await this.database.query('SELECT value FROM settings WHERE key=?', [
+        `lease:${name}`,
+      ]);
+      if (row && JSON.parse(String(row.value)).token === token)
+        await this.database.query('DELETE FROM settings WHERE key=?', [`lease:${name}`]);
+    }, true);
+  }
+  async isLeaseActive(name: string): Promise<boolean> {
+    return this.operation(async () => {
+      const [row] = await this.database.query('SELECT value FROM settings WHERE key=?', [
+        `lease:${name}`,
+      ]);
+      return Boolean(row && JSON.parse(String(row.value)).until > Date.now());
+    });
+  }
+}
+
+export async function createRepository(
+  path: string,
+  sources: SourceDefinition[],
+  autoPublish = true,
+  databaseUrl?: string,
+): Promise<Repository> {
+  if (databaseUrl) return Repository.fromPostgres(databaseUrl, sources, autoPublish);
+  const repository = new Repository(path, sources, autoPublish);
+  try {
+    await repository.ready;
+    return repository;
+  } catch (error) {
+    await repository.close();
+    throw error;
   }
 }

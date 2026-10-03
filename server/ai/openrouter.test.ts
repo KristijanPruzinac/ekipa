@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { supportedDays, supportedTime } from './evidence.ts';
 import {
   extractEvents,
   prepareTip,
@@ -36,7 +37,7 @@ const candidate = {
   category: 'music',
   price: null,
   status: 'scheduled',
-  dateEvidence: '5. listopada 2026.',
+  dateEvidence: '5. listopada 2026., 20:00',
 };
 function accounting(available = true) {
   const reservations: number[] = [],
@@ -307,11 +308,24 @@ test('malformed event fields and absent nullable fields never coerce or acquire 
 });
 
 test('same title at two showtimes has distinct stable occurrence IDs and duplicate rows deduplicate', async () => {
-  const shows = [candidate, { ...candidate, startsAt: '2026-10-05T22:00:00+02:00' }, candidate];
+  const shows = [
+    candidate,
+    {
+      ...candidate,
+      startsAt: '2026-10-05T22:00:00+02:00',
+      dateEvidence: '5. listopada 2026., 22:00',
+    },
+    candidate,
+  ];
   const get = () =>
-    extractEvents(page, config, accounting().ledger, {
-      fetch: mock(() => response(extraction(shows))),
-    });
+    extractEvents(
+      { ...page, text: `${page.text} Druga izvedba: 5. listopada 2026., 22:00.` },
+      config,
+      accounting().ledger,
+      {
+        fetch: mock(() => response(extraction(shows))),
+      },
+    );
   const first = await get(),
     second = await get();
   assert.equal(first.events.length, 2);
@@ -422,10 +436,161 @@ test('single-occurrence identity survives time and venue corrections', async () 
   const first = await extractEvents(page, config, accounting().ledger, {
     fetch: mock(() => response(extraction())),
   });
-  const changed = await extractEvents(page, config, accounting().ledger, {
+  const changed = await extractEvents(
+    { ...page, text: page.text.replace('20:00', '21:00') },
+    config,
+    accounting().ledger,
+    {
+      fetch: mock(() =>
+        response(
+          extraction([
+            {
+              ...candidate,
+              startsAt: '2026-10-05T21:00:00+02:00',
+              venue: null,
+              dateEvidence: '5. listopada 2026., 21:00',
+            },
+          ]),
+        ),
+      ),
+    },
+  );
+  assert.equal(first.events[0]?.externalId, changed.events[0]?.externalId);
+});
+
+test('a real quote containing only a month and year cannot justify an invented day', async () => {
+  for (const quote of ['Advent u Osijeku, prosinac 2026.', 'HeadOnEast — listopad 2026.']) {
+    const result = await extractEvents({ ...page, text: quote }, config, accounting().ledger, {
+      fetch: mock(() =>
+        response(
+          extraction([
+            { ...candidate, startsAt: '2026-10-01T00:00:00+02:00', dateEvidence: quote },
+          ]),
+        ),
+      ),
+    });
+    assert.equal(result.events.length, 0);
+    assert.equal(result.rejectedCount, 1);
+  }
+});
+
+test('a supported calendar day with no source time remains date-only', async () => {
+  const quote = '26. studenog 2026.';
+  const result = await extractEvents({ ...page, text: quote }, config, accounting().ledger, {
     fetch: mock(() =>
-      response(extraction([{ ...candidate, startsAt: '2026-10-05T21:00:00+02:00', venue: null }])),
+      response(
+        extraction([{ ...candidate, startsAt: '2026-11-26T00:00:00+01:00', dateEvidence: quote }]),
+      ),
     ),
   });
-  assert.equal(first.events[0]?.externalId, changed.events[0]?.externalId);
+  assert.equal(result.events[0]?.startsAt, '2026-11-26');
+});
+
+test('exact ISO timestamp quotes retain their calendar day and clock time', async () => {
+  for (const startsAt of ['2026-10-05T20:00:00+02:00', '2026-11-26T09:30:00+01:00']) {
+    const quote = `Datum početka iz izvora: ${startsAt}`;
+    const result = await extractEvents({ ...page, text: quote }, config, accounting().ledger, {
+      fetch: mock(() => response(extraction([{ ...candidate, startsAt, dateEvidence: quote }]))),
+    });
+    assert.equal(result.events[0]?.startsAt, startsAt, quote);
+    assert.equal(result.rejectedCount, 0);
+  }
+});
+
+test('Croatian numeric dates followed immediately by slash-delimited times are supported', async () => {
+  for (const quote of ['Petak, 9.10.2026./20.00 sati/', '9/10/2026 / 20:00.']) {
+    const result = await extractEvents({ ...page, text: quote }, config, accounting().ledger, {
+      fetch: mock(() =>
+        response(
+          extraction([
+            {
+              ...candidate,
+              startsAt: '2026-10-09T20:00:00+02:00',
+              dateEvidence: quote,
+            },
+          ]),
+        ),
+      ),
+    });
+    assert.equal(result.events[0]?.startsAt, '2026-10-09T20:00:00+02:00', quote);
+  }
+});
+
+test('Croatian date ranges substantiate only their valid explicit endpoints', () => {
+  for (const [quote, expected] of [
+    ['26. i 27. studenog 2026.', ['2026-11-26', '2026-11-27']],
+    ['od 2. do 4. listopada 2026.', ['2026-10-02', '2026-10-04']],
+    ['7. i 8.10.2026.', ['2026-10-07', '2026-10-08']],
+    ['23.–25.10.2026.', ['2026-10-23', '2026-10-25']],
+    ['30.9.–2.10.2026.', ['2026-09-30', '2026-10-02']],
+    ['30. rujna – 2. listopada 2026.', ['2026-09-30', '2026-10-02']],
+    ['5. ožujka 2026.', ['2026-03-05']],
+    ['29. veljače 2028.', ['2028-02-29']],
+    ['29.–30. veljače 2026.', []],
+    ['listopad 2026.', []],
+    ['5. listopada; godina nije navedena', []],
+  ] as Array<[string, string[]]>) {
+    assert.deepEqual([...supportedDays(quote)].sort(), expected, quote);
+  }
+});
+
+test('range endpoints keep their days and drop invented midnight or end-of-day times', async () => {
+  const quote = 'Green Matrix Summit: 26. i 27. studenog 2026.';
+  const result = await extractEvents({ ...page, text: quote }, config, accounting().ledger, {
+    fetch: mock(() =>
+      response(
+        extraction([
+          {
+            ...candidate,
+            startsAt: '2026-11-26T00:00:00+01:00',
+            endsAt: '2026-11-27T23:59:59+01:00',
+            dateEvidence: quote,
+          },
+        ]),
+      ),
+    ),
+  });
+  assert.equal(result.events[0]?.startsAt, '2026-11-26');
+  assert.equal(result.events[0]?.endsAt, '2026-11-27');
+});
+
+test('calendar components, timestamp seconds and offsets never establish an event time', () => {
+  for (const [value, quote] of [
+    ['2026-10-05T00:00:00+02:00', '2026-10-05T20:00:00+02:00'],
+    ['2026-10-05T02:00:00+02:00', '2026-10-05T20:00:00+02:00'],
+    ['2026-10-20T20:10:00+02:00', '20.10.2026.'],
+    ['2026-10-20T20:10:00+02:00', '20.10. 2026.'],
+  ]) {
+    assert.equal(supportedTime(value, quote), value.slice(0, 10), quote);
+  }
+  assert.equal(
+    supportedTime('2026-10-05T09:00:00+02:00', '5.10.2026., od 9 do 14 sati'),
+    '2026-10-05T09:00:00+02:00',
+  );
+  assert.equal(
+    supportedTime('2026-10-05T20:10:00+02:00', '5.10.2026./20.10 sati/'),
+    '2026-10-05T20:10:00+02:00',
+  );
+  assert.equal(
+    supportedTime('2026-10-05T20:00:00+02:00', '5.10.2026., 18:00-20:00'),
+    '2026-10-05T20:00:00+02:00',
+  );
+  assert.equal(
+    supportedTime('2026-10-05T20:00:59+02:00', '5.10.2026., 20:00'),
+    '2026-10-05T20:00:00+02:00',
+  );
+});
+
+test('ISO support still requires an exact source quote and an explicit year', async () => {
+  for (const [text, dateEvidence] of [
+    ['2026-10-05T20:00:00+02:00', '2026-10-05T21:00:00+02:00'],
+    ['5. listopada, 20:00', '5. listopada, 20:00'],
+    ['listopad 2026., 20:00', 'listopad 2026., 20:00'],
+  ]) {
+    const result = await extractEvents({ ...page, text }, config, accounting().ledger, {
+      fetch: mock(() => response(extraction([{ ...candidate, dateEvidence }]))),
+    });
+    assert.equal(result.events.length, 0);
+    assert.equal(result.rejectedCount, 1);
+  }
 });

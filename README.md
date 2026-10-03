@@ -2,11 +2,13 @@
 
 A movement, starting with a simple way to find upcoming events in Osijek.
 
+Live pilot: <https://wagz.vercel.app>. Owner inbox: <https://wagz.vercel.app/admin>.
+
 This v1 collects public event sources, keeps their evidence links, merges exact duplicates, and gives the owner an inbox for community tips and incomplete imports. Matching and dating are deferred.
 
 ## Run locally
 
-Requires Node.js 24 or newer.
+Requires Node.js 24.
 
 ```powershell
 npm ci
@@ -29,11 +31,15 @@ npm start
 
 `npm run test:browser` checks the public-to-inbox-to-publication flow and mobile layout in an isolated database copy. It uses an installed Chrome on Windows, or Playwright Chromium (`npx playwright install chromium`). Run the build first. Screenshots go under `.artifacts/`; test submissions never enter the app database.
 
-`npm run collect` performs a collection run from the terminal. Use it while the app is stopped; the v1 server is intended to run as a **single process** with a local persistent SQLite database. The app otherwise collects on startup and every six hours while running. It is not yet hosted; closing the process stops its schedule.
+`npm run test:discovery` checks audience preferences, recommendations, source explanations and narrow-screen layouts with isolated fixtures.
+
+`npm run collect` performs a collection run from the terminal. Local development uses SQLite; the hosted API and scheduled collector share Neon Postgres through `DATABASE_URL`. The local server collects on startup and every six hours while running. Hosted collection runs through GitHub Actions every six hours, with manual refresh available in the admin screen.
 
 ## What v1 does
 
-- Public event list with date/category/search filters, details and source links.
+- Public event list with date/category/search/free-entry filters, details and source links.
+- Optional audience and interest preferences stay on the device. Source-backed festival highlights and audience matches explain why an event is featured. Chronological order remains the default; personal sorting is optional and never hides other events.
+- A Flutter Android/iOS client uses the same public API. See [mobile setup and Android builds](apps/mobile/README.md).
 - Dates follow `Europe/Zagreb`. Missing times and prices remain unknown.
 - Source-backed imports with a title, valid date and venue can publish automatically. Incomplete imports can publish when their missing facts arrive. An operator's decision to hold or reject an event always survives re-fetching; drafts collected with the toggle off stay held.
 - Repeated collection updates existing source records. Exact cross-source matches share an event; different performances remain separate. Human edits and publication decisions survive refetching.
@@ -41,11 +47,13 @@ npm start
 - Tips are durable before processing. Obvious spam is archived, with restore available. Uncertain tips remain in the inbox. Source lookup and optional OpenRouter help prepare drafts. An operator approves publication.
 - AI output is untrusted input. Invalid dates or fields are rejected, missing evidence stays unverified, and no AI tip publishes itself.
 
-## Local data and deployment boundary
+## Data and hosting
 
 `data/` contains the SQLite database, fetching cache and AI usage accounting. It is intentionally excluded from Git. Back it up separately before moving machines. Do not delete it to restart the app: doing so loses saved events, tips and local usage accounting.
 
-This is a local pilot with a shared admin key, no user accounts, and a simple per-process tip limit. Before public hosting, supply HTTPS, durable storage, a scheduled always-on process, proper operator sign-in, and a deployment-specific abuse limit. Nothing has been deployed or connected to the old Supabase database.
+The deployment uses Vercel Hobby and a fresh Neon Free database, with collection scheduled through GitHub Actions. Events, tips, settings and AI accounting persist in Postgres; collection leases and AI reservations coordinate multiple instances. The old Supabase database is not connected. See [deployment configuration](docs/DEPLOYMENT.md).
+
+This pilot uses a shared administrator key and has no user accounts. Public tips have basic spam screening and request limits. The hosting setup does not include paid plans; review the providers' limits before expanding beyond the pilot.
 
 ## Project history
 

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { load } from 'cheerio';
 import type { Category, EventCandidate, FetchResult } from '../../shared/types.ts';
 import { localDay, normalize } from '../validation.ts';
+import { inferDiscovery } from '../discovery.ts';
 import { trustedSourceUrl } from './reader.ts';
 
 export const TZ_URL = 'https://www.tzosijek.hr/stranica.php?id=1485';
@@ -80,7 +81,8 @@ export function zagrebTime(day: string, time?: string): string {
 export function categoryFor(text: string): Category {
   const value = normalize(text);
   if (/\b(predstava|kazalist|komedij|teatar)/.test(value)) return 'theatre';
-  if (/\b(sport|utrka|maraton|atletik|nogomet|gimnastik|natjecanje)/.test(value)) return 'sport';
+  if (/\b(sport|utrka|maraton|atletik|nogomet|gimnastik|natjecanje|bicikl|rekreacij)/.test(value))
+    return 'sport';
   if (/\b(koncert|glazb|orkest|jazz|pjev|tambur|vibrafon)/.test(value)) return 'music';
   if (/\b(party|night|dj)\b/.test(value)) return 'nightlife';
   if (/\b(izlozb|umjet|kultur|knjig|film|muzej|festival)/.test(value)) return 'culture';
@@ -88,7 +90,7 @@ export function categoryFor(text: string): Category {
   return 'other';
 }
 
-function synopsis(event: EventCandidate): string {
+export function synopsis(event: EventCandidate): string {
   const labels: Record<Category, string> = {
     music: 'Glazbeni događaj',
     nightlife: 'Noćni program',
@@ -108,7 +110,7 @@ function synopsis(event: EventCandidate): string {
     .join(' ');
 }
 
-function candidate(
+export function candidate(
   sourceId: string,
   sourceUrl: string,
   externalId: string,
@@ -131,6 +133,7 @@ function candidate(
     category: categoryFor(`${title} ${sourceText}`),
     price: null,
     status: 'scheduled',
+    discovery: inferDiscovery(title, sourceText, sourceUrl),
   };
   event.description = synopsis(event);
   return event;
@@ -159,7 +162,6 @@ export function parseTourismCalendar(html: string, now = new Date()): ParsedCale
       /(SIJEČANJ|VELJAČA|OŽUJAK|TRAVANJ|SVIBANJ|LIPANJ|SRPANJ|KOLOVOZ|RUJAN|LISTOPAD|STUDENI|PROSINAC)\s+(20\d{2})/i,
     );
   let year = firstHeading ? Number(firstHeading[2]) : undefined;
-  let month = firstHeading?.[1] ?? '';
   container.find('p').each((_index, element) => {
     const paragraph = $(element);
     const text = clean(paragraph.text());
@@ -168,7 +170,6 @@ export function parseTourismCalendar(html: string, now = new Date()): ParsedCale
       /^(SIJEČANJ|VELJAČA|OŽUJAK|TRAVANJ|SVIBANJ|LIPANJ|SRPANJ|KOLOVOZ|RUJAN|LISTOPAD|STUDENI|PROSINAC)\s+(20\d{2})\.?$/i,
     );
     if (heading) {
-      month = heading[1];
       year = Number(heading[2]);
       return;
     }
@@ -199,11 +200,8 @@ export function parseTourismCalendar(html: string, now = new Date()): ParsedCale
       result.warnings.push(
         `TZ: nije naveden precizan datum za „${title}” (${dateText || 'bez datuma'}).`,
       );
-      addExtraction(
-        result,
-        TZ_URL,
-        `Kalendar Turističke zajednice Osijeka. Mjesec iz zaglavlja: ${month || 'nije naveden'}. Godina izvora: ${year ?? 'nije navedena'}.\nOznaka datuma iz izvora: ${dateText || 'nije navedena'}.\n${text}`,
-      );
+      // This page supplies no exact date and extraction cannot search other sources.
+      // Sending a month-only entry to AI cannot legitimately resolve its missing day.
       return;
     }
     if ((dates.end ?? dates.start) < localDay(now)) {
@@ -354,6 +352,7 @@ export function parseKcDetail(
     event.status = 'postponed';
   event.description = synopsis(event);
   const evidence = `Naslov: ${title}\nDatum početka iz izvora: ${startsAt.slice(0, 10)}\nVrijeme iz izvora (Europe/Zagreb): ${detailTime || entry.dateText.match(/@\s*(\d{1,2}[:.]\d{2})/)?.[1] || 'nije navedeno'}\nDatum završetka iz popisa: ${endsAt ?? 'nije zasebno naveden'}\n\n${body}`;
+  event.discovery = inferDiscovery(title, body, entry.url, event.price);
   // Structured date + known explicit venue are usable without AI. The model reads
   // prose when fields are unresolved; it never supplies invented source facts.
   const extraction =

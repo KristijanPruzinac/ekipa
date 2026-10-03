@@ -7,6 +7,8 @@ const HOSTS = new Set([
   'tzosijek.hr',
   'kulturni-centar.hr',
   'www.kulturni-centar.hr',
+  'visitslavoniabaranja.com',
+  'www.visitslavoniabaranja.com',
 ]);
 const MAX_BYTES = 2 * 1024 * 1024;
 const CACHE_MS = 6 * 60 * 60 * 1000;
@@ -32,6 +34,20 @@ export interface ReaderOptions {
   force?: boolean;
   cacheDir?: string;
   fetch?: typeof fetch;
+  /** Absolute UTC deadline; shared by every page in a bounded collection. */
+  deadlineMs?: number;
+}
+export class SourceDeadlineError extends Error {
+  constructor() {
+    super('Dosegnuto je vremensko ograničenje dohvata; već dohvaćeni događaji ostaju sačuvani.');
+    this.name = 'SourceDeadlineError';
+  }
+}
+
+export function checkSourceDeadline(options: ReaderOptions): number {
+  const remaining = (options.deadlineMs ?? Infinity) - Date.now();
+  if (remaining <= 0) throw new SourceDeadlineError();
+  return remaining;
 }
 export interface ReaderPage {
   html: string;
@@ -71,6 +87,7 @@ export async function readSourcePage(
   options: ReaderOptions = {},
 ): Promise<ReaderPage> {
   const url = trustedSourceUrl(raw);
+  checkSourceDeadline(options);
   const directory = options.cacheDir ?? process.env.WAGZ_FETCH_CACHE_DIR ?? 'data/source-cache';
   const path = join(directory, `${createHash('sha256').update(url).digest('hex')}.json`);
   if (!options.force) {
@@ -100,7 +117,9 @@ export async function readSourcePage(
     .catch(() => {})
     .then(async () => {
       const delay = Math.max(0, nextRequest - Date.now());
+      if (delay >= checkSourceDeadline(options)) throw new SourceDeadlineError();
       if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+      const timeoutMs = Math.max(1, Math.floor(Math.min(55000, checkSourceDeadline(options))));
       nextRequest = Date.now() + 3100;
       const headers: Record<string, string> = {
         'x-respond-with': 'html',
@@ -110,11 +129,17 @@ export async function readSourcePage(
         accept: 'text/plain',
       };
       if (process.env.JINA_API_KEY) headers.authorization = `Bearer ${process.env.JINA_API_KEY}`;
-      const response = await (options.fetch ?? fetch)(`https://r.jina.ai/${url}`, {
-        headers,
-        redirect: 'error',
-        signal: AbortSignal.timeout(55000),
-      });
+      let response: Response;
+      try {
+        response = await (options.fetch ?? fetch)(`https://r.jina.ai/${url}`, {
+          headers,
+          redirect: 'error',
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      } catch (error) {
+        checkSourceDeadline(options);
+        throw error;
+      }
       if (!response.ok) {
         await response.body?.cancel();
         throw new Error(

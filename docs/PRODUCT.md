@@ -6,7 +6,11 @@ Decided with the owner on 2026-10-03.
 
 WagZ means **We Are Gen Z**. The wider ambition is a movement; the first practical release helps people find upcoming public events in Osijek. Matching is deferred and recoverable from the Ekipa Git milestone.
 
-The first interface is a mobile-friendly web app, in Croatian, with a public feed, event details and a **Predloži događaj** form. No account is required to browse or submit a tip. The owner has a separate protected inbox and source-status screen.
+WagZ has a Croatian web interface and a native Flutter mobile client sharing the same events API, details and tip submissions. No account is required to browse or submit a tip. The owner has a separate protected web inbox and source-status screen.
+
+## Personal discovery
+
+People can optionally select an audience (everyone, students/young adults, adults, older adults) and topic interests. The choice stays on their device and never hides events. Chronological ordering is the default; “Za tebe” orders by explainable source audience evidence, chosen interests and event-format cues. Subtle card colors and text labels explain recommendations. Age alone does not imply a genre or a budget. Free-entry filtering requires a confirmed free price.
 
 ## Collection
 
@@ -26,7 +30,8 @@ Accept a short note and optional URL. Save before attempting enrichment. Archive
 - AI provider: OpenRouter; default economical model is configurable.
 - Monthly AI budget: **$1**. Reserve estimated costs before calls; retain reserves when the provider fails to report actual cost. Cache successful unchanged inputs. Configure the same cap on the provider key for authoritative billing protection.
 - Avoid repeated web searches for regular sources. Search is an optional bounded aid for unmatched tips.
-- No paid subscription, account purchase, deployment or remote database reset is authorised by implementing this local v1.
+- Hosting uses Vercel and a new Neon Free database. The owner authorized deployment on free tiers; paid upgrades and changes to the old Ekipa database are outside this release.
+- Scheduled collection runs through GitHub Actions every six hours. Mobile and web share hosted data and the persistent AI ledger.
 
 ## Acceptance checks
 

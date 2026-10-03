@@ -1,4 +1,5 @@
 import { categories, type EventCandidate, type EventDraft } from '../shared/types.ts';
+import { inferDiscovery, isFree, validateDiscovery } from './discovery.ts';
 
 export class ValidationError extends Error {}
 export const TIMEZONE = 'Europe/Zagreb';
@@ -177,6 +178,11 @@ export function validateCandidate(input: EventCandidate): EventCandidate {
     sourceUrl: draft.sourceUrl,
     sourceId: text(input.sourceId, 100, true)!,
     externalId: text(input.externalId, 2048, true)!,
+    discovery: {
+      ...(validateDiscovery(input.discovery, draft.sourceUrl) ??
+        inferDiscovery(draft.title, draft.description, draft.sourceUrl, draft.price)),
+      free: isFree(draft.price),
+    },
   };
 }
 

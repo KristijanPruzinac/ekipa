@@ -1,6 +1,8 @@
 import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
+import { recommendationFor, type DiscoveryProfile } from '../shared/discovery';
 import { categories, type Category, type PublicFeed, type WagzEvent } from '../shared/types';
 import { Admin } from './Admin';
+import { Preferences, readPreferences, savePreferences } from './Preferences';
 import {
   api,
   categoryNames,
@@ -31,9 +33,18 @@ function PublicApp() {
     [loading, setLoading] = useState(true);
   const [date, setDate] = useState<DateFilter>('all'),
     [category, setCategory] = useState<Category | 'all'>('all'),
-    [query, setQuery] = useState('');
+    [query, setQuery] = useState(''),
+    [freeOnly, setFreeOnly] = useState(false),
+    [sort, setSort] = useState<'date' | 'personal'>('date');
+  const [preferences, setPreferences] = useState<DiscoveryProfile>(readPreferences);
   const [selected, setSelected] = useState<WagzEvent | null>(null),
     [tipOpen, setTipOpen] = useState(false);
+  const personalized = preferences.audience !== 'all' || preferences.interests.length > 0;
+  function changePreferences(value: DiscoveryProfile) {
+    setPreferences(value);
+    savePreferences(value);
+    if (value.audience === 'all' && value.interests.length === 0) setSort('date');
+  }
   async function refresh() {
     setLoading(true);
     setError('');
@@ -50,21 +61,42 @@ function PublicApp() {
   }, []);
   const events = useMemo(
     () =>
-      (feed?.events ?? []).filter(
-        (event) =>
-          (category === 'all' || event.category === category) &&
-          inDateFilter(event, date, feed!.meta.now) &&
-          normalize(`${event.title} ${event.venue ?? ''} ${event.description}`).includes(
-            normalize(query.trim()),
-          ),
-      ),
-    [feed, category, date, query],
+      (feed?.events ?? [])
+        .filter(
+          (event) =>
+            (category === 'all' || event.category === category) &&
+            (!freeOnly || event.discovery?.free === true) &&
+            inDateFilter(event, date, feed!.meta.now) &&
+            normalize(`${event.title} ${event.venue ?? ''} ${event.description}`).includes(
+              normalize(query.trim()),
+            ),
+        )
+        .map((event, index) => ({
+          event,
+          index,
+          recommendation: recommendationFor(event, preferences),
+        }))
+        .sort((a, b) =>
+          sort === 'personal'
+            ? b.recommendation.score - a.recommendation.score || a.index - b.index
+            : a.index - b.index,
+        ),
+    [feed, category, date, query, freeOnly, preferences, sort],
   );
-  const filtered = date !== 'all' || category !== 'all' || query.length > 0;
+  const filtered = date !== 'all' || category !== 'all' || query.trim().length > 0 || freeOnly;
+  const noAudienceEvidence =
+    preferences.audience !== 'all' &&
+    feed &&
+    !feed.events.some(
+      (event) =>
+        event.status === 'scheduled' &&
+        event.discovery?.audienceEvidence.some((item) => item.audience === preferences.audience),
+    );
   const clear = () => {
     setDate('all');
     setCategory('all');
     setQuery('');
+    setFreeOnly(false);
   };
   return (
     <>
@@ -125,6 +157,7 @@ function PublicApp() {
             </div>
             <p className="section-note">DOBRI PLANOVI POČINJU OVDJE.</p>
           </div>
+          <Preferences value={preferences} onChange={changePreferences} />
           <div className="filter-top">
             <div className="date-filters" role="group" aria-label="Razdoblje">
               {dateTabs.map((tab) => (
@@ -172,6 +205,37 @@ function PublicApp() {
               </button>
             ))}
           </div>
+          <div className="filter-bottom">
+            <div className="extra-filters">
+              <button
+                className={`free-filter ${freeOnly ? 'active' : ''}`}
+                aria-pressed={freeOnly}
+                onClick={() => setFreeOnly(!freeOnly)}
+              >
+                <span className="free-filter-mark" aria-hidden="true">
+                  {freeOnly ? '✓' : ''}
+                </span>
+                Besplatan ulaz
+              </button>
+              {filtered && (
+                <button className="text-button filter-reset" onClick={clear}>
+                  Očisti filtre
+                </button>
+              )}
+            </div>
+            <label className="sort-select">
+              Redoslijed
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value as 'date' | 'personal')}
+              >
+                <option value="date">Po datumu</option>
+                <option value="personal" disabled={!personalized}>
+                  Za tebe
+                </option>
+              </select>
+            </label>
+          </div>
           {loading ? (
             <div className="feed-loading">
               <Spinner label="Tražimo tvoj sljedeći plan…" />
@@ -189,19 +253,33 @@ function PublicApp() {
             </div>
           ) : events.length ? (
             <>
+              {noAudienceEvidence && (
+                <p className="discovery-feedback" role="status">
+                  Za odabranu publiku zasad nema posebno označenih programa u našim najavama.
+                  Odaberi i interese za osobne prijedloge; svi događaji ostaju dostupni.
+                </p>
+              )}
               <div className="results-line" aria-live="polite">
                 <span>
                   {events.length} {events.length === 1 ? 'događaj' : 'događaja'}{' '}
                   {filtered ? 'za tvoj odabir' : 'na tvom radaru'}
                 </span>
-                <span>PO DATUMU ↗</span>
+                <span>{sort === 'date' ? 'NAJBLIŽI DATUMI PRVO' : 'PREMA TVOM ODABIRU'}</span>
               </div>
+              <p className="discovery-note">
+                {personalized && (
+                  <span className="personal-legend">Zeleno: prema tvom odabiru</span>
+                )}
+                <span>Topla nijansa: festivali i gradska događanja</span>
+                Razlog oznake vidi u detaljima.
+              </p>
               <div className="event-grid">
-                {events.map((event, index) => (
+                {events.map(({ event, recommendation }, index) => (
                   <EventCard
                     key={event.id}
                     event={event}
                     index={index}
+                    recommendation={recommendation}
                     onSelect={() => setSelected(event)}
                   />
                 ))}
@@ -214,7 +292,9 @@ function PublicApp() {
               <h3>{filtered ? 'Ovdje je zasad mirno.' : 'Novi planovi su na putu.'}</h3>
               <p>
                 {filtered
-                  ? 'Za ovaj odabir još nema događaja. Pogledaj druge datume ili kategorije.'
+                  ? freeOnly
+                    ? 'Za ovaj odabir nemamo najava s potvrđenim besplatnim ulazom. U drugim najavama cijena možda još nije navedena.'
+                    : 'Za ovaj odabir još nema događaja. Pogledaj druge datume ili kategorije.'
                   : 'Trenutno nema najavljenih događaja u našem pregledu. Znaš što se sprema u Osijeku? Podijeli s ekipom.'}
               </p>
               <button
@@ -264,7 +344,9 @@ function PublicApp() {
           </a>
         </div>
       </footer>
-      {selected && <EventDetail event={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <EventDetail event={selected} preferences={preferences} onClose={() => setSelected(null)} />
+      )}
       {tipOpen && <TipDialog onClose={() => setTipOpen(false)} />}
     </>
   );
@@ -273,14 +355,19 @@ function PublicApp() {
 function EventCard({
   event,
   index,
+  recommendation,
   onSelect,
 }: {
   event: WagzEvent;
   index: number;
+  recommendation: ReturnType<typeof recommendationFor>;
   onSelect: () => void;
 }) {
+  const prominence = event.status === 'scheduled' ? event.discovery?.prominence : null;
   return (
-    <article className={`event-card category-${event.category}`}>
+    <article
+      className={`event-card ${prominence ? 'card-prominent' : ''} ${recommendation.personal ? 'card-personal' : ''} ${event.status !== 'scheduled' ? 'card-inactive' : ''}`}
+    >
       <button
         className="event-card-button"
         onClick={onSelect}
@@ -297,6 +384,17 @@ function EventCard({
             </span>
           )}
           <h3>{event.title}</h3>
+          {(recommendation.personal || prominence) && (
+            <div className="card-reasons">
+              {recommendation.personal && (
+                <span className="card-reason card-reason-personal">✓ Za tebe</span>
+              )}
+              {prominence && <span className="card-reason">{prominence.label}</span>}
+            </div>
+          )}
+          {recommendation.personal && (
+            <p className="card-personal-reason">{recommendation.reasons[0]}</p>
+          )}
         </div>
         <div className="card-bottom">
           <div className="card-date">
@@ -327,8 +425,19 @@ function EventCard({
   );
 }
 
-function EventDetail({ event, onClose }: { event: WagzEvent; onClose: () => void }) {
+function EventDetail({
+  event,
+  preferences,
+  onClose,
+}: {
+  event: WagzEvent;
+  preferences: DiscoveryProfile;
+  onClose: () => void;
+}) {
   const sources = event.sources.filter((source) => safeLink(source.url));
+  const recommendation = recommendationFor(event, preferences);
+  const discovery = event.discovery;
+  const audienceLabels = { students: 'Studenti i mladi', adults: 'Odrasli', seniors: 'Stariji' };
   return (
     <Modal
       title={event.title}
@@ -375,6 +484,50 @@ function EventDetail({ event, onClose }: { event: WagzEvent; onClose: () => void
         </div>
       </dl>
       {event.description && <div className="event-description">{event.description}</div>}
+      {Boolean(
+        recommendation.personal || discovery?.prominence || discovery?.audienceEvidence.length,
+      ) && (
+        <section className="detail-discovery" aria-label="Razlozi oznaka">
+          <h3>Dobro je znati</h3>
+          <ul>
+            {preferences.interests.includes(event.category) && recommendation.personal && (
+              <li>
+                <strong>Prema tvom odabiru</strong>Odabrao/la si interes:{' '}
+                {categoryNames[event.category]}.
+              </li>
+            )}
+            {discovery?.audienceEvidence.map((evidence) => (
+              <li key={`${evidence.audience}-${evidence.sourceUrl}`}>
+                <strong>{audienceLabels[evidence.audience]}</strong>
+                <p>{evidence.reason}</p>
+                {safeLink(evidence.sourceUrl) && (
+                  <a href={safeLink(evidence.sourceUrl)!} target="_blank" rel="noopener noreferrer">
+                    Provjeri u najavi <Arrow diagonal />
+                  </a>
+                )}
+              </li>
+            ))}
+            {discovery?.prominence && (
+              <li>
+                <strong>{discovery.prominence.label}</strong>
+                <p>{discovery.prominence.reason}</p>
+                {safeLink(discovery.prominence.sourceUrl) && (
+                  <a
+                    href={safeLink(discovery.prominence.sourceUrl)!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Provjeri u najavi <Arrow diagonal />
+                  </a>
+                )}
+              </li>
+            )}
+          </ul>
+          {discovery?.prominence && (
+            <p>Oznaka opisuje vrstu programa iz najave, a ne broj posjetitelja.</p>
+          )}
+        </section>
+      )}
       <div className="detail-sources">
         <p className="eyebrow">IZVOR I DETALJI</p>
         {sources.length ? (
