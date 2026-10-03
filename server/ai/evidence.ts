@@ -16,6 +16,21 @@ const monthNames = months.join('|');
 const monthNumber = (name: string) =>
   months.findIndex((names) => names.split('|').includes(name)) + 1;
 
+/** Compare the visible text of one source excerpt without changing its facts. */
+export function normalizedEvidence(value: string): string {
+  return value
+    .normalize('NFC')
+    .replace(/\\([\\`*{}\[\]()#+\-.!_>])/g, '$1')
+    .replace(/\*\*([^]*?)\*\*/g, '$1')
+    .replace(/__([^]*?)__/g, '$1')
+    .replace(/(?<!\w)\*([^*\n]+)\*(?!\w)/g, '$1')
+    .replace(/(?<!\w)_([^_\n]+)_(?!\w)/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/\[([^\]\n]+)\]\(https?:\/\/[^\s)]+(?:\s+["'][^"'\n]*["'])?\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** Only explicit calendar days count. A month/year cannot justify its first day. */
 export function supportedDays(quote: string): Set<string> {
   const days = new Set<string>();

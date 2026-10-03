@@ -463,6 +463,90 @@ test('a draft without a submitted URL links to its exact date-evidence citation'
   }
 });
 
+test('real Markdown search excerpt supports its visible contiguous quote without inventing dates or time', async () => {
+  const quote =
+    '12. Studentska roštiljada održat će se u četvrtak, 28. svibnja 2026. na već poznatoj lokaciji – prostoru sveučilišnog kampusa.';
+  const excerpt =
+    '**12\\. Studentska roštiljada** održat će se u **četvrtak, 28. svibnja 2026.** na već poznatoj lokaciji – prostoru sveučilišnog kampusa.';
+  const citation =
+    'https://www.osijek031.com/dogadaj/12-studentska-rostiljada-ulazi-u-novu-eru-prvi-studentski-food-fun-festival-u-hrvatskoj/';
+  const proposed = {
+    ...candidate,
+    title: '12. Studentska roštiljada',
+    startsAt: '2026-05-28T00:00:00+02:00',
+    dateEvidence: quote,
+  };
+  let calls = 0;
+  const result = await prepareTip(
+    { ...input, note: '12. Studentska roštiljada u Osijeku' },
+    { ...config, searchEnabled: true },
+    accounting().ledger,
+    {
+      fetch: mock((_, init) => {
+        calls++;
+        if (calls === 1)
+          return response('Lookup prose is not evidence.', 0.005, [
+            { type: 'url_citation', url_citation: { url: citation, content: excerpt } },
+          ]);
+        const supplied = JSON.parse(JSON.parse(String(init?.body)).messages[1].content);
+        assert.equal(supplied.searchEvidence.excerpts[0], quote);
+        return response(tip(proposed), 0.0002);
+      }),
+    },
+  );
+  assert.equal(result.complete, true);
+  assert.equal(result.draft?.startsAt, '2026-05-28');
+  assert.equal(result.draft?.sourceUrl, citation);
+  assert.match(result.reason, /već završio/);
+  const linked = excerpt.replace(
+    '**četvrtak, 28. svibnja 2026.**',
+    '[**četvrtak, 28. svibnja 2026.**](https://example.test/announcement)',
+  );
+  const linkedResult = await prepareTip(
+    { ...input, note: '12. Studentska roštiljada u Osijeku' },
+    config,
+    accounting().ledger,
+    {
+      fetch: mock(() =>
+        response(tip(proposed), 0.0001, [
+          { type: 'url_citation', url_citation: { url: citation, content: linked } },
+        ]),
+      ),
+    },
+  );
+  assert.equal(linkedResult.complete, true);
+  assert.equal(linkedResult.draft?.startsAt, '2026-05-28');
+  for (const excerpts of [
+    [excerpt.replace('28.', '29.')],
+    [excerpt.replace('28. svibnja 2026.', '[28. svibnja](https://example.test/2026)')],
+    [
+      '**12\\. Studentska roštiljada** održat će se u',
+      '**četvrtak, 28. svibnja 2026.** na već poznatoj lokaciji – prostoru sveučilišnog kampusa.',
+    ],
+  ]) {
+    const failed = await prepareTip(
+      { ...input, note: '12. Studentska roštiljada u Osijeku' },
+      config,
+      accounting().ledger,
+      {
+        fetch: mock(() =>
+          response(
+            tip(proposed),
+            0.0001,
+            excerpts.map((content) => ({
+              type: 'url_citation',
+              url_citation: { url: citation, content },
+            })),
+          ),
+        ),
+      },
+    );
+    assert.equal(failed.complete, false);
+    assert.equal(failed.draft, null);
+    assert.match(failed.reason, /citat ne odgovara/);
+  }
+});
+
 test('lookup without citations still classifies the original note and never accepts dates from lookup prose', async () => {
   for (const classification of ['spam', 'uncertain']) {
     let calls = 0;
