@@ -134,25 +134,40 @@ export function categoryFor(text: string, title = text): Category {
   return 'other';
 }
 
+const synopsisLabels: Record<Category, string> = {
+  music: 'Glazbeni događaj',
+  nightlife: 'Noćni program',
+  dance: 'Plesni događaj',
+  workshop: 'Radionica',
+  theatre: 'Kazališna predstava',
+  film: 'Filmska projekcija',
+  literature: 'Književni događaj',
+  culture: 'Kulturni događaj',
+  sport: 'Sportski događaj',
+  community: 'Događaj zajednice',
+  other: 'Događaj u Osijeku',
+};
+const synopsisBoilerplate = 'Program i ostali detalji dostupni su u službenoj najavi.';
+
+/** Removes every sentence that synopsis() templates, leaving only source-derived text. */
+export function stripSynopsis(description: string): string {
+  let text = description;
+  for (const label of Object.values(synopsisLabels)) text = text.split(`${label}.`).join(' ');
+  return text
+    .split(synopsisBoilerplate)
+    .join(' ')
+    .replace(/Mjesto održavanja: [^.]*\./g, ' ')
+    .replace(/Ulaz je besplatan\./g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function synopsis(event: EventCandidate): string {
-  const labels: Record<Category, string> = {
-    music: 'Glazbeni događaj',
-    nightlife: 'Noćni program',
-    dance: 'Plesni događaj',
-    workshop: 'Radionica',
-    theatre: 'Kazališna predstava',
-    film: 'Filmska projekcija',
-    literature: 'Književni događaj',
-    culture: 'Kulturni događaj',
-    sport: 'Sportski događaj',
-    community: 'Događaj zajednice',
-    other: 'Događaj u Osijeku',
-  };
   return [
-    `${labels[event.category]}.`,
+    `${synopsisLabels[event.category]}.`,
     event.venue ? `Mjesto održavanja: ${event.venue}.` : '',
     event.price === 'Besplatno' ? 'Ulaz je besplatan.' : '',
-    'Program i ostali detalji dostupni su u službenoj najavi.',
+    synopsisBoilerplate,
   ]
     .filter(Boolean)
     .join(' ');
@@ -184,6 +199,7 @@ export function candidate(
     discovery: inferDiscovery(title, sourceText, sourceUrl),
   };
   event.description = synopsis(event);
+  event.classificationText = sourceText;
   return event;
 }
 
@@ -440,6 +456,7 @@ export function parseKcDetail(
   else if (/\bodgođeno\b|\bdogađaj\s+je\s+odgođen\b/i.test(`${title} ${body}`))
     event.status = 'postponed';
   event.description = synopsis(event);
+  event.classificationText = body;
   const evidence = `Naslov: ${title}\nDatum početka iz izvora: ${startsAt.slice(0, 10)}\nVrijeme iz izvora (Europe/Zagreb): ${detailTime || entry.dateText.match(/@\s*(\d{1,2}[:.]\d{2})/)?.[1] || 'nije navedeno'}\nDatum završetka iz popisa: ${endsAt ?? 'nije zasebno naveden'}\n\n${body}`;
   event.discovery = inferDiscovery(title, body, entry.url, event.price);
   // Structured date + known explicit venue are usable without AI. The model reads

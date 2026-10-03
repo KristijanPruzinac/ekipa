@@ -44,6 +44,12 @@ export interface EventCandidate {
   price: string | null;
   status: EventStatus;
   discovery?: EventDiscovery;
+  /**
+   * The announcement's own text, used only as AI classification input and never stored or shown.
+   * Descriptions may be templated from a provisional keyword category; this keeps that guess
+   * out of the classifier's view.
+   */
+  classificationText?: string;
 }
 
 export interface EventEvidence {

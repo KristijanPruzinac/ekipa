@@ -84,6 +84,14 @@ The model never guesses. An `uncertain` verdict, an event the model skipped, a f
 
 Every batch request uses the same $0.03 pre-request reservation and the shared $1 monthly application ledger as extraction and tips; there is no separate categorisation budget. The estimated cost is **1–5 cents per ~60 uncached events** (about three batches); actual billing has not yet been observed. Because the provider key's $1 lifetime ceiling does not reset, a first full categorisation pass draws on that finite remainder.
 
+### Category criteria are activity-based and location-neutral
+
+`CATEGORY_CRITERIA` defines each category by what attendees do (watch, listen, dance or learn to dance, make something, view, compete). Genre, art form, organiser, venue and place never decide a category on their own, so the same art form can land in different categories: a ballet performance is theatre, a ballet class or workshop is dance, a ballet film screening is film and a ballet photo exhibition is culture. The criteria contain no city, venue or organiser rules, and tests reject any such mention. Extraction and tip preparation use the same criteria instead of their own genre rules.
+
+The classifier receives the announcement's own text (`classificationText`, never stored), not the public description, because several adapters template the description from a provisional keyword category (e.g. "Kazališna predstava."). When no source text exists, those templated sentences are stripped before classification.
+
+`npx tsx scripts/classification-eval.ts` checks the criteria against the real model (needs `OPENROUTER_API_KEY`; costs well under $0.01). Its cases pair the same art form with different activities, across languages and places, and exit with code 1 on any miss.
+
 ## Tests
 
 ```powershell

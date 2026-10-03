@@ -1133,3 +1133,56 @@ test('without an API key categorisation is off and the adapter category stands',
     await repo.close();
   }
 });
+
+test('the classifier sees announcement text, never a description templated from a keyword guess', async (context) => {
+  const repo = new Repository(':memory:', [source]);
+  const sent: string[] = [];
+  context.mock.method(globalThis, 'fetch', async (_request: unknown, init?: RequestInit) => {
+    const payload = JSON.parse(String(init?.body));
+    const user = JSON.parse(
+      payload.messages.find((m: { role: string }) => m.role === 'user').content,
+    );
+    sent.push(...user.events.map((event: { text: string }) => event.text));
+    return completion({
+      results: user.events.map((_e: unknown, index: number) => ({
+        id: `e${index}`,
+        category: 'dance',
+        reason: 'Sudionici uče ples.',
+      })),
+    });
+  });
+  // A keyword rule mislabelled this ballet class as theatre and templated that into the description.
+  const workshop: EventCandidate = {
+    ...candidate,
+    title: 'Balet za odrasle — radionica',
+    category: 'theatre',
+    description:
+      'Kazališna predstava. Mjesto održavanja: Dvorana. Program i ostali detalji dostupni su u službenoj najavi.',
+    classificationText: 'Radionica baleta za početnike: naučite osnovne pozicije i korake.',
+  };
+  const templatedOnly: EventCandidate = {
+    ...candidate,
+    externalId: 'second',
+    title: 'Druga radionica',
+    category: 'theatre',
+    description:
+      'Kazališna predstava. Mjesto održavanja: Dvorana. Ulaz je besplatan. Program i ostali detalji dostupni su u službenoj najavi. Ponesite udobnu obuću.',
+  };
+  const service = new WagzService(repo, settings(true), fetchOf([workshop, templatedOnly]));
+  try {
+    await service.collect();
+    assert.deepEqual(sent, [
+      'Radionica baleta za početnike: naučite osnovne pozicije i korake.',
+      'Ponesite udobnu obuću.',
+    ]);
+    for (const text of sent) assert.doesNotMatch(text, /Kazališna predstava/);
+    const stored = await repo.events();
+    assert.ok(stored.every((event) => event.category === 'dance'));
+    assert.ok(
+      stored.every((event) => !('classificationText' in event)),
+      'never persisted',
+    );
+  } finally {
+    await repo.close();
+  }
+});

@@ -21,6 +21,7 @@ import {
   ValidationError,
 } from './validation.ts';
 import { fetchSource } from './ingestion/index.ts';
+import { stripSynopsis } from './ingestion/parsers.ts';
 import { isInstagramSource } from './ingestion/instagram.ts';
 import {
   prepareTip as aiPrepareTip,
@@ -233,6 +234,13 @@ export function reconcileExtraction(
   return { events, skipped, warnings };
 }
 
+/** Source text for classification, without any sentence templated from a provisional category. */
+export function classificationText(candidate: EventCandidate): string {
+  if (candidate.classificationText?.trim())
+    return candidate.classificationText.trim().slice(0, 1500);
+  return stripSynopsis(candidate.description).slice(0, 1500);
+}
+
 export class WagzService {
   collecting = false;
   lastTipBatch: {
@@ -443,7 +451,7 @@ export class WagzService {
         .update(
           JSON.stringify({
             title: candidate.title,
-            description: candidate.description.slice(0, 500),
+            text: classificationText(candidate),
             venue: candidate.venue,
             model: this.config.ai.model,
             version: CLASSIFICATION_VERSION,
@@ -468,7 +476,7 @@ export class WagzService {
           batch.map(([, members], index) => ({
             id: `e${index}`,
             title: members[0].title,
-            description: members[0].description,
+            text: classificationText(members[0]),
             venue: members[0].venue,
           })),
           this.config.ai,

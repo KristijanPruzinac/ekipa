@@ -261,6 +261,7 @@ function finish(event: EventCandidate, body: string, extra = '') {
     .join(' ')
     .slice(0, 5000);
   event.discovery = inferDiscovery(event.title, body, event.sourceUrl, event.price);
+  event.classificationText = body;
   return event;
 }
 

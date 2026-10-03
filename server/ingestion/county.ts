@@ -199,6 +199,7 @@ export function parseCountyDetail(
   if (status === 'EventCancelled') event.status = 'cancelled';
   else if (status === 'EventPostponed') event.status = 'postponed';
   event.description = synopsis(event);
+  event.classificationText = `${categories}\n${body}`;
   event.discovery = inferDiscovery(title, body, entry.url, event.price);
   const extraction =
     !event.venue || !event.price || event.category === 'other'
