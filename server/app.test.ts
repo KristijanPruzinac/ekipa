@@ -39,6 +39,47 @@ const event = {
   status: 'scheduled' as const,
 };
 
+test('public submissions only queue for the daily pass; spam archives cheaply and no background lookup starts', async (context) => {
+  const repo = new Repository(':memory:', []);
+  const service = new WagzService(repo, testConfig);
+  const prepare = context.mock.method(service, 'prepareTip', async () => {
+    throw new Error('Unexpected immediate preparation');
+  });
+  const background: Promise<unknown>[] = [];
+  const server = createApp(service, {
+    background: (promise) => {
+      background.push(promise);
+    },
+  }).listen(0, '127.0.0.1');
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    for (const body of [
+      { note: 'Radionica u Osijeku' },
+      { note: 'Radionica u Osijeku' },
+      { note: 'Botska dojava', website: 'spam.invalid' },
+    ]) {
+      const reply = await fetch(`${base}/api/tips`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      assert.equal(reply.status, 201);
+      assert.match((await reply.json()).message, /sljedeću dnevnu provjeru/);
+    }
+    assert.equal(prepare.mock.callCount(), 0);
+    assert.equal(background.length, 0);
+    const tips = await repo.tips();
+    assert.equal(tips.length, 2, 'duplicate submission is idempotent');
+    assert.equal(tips.find((tip) => tip.note === 'Radionica u Osijeku')?.status, 'inbox');
+    assert.equal(tips.find((tip) => tip.note === 'Botska dojava')?.status, 'archived');
+    assert.equal(await repo.aiSpent(), 0);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await repo.close();
+  }
+});
+
 test('public feed stays public; inbox and settings require admin; tip can publish without duplicates', async () => {
   const repo = new Repository(':memory:', [source]);
   const service = new WagzService(repo, testConfig);

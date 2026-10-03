@@ -6,7 +6,7 @@ import { tipDates, upcoming } from '../validation.ts';
 // Included in extraction cache keys: changes to runtime evidence rules invalidate old results.
 export const EXTRACTION_VERSION = 5;
 // Tip prompts, response envelopes and source evidence are part of the cache contract.
-export const TIP_PREPARATION_VERSION = 4;
+export const TIP_PREPARATION_VERSION = 5;
 
 export const DEFAULT_MODEL = 'google/gemini-2.5-flash-lite';
 export const DEFAULT_LOOKUP_MODEL = 'google/gemini-3.1-flash-lite';
@@ -29,6 +29,7 @@ export interface AiLedger {
 }
 interface Options {
   fetch?: typeof globalThis.fetch;
+  deadlineMs?: number;
 }
 interface Outcome {
   reason: string;
@@ -41,6 +42,8 @@ export interface TipResult extends Outcome {
   classification: 'plausible' | 'spam' | 'uncertain';
   draft: EventDraft | null;
   evidenceUrls: string[];
+  /** The date/year quote occurred in fetched or cited source content, not just the submission. */
+  sourceEvidence?: boolean;
 }
 export interface ExtractionResult extends Outcome {
   events: EventCandidate[];
@@ -263,6 +266,8 @@ async function complete(
   });
   const problem = configProblem(config);
   if (problem) return empty(problem);
+  if (options.deadlineMs !== undefined && options.deadlineMs <= Date.now())
+    return empty('Dnevna provjera dosegla je vremensko ograničenje; dojava čeka sljedeći pokušaj.');
   let reservation: string | null;
   try {
     reservation = await ledger.reserve(REQUEST_RESERVATION_USD);
@@ -323,7 +328,11 @@ async function complete(
   };
   let costUsd: number | null = null;
   let result: Completion;
-  const signal = AbortSignal.timeout(TIMEOUT_MS);
+  const timeoutMs = Math.max(
+    1,
+    Math.min(TIMEOUT_MS, Math.floor((options.deadlineMs ?? Infinity) - Date.now())),
+  );
+  const signal = AbortSignal.timeout(timeoutMs);
   try {
     const response = await (options.fetch ?? globalThis.fetch)(ENDPOINT, {
       method: 'POST',
@@ -405,7 +414,7 @@ async function complete(
   } catch {
     result = empty(
       signal.aborted
-        ? 'OpenRouter je prekoračio rok od 45 sekundi; rezervacija troška ostaje.'
+        ? `OpenRouter je prekoračio rok od ${Math.ceil(timeoutMs / 1000)} sekundi; rezervacija troška ostaje.`
         : 'OpenRouter nije dostupan; poziv nije ponovljen i rezervacija troška ostaje.',
       true,
       costUsd,
@@ -540,10 +549,15 @@ export async function prepareTip(
           normalizedEvidence(item.text).includes(normalizedEvidence(dateQuote)),
         )?.url
       : undefined;
+    const fetchedEvidence = Boolean(
+      dateQuote &&
+      sourceText &&
+      normalizedEvidence(sourceText).includes(normalizedEvidence(dateQuote)),
+    );
     const draft =
       row.draft === null
         ? null
-        : event(row.draft, sourceUrl ?? evidenceUrl ?? evidence.urls[0] ?? null, [
+        : event(row.draft, fetchedEvidence ? sourceUrl : (evidenceUrl ?? sourceUrl ?? null), [
             note,
             ...(sourceText ? [sourceText] : []),
             ...evidence.excerpts,
@@ -579,6 +593,7 @@ export async function prepareTip(
       draft,
       reason: `${string(row.reason, 500)}${draft && !upcoming(draft, new Date(now)) ? ` Događaj je već završio (${(draft.endsAt ?? draft.startsAt).slice(0, 10)}); nije za objavu među nadolazećim događajima.` : ''} AI prijedlog nije potvrda; potreban je ručni pregled.`,
       evidenceUrls: evidence.urls,
+      sourceEvidence: fetchedEvidence || Boolean(evidenceUrl),
       costUsd: completion.costUsd,
       attempted: true,
     };

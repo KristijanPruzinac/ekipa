@@ -292,7 +292,11 @@ export function parseKcDetail(
   const article = $('article.article').first();
   if (!title || !article.length) throw new Error(`KC: nedostaje sadržaj događaja ${entry.url}.`);
   article.find('br').replaceWith('\n');
-  article.find('script,style').remove();
+  article.find('script,style,del,s,strike').remove();
+  article.find('[style]').each((_index, element) => {
+    if (/text-decoration(?:-line)?\s*:[^;]*\bline-through\b/i.test($(element).attr('style') ?? ''))
+      $(element).remove();
+  });
   const paragraphs = article
     .find('p')
     .map((_index, element) => clean($(element).text()))
@@ -340,10 +344,43 @@ export function parseKcDetail(
   const multipleSpaces = body.match(
     /Foaje\s+KC-a,\s*Predvorje\s+1\.\s*kat,\s*Mala\s+dvorana/i,
   )?.[0];
+  // Some KC announcements put the venue in a date/time/place programme line.
+  // Only a line for this exact occurrence may supply it, never a neighbouring
+  // programme item or an old location retained in a relocation announcement.
+  const scheduleVenues = new Set<string>();
+  if (
+    !endsAt &&
+    startsAt.length > 10 &&
+    !/\b(?:premjest|prebac|preselj|seli se|nova lokacij|promjen[ae] lokacij)/.test(
+      normalize(`${title} ${body}`),
+    )
+  ) {
+    article.find('p').each((_index, element) => {
+      const schedule = clean($(element).text()).match(
+        /^(?:Ponedjeljak|Utorak|Srijeda|Četvrtak|Petak|Subota|Nedjelja)\s*,?\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(?:(\d{4})\.\s*)?\/\s*(\d{1,2})[.:](\d{2})\s*(?:sati|sat)?\s*\/\s*([^/]+)$/i,
+      );
+      if (!schedule) return;
+      const day = date(
+        Number(schedule[3] ?? startsAt.slice(0, 4)),
+        Number(schedule[2]),
+        Number(schedule[1]),
+      );
+      const clock = `${schedule[4].padStart(2, '0')}:${schedule[5]}`;
+      const venue = clean(schedule[6]);
+      if (
+        day === startsAt.slice(0, 10) &&
+        clock === startsAt.slice(11, 16) &&
+        venue.length >= 3 &&
+        venue.length <= 300 &&
+        !/\b(?:naknadno|uskoro|tba|tbc|vise lokacija)\b/.test(normalize(venue))
+      )
+        scheduleVenues.add(venue);
+    });
+  }
   event.venue =
     multipleSpaces ??
     venuePatterns.find(([pattern]) => pattern.test(`${title}\n${body}`))?.[1] ??
-    null;
+    (scheduleVenues.size === 1 ? [...scheduleVenues][0] : null);
   if (/\bulaz(?:\s+na\s+\S+)?\s+(?:je\s+)?slobodan\b|\bbesplatan\s+ulaz\b/i.test(body))
     event.price = 'Besplatno';
   if (/\botkazano\b|\bdogađaj\s+je\s+otkazan\b/i.test(`${title} ${body}`))

@@ -85,6 +85,7 @@ try {
   await page.getByLabel(/Tvoja dojava/).fill(note);
   await page.getByRole('button', { name: 'Pošalji dojavu' }).click();
   await expect(page.getByRole('heading', { name: 'Dobra dojava. Hvala!' })).toBeVisible();
+  await expect(page.locator('.tip-success')).toContainText('sljedeću dnevnu provjeru');
   await page.getByRole('button', { name: 'Natrag na događaje' }).click();
   const junk = 'z'.repeat(32);
   await context.request.post(`${base}/api/tips`, { data: { note: junk } });
@@ -95,15 +96,20 @@ try {
   await page.getByLabel('Admin ključ').fill(key);
   await page.getByRole('button', { name: 'Otvori uredništvo' }).click();
   await expect(page.getByRole('heading', { name: 'Grad pod kontrolom.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Za pregled', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await page.getByRole('button', { name: 'Arhiva', exact: true }).click();
   const archived = page.locator('article').filter({ hasText: junk });
   await expect(archived).toBeVisible();
-  await archived.getByRole('button', { name: 'Vrati na pregled' }).click();
+  await archived.getByRole('button', { name: 'Vrati na provjeru' }).click();
   await expect(archived).toHaveCount(0);
-  await page.getByRole('button', { name: 'Za pregled', exact: true }).click();
+  await page.getByRole('button', { name: 'Čeka provjeru', exact: true }).click();
   await expect(page.locator('article').filter({ hasText: junk })).toBeVisible();
   const row = page.locator('article').filter({ hasText: note });
   await expect(row).toBeVisible();
+  await expect(row).toContainText('sljedeći dnevni dohvat');
   await row
     .getByRole('button', { name: /Uredi|Pregledaj|Otvori|Dopuni/ })
     .first()

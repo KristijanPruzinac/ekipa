@@ -117,6 +117,9 @@ export function EventTimeline({
                     className={`timeline-station theme-${themeForCategory(event.category) ?? 'other'} ${ending ? 'station-ending' : 'station-start'} ${event.status !== 'scheduled' ? 'station-inactive' : ''}`}
                   >
                     <time dateTime={value} className="station-time">
+                      <span className="station-weekday">
+                        {dateFormat(value, { weekday: 'short' })}
+                      </span>
                       <b>{dateFormat(value, { day: 'numeric', month: 'numeric' })}</b>
                       <span>{value.length === 10 ? 'sat nije naveden' : timeFormat(value)}</span>
                     </time>

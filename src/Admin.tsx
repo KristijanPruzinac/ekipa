@@ -31,8 +31,8 @@ type Action = (
 ) => Promise<boolean>;
 type ActionState = { path: string; progress: string; result?: string; error?: boolean };
 const tipStatus: Record<Tip['status'], string> = {
-  inbox: 'Za pregled',
-  draft: 'Prijedlog',
+  inbox: 'Čeka provjeru',
+  draft: 'Prijedlog za pregled',
   accepted: 'Prihvaćeno',
   rejected: 'Odbijeno',
   archived: 'Arhiva',
@@ -333,14 +333,11 @@ function Inbox({
   act: Action;
   onEdit: (tip: Tip) => void;
 }) {
-  const [filter, setFilter] = useState<'pending' | 'all' | Tip['status']>('pending');
-  const shown = tips.filter(
-    (tip) =>
-      filter === 'all' ||
-      (filter === 'pending' ? ['inbox', 'draft'].includes(tip.status) : tip.status === filter),
-  );
+  const [filter, setFilter] = useState<'all' | Tip['status']>('draft');
+  const shown = tips.filter((tip) => filter === 'all' || tip.status === filter);
   const filters = [
-    { id: 'pending', label: 'Za pregled' },
+    { id: 'draft', label: 'Za pregled' },
+    { id: 'inbox', label: 'Čeka provjeru' },
     { id: 'accepted', label: 'Prihvaćeno' },
     { id: 'archived', label: 'Arhiva' },
     { id: 'rejected', label: 'Odbijeno' },
@@ -351,8 +348,11 @@ function Inbox({
       <div className="admin-section-header">
         <div>
           <h2 id="inbox-title">Od ekipe, za grad.</h2>
-          <p>Dojave ostaju sačuvane. Pregledaj podatke prije objave.</p>
-          <p className="fine-print">Nove dojave i rezultati provjere osvježavaju se automatski.</p>
+          <p>Pronađeni događaji čekaju tvoje odobrenje prije objave.</p>
+          <p className="fine-print">
+            Nove dojave provjeravaju se uz dnevni dohvat. Spam i dojave bez potvrđenog događaja
+            odlaze u arhivu s razlogom. Neuspjela provjera čeka ponovni pokušaj.
+          </p>
         </div>
       </div>
       <div className="category-filters admin-filters" role="group" aria-label="Status dojave">
@@ -360,15 +360,34 @@ function Inbox({
           <button
             className={`category-chip ${filter === item.id ? 'active' : ''}`}
             aria-pressed={filter === item.id}
+            aria-label={item.label}
             key={item.id}
             onClick={() => setFilter(item.id)}
           >
-            {item.label}
+            {item.label}{' '}
+            <span>
+              {item.id === 'all'
+                ? tips.length
+                : tips.filter((tip) => tip.status === item.id).length}
+            </span>
           </button>
         ))}
       </div>
       {!shown.length ? (
-        <AdminEmpty title="Sve je pregledano." text="U ovom prikazu trenutno nema dojava." />
+        <AdminEmpty
+          title={
+            filter === 'draft'
+              ? 'Nema prijedloga za pregled.'
+              : filter === 'inbox'
+                ? 'Red za provjeru je prazan.'
+                : 'Nema dojava u ovom prikazu.'
+          }
+          text={
+            filter === 'draft'
+              ? 'Nove dojave pronaći ćeš pod „Čeka provjeru”.'
+              : 'Dojave i spremljeni prijedlozi ostaju dostupni u ostalim prikazima.'
+          }
+        />
       ) : (
         <div className="admin-list">
           {shown.map((tip) => (
@@ -484,11 +503,13 @@ function Inbox({
                         `/api/admin/tips/${encodeURIComponent(tip.id)}`,
                         'PATCH',
                         { action: 'restore', revision: tip.revision ?? 0 },
-                        'Dojava je vraćena na pregled.',
+                        tip.draft
+                          ? 'Prijedlog je vraćen na pregled.'
+                          : 'Dojava je vraćena u red za dnevnu provjeru.',
                       )
                     }
                   >
-                    Vrati na pregled
+                    {tip.draft ? 'Vrati na pregled' : 'Vrati na provjeru'}
                   </button>
                 )}
                 {tip.status !== 'archived' && (

@@ -60,6 +60,8 @@ function canonicalDate(value: string): string {
 
 /** Explicit tip dates only; a missing year is retained as --MM-DD, never guessed. */
 export function tipDates(note: string): { dates: string[]; hasYear: boolean; invalid: boolean } {
+  // Croatian clock shorthand such as "u21.00" is not a calendar date.
+  const calendarNote = note.replace(/\b(?:u|od)\s*(?:[01]?\d|2[0-3])\.[0-5]\d\b(?!\.\s*\d)/gi, '');
   const dates = new Set<string>();
   let hasYear = false,
     invalid = false;
@@ -73,9 +75,9 @@ export function tipDates(note: string): { dates: string[]; hasYear: boolean; inv
     if (fullYear) hasYear = true;
     dates.add(`${fullYear ?? '-'}-${tail}`);
   };
-  for (const match of note.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g))
+  for (const match of calendarNote.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g))
     add(match[3], match[2], match[1]);
-  for (const match of note.matchAll(
+  for (const match of calendarNote.matchAll(
     /(?<![\d./-])(\d{1,2})\s*([./])\s*(\d{1,2})(?:\s*\2\s*(\d{4}|\d{2})(?!\d))?\.?(?![\d./])/g,
   ))
     add(match[1], match[3], match[4]);
@@ -93,7 +95,7 @@ export function tipDates(note: string): { dates: string[]; hasYear: boolean; inv
     'studeni|studenog|studenoga',
     'prosinac|prosinca',
   ];
-  const plain = note
+  const plain = calendarNote
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase();
@@ -212,8 +214,115 @@ export function classifyTip(note: string, honeypot = ''): { archive: boolean; re
     };
   if (/^(.)\1{10,}$/u.test(note.replace(/\s/g, '')))
     return { archive: true, reason: 'Automatski arhivirano: ponovljeni besmisleni sadržaj.' };
+  const plain = normalize(note);
+  const words = plain.split(' ').filter(Boolean);
+  const eventContext =
+    /\b(?:koncert|predstava|festival|radionic\w*|izlozb\w*|stand up|standup|nastup|svirk\w*|projekcij\w*|kino|turnir|utakmic\w*|ples\w*|salsa|bachata|tango|dnd|d d|vecer|party|gathering|seminar|predavanje|tribina|volont\w*|sajam|meetup|tulum|show|concert|workshop|screening)\b/.test(
+      plain,
+    );
+  // Narrow local rules stop unmistakable junk before any source or AI request.
+  // Profanity can occur in real titles; meaningful event context keeps the tip.
+  const abuseWords = new Set([
+    'jebi',
+    'jebem',
+    'jebete',
+    'jebes',
+    'jebite',
+    'jebanje',
+    'jebeno',
+    'jebeni',
+    'jebena',
+    'odjebi',
+    'odjebite',
+    'kurac',
+    'kurca',
+    'kurcu',
+    'kurcem',
+    'kurcina',
+    'picka',
+    'picku',
+    'picke',
+    'mater',
+    'materinu',
+    'mamu',
+    'pusi',
+    'puse',
+    'sranje',
+    'govno',
+    'govna',
+    'fuck',
+    'fucking',
+    'fucker',
+    'motherfucker',
+    'shit',
+    'bullshit',
+    'bitch',
+    'asshole',
+  ]);
+  const abuseFillers = new Set([
+    'se',
+    'ti',
+    'te',
+    'tvoj',
+    'tvoja',
+    'tvoju',
+    'mi',
+    'si',
+    'svi',
+    'sve',
+    'idi',
+    'ajde',
+    'u',
+    'na',
+    'i',
+    'da',
+    'je',
+    'ste',
+    'vas',
+    'vam',
+    'you',
+    'your',
+    'yourself',
+    'go',
+    'off',
+    'the',
+    'is',
+  ]);
+  if (
+    !eventContext &&
+    words.some((word) => abuseWords.has(word)) &&
+    words.every((word) => abuseWords.has(word) || abuseFillers.has(word))
+  )
+    return {
+      archive: true,
+      reason: 'Automatski arhivirano: uvredljiv sadržaj bez informacije o događaju.',
+    };
+  const compact = plain.replace(/\s/g, '');
+  if (
+    !/[\p{L}\p{N}]/u.test(note) ||
+    (!eventContext &&
+      (/^(?:asdf|qwer|qwerty|zxcv|hjkl|spam|haha|hahaha|lol|bla|test){3,}$/.test(compact) ||
+        (words.length >= 6 && new Set(words).size <= 2) ||
+        /^(.{2,6})\1{3,}$/.test(compact)))
+  )
+    return {
+      archive: true,
+      reason:
+        'Automatski arhivirano: ponovljeni ili besmisleni sadržaj bez informacije o događaju.',
+    };
+  const promotion =
+    /\b(?:buy|click here|klikni|zaradi|zarada|earn|profit\w*|guaranteed|garantiran\w*|free spins|besplatn\w*|bonus)\b/.test(
+      plain,
+    );
+  const spamProduct =
+    /\b(?:viagra|casino|kasino|bitcoin|crypto|kripto|porn|eura|euros|dollars)\b/.test(plain);
+  if (!eventContext && promotion && spamProduct)
+    return {
+      archive: true,
+      reason: 'Automatski arhivirano: promotivni spam bez informacije o događaju.',
+    };
   return {
     archive: false,
-    reason: 'Dojava čeka provjeru. Nepotpuni podaci nisu razlog za odbacivanje.',
+    reason: 'Dojava čeka automatsku provjeru uz sljedeći dnevni dohvat događaja.',
   };
 }

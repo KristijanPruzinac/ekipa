@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { PostgresDatabase, SqliteDatabase, type Database, type Row } from './database.ts';
 import { isFree, mergeDiscovery } from './discovery.ts';
 import type {
@@ -12,6 +12,7 @@ import type {
   WagzEvent,
 } from '../shared/types.ts';
 import {
+  ConflictError,
   normalize,
   upcoming,
   validateCandidate,
@@ -301,6 +302,38 @@ export class Repository {
     return this.operation(async () => {
       const id = `tip-${tipId}`;
       if (await this.event(id)) return this.editEvent(id, 'published', draft);
+      // A source import or another approval may have arrived after preparation.
+      // Resolve identity under the same write lock as publication.
+      const possible = (await this.events()).filter(
+        (event) =>
+          normalize(event.title) === normalize(draft.title) &&
+          event.startsAt.slice(0, 10) === draft.startsAt.slice(0, 10) &&
+          (event.startsAt.length === 10 ||
+            draft.startsAt.length === 10 ||
+            Date.parse(event.startsAt) === Date.parse(draft.startsAt)) &&
+          (!event.venue || normalize(event.venue) === normalize(draft.venue!)),
+      );
+      const exact = possible.filter(
+        (event) =>
+          event.startsAt.length > 10 &&
+          draft.startsAt.length > 10 &&
+          event.venue &&
+          normalize(event.venue) === normalize(draft.venue!),
+      );
+      if (possible.length === 1 && exact.length === 1) {
+        const existing = exact[0];
+        if (existing.publication === 'rejected' || existing.status !== 'scheduled')
+          throw new ConflictError(
+            'Isti događaj već postoji kao odbijen, otkazan ili odgođen. Pregledaj postojeći događaj.',
+          );
+        return existing.publication === 'published'
+          ? existing
+          : this.editEvent(existing.id, 'published');
+      }
+      if (possible.length)
+        throw new ConflictError(
+          'Mogući isti događaj već postoji. Provjeri točan termin i poveži dojavu prije objave.',
+        );
       const { sourceUrl, ...fields } = draft;
       const stamp = new Date().toISOString();
       await this.saveEvent({
@@ -318,6 +351,34 @@ export class Repository {
           ['community', tipId, id, sourceUrl, stamp],
         );
       return (await this.event(id))!;
+    }, true);
+  }
+  /** Shared by all API instances; raw client addresses are never persisted. */
+  async consumeTipQuota(client: string, now = Date.now()): Promise<boolean> {
+    if (!client || client.length > 256 || !Number.isSafeInteger(now) || now < 0)
+      throw new ValidationError('Neispravni podaci ograničenja dojava.');
+    const clientKey = createHash('sha256').update(`wagz-tip-quota:${client}`).digest('hex');
+    return this.operation(async () => {
+      // Cap cleanup work per request; expired rows never constrain a new window.
+      await this.database.query(
+        'DELETE FROM tip_quotas WHERE client_key IN (SELECT client_key FROM tip_quotas WHERE expires_at<=? ORDER BY expires_at LIMIT 128)',
+        [now],
+      );
+      const [row] = await this.database.query(
+        'SELECT attempts,expires_at FROM tip_quotas WHERE client_key=?',
+        [clientKey],
+      );
+      const active = row && Number(row.expires_at) > now;
+      if (active && Number(row.attempts) >= 5) return false;
+      await this.database.query(
+        'INSERT INTO tip_quotas(client_key,attempts,expires_at) VALUES (?,?,?) ON CONFLICT(client_key) DO UPDATE SET attempts=excluded.attempts,expires_at=excluded.expires_at',
+        [
+          clientKey,
+          active ? Number(row.attempts) + 1 : 1,
+          active ? Number(row.expires_at) : now + 60 * 60_000,
+        ],
+      );
+      return true;
     }, true);
   }
   async tips(): Promise<Tip[]> {

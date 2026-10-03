@@ -30,12 +30,17 @@ const config = {
   fetchIntervalMinutes: 360,
   ai: { apiKey: '', model: 'disabled-browser-audit', monthlyBudgetUsd: 0, searchEnabled: false },
 };
-const service = new WagzService(repo, config);
+let sourceFetches = 0;
+const service = new WagzService(repo, config, async () => {
+  sourceFetches++;
+  return { events: [], pagesFetched: 0, discovered: 0, skipped: 0, warnings: [] };
+});
 const app = createApp(service);
 let vite;
 if (process.argv.includes('--dev')) {
   const { createServer } = await import('vite');
   vite = await createServer({
+    envDir: false,
     server: { middlewareMode: true, hmr: false },
     appType: 'spa',
     logLevel: 'error',
@@ -60,19 +65,42 @@ const check = async (path, body) => {
   const reply = await fetch(base + path, { method: 'PATCH', headers, body: JSON.stringify(body) });
   return { status: reply.status, body: await reply.json() };
 };
+async function capture(page, name, locator = page) {
+  for (const width of [1280, 320]) {
+    await page.setViewportSize({ width, height: width === 1280 ? 900 : 740 });
+    await page.mouse.move(0, 0);
+    await page.evaluate(() => document.activeElement?.blur());
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+      true,
+    );
+    await locator.screenshot({
+      path: resolve(directory, `${name}-${width}.png`),
+      ...(locator === page ? { fullPage: true } : {}),
+    });
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+}
 try {
   for (const event of fixture.events) {
     const source = event.sources[0];
-    await repo.upsert({
-      ...event,
-      sourceId: source.sourceId,
-      sourceUrl: source.url,
-      externalId: event.id,
-    });
+    await repo.upsert(
+      {
+        ...event,
+        sourceId: source.sourceId,
+        sourceUrl: source.url,
+        externalId: event.id,
+      },
+      new Date(),
+      // Hold one real source event so a daily batch can prepare it for approval.
+      event.title.startsWith('HeadOnEast'),
+    );
   }
   const initialEvents = await repo.events();
   const actual = initialEvents.find((event) => event.title.includes('DOVIK 2026'));
+  const held = initialEvents.find((event) => event.title.startsWith('HeadOnEast'));
   assert.ok(actual?.venue);
+  assert.equal(held.publication, 'draft');
   const actualNote = `DOVIK 2026 u Osijeku, ${actual.startsAt.slice(0, 10)}, ${actual.venue}.`;
   const chrome =
     process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ||
@@ -94,12 +122,20 @@ try {
   await admin.getByLabel('Admin ključ').fill(key);
   await admin.getByRole('button', { name: 'Otvori uredništvo' }).click();
   await expect(admin.getByRole('heading', { name: 'Grad pod kontrolom.' })).toBeVisible();
+  await expect(admin.getByRole('button', { name: 'Za pregled', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   record('invalid login rejected, authenticated editor opened');
 
   const publicPage = await context.newPage();
   publicPage.on('pageerror', (error) => errors.push(error.message));
   await publicPage.goto(base);
+  await expect(publicPage.locator('.coordinates')).toHaveCount(0);
+  await expect(publicPage.locator('body')).not.toContainText('45°33′');
+  await expect(publicPage.locator('.station-weekday').first()).toBeVisible();
   await publicPage.setViewportSize({ width: 320, height: 740 });
+  await expect(publicPage.locator('body')).not.toContainText('18°41′');
   const skip = publicPage.getByRole('link', { name: 'Preskoči na nadolazeće događaje' });
   await skip.focus();
   await expect(skip).toBeVisible();
@@ -205,13 +241,81 @@ try {
   await publicPage.getByLabel(/Poveznica/).fill(actual.sources[0].url);
   await publicPage.getByRole('button', { name: 'Pošalji dojavu' }).click();
   await expect(publicPage.getByRole('heading', { name: 'Dobra dojava. Hvala!' })).toBeVisible();
+  await expect(publicPage.locator('.tip-success')).toContainText('sljedeću dnevnu provjeru');
+  const submittedTip = (await repo.tips()).find((tip) => tip.note === actualNote);
+  assert.equal(submittedTip.status, 'inbox');
+  assert.equal(submittedTip.draft, null);
+  assert.equal(sourceFetches, 0);
+  await capture(publicPage, 'daily-tip-success', publicPage.getByRole('dialog'));
   await admin.bringToFront();
+  await admin.evaluate(() => window.dispatchEvent(new Event('focus')));
   const matchedRow = admin
     .locator('.tip-row')
     .filter({ has: admin.locator('.tip-note', { hasText: actualNote }) });
-  await expect(matchedRow).toBeVisible({ timeout: 20000 });
+  await expect(admin.getByRole('button', { name: 'Čeka provjeru', exact: true })).toContainText(
+    '1',
+  );
+  await expect(matchedRow).toHaveCount(0);
+  await expect(admin.getByText('Nema prijedloga za pregled.', { exact: true })).toBeVisible();
+  await capture(admin, 'daily-ready-empty');
+  await admin.getByRole('button', { name: 'Čeka provjeru', exact: true }).click();
+  await expect(matchedRow).toBeVisible();
+  await expect(matchedRow).toContainText('sljedeći dnevni dohvat');
+  await capture(admin, 'daily-queued');
+  record(
+    'submission is durable without immediate processing; truthful daily-check receipt and separate default review/pending views fit desktop and 320px',
+  );
+
+  const heldNote = `${held.title}, ${held.startsAt.slice(0, 10)}, ${held.venue}.`;
+  const unknownNote = 'Plesna večer u Osijeku, najava bez datuma i poveznice.';
+  await service.submitTip({ note: heldNote, url: held.sources[0].url });
+  await service.submitTip({ note: unknownNote });
+  const spam = await service.submitTip({ note: 'z'.repeat(32) });
+  await service.collect();
+  assert.equal(sourceFetches, fixture.sources.filter((source) => source.enabled).length);
+  assert.deepEqual(service.lastTipBatch, {
+    queued: 3,
+    processed: 3,
+    drafted: 1,
+    archived: 1,
+    deferred: 1,
+  });
+  assert.deepEqual(
+    await repo.events(),
+    initialEvents,
+    'Daily tip assessment cannot publish or edit source events',
+  );
+  await admin.evaluate(() => window.dispatchEvent(new Event('focus')));
+  const unknownRow = admin
+    .locator('.tip-row')
+    .filter({ has: admin.locator('.tip-note', { hasText: unknownNote }) });
+  await expect(unknownRow).toContainText('čeka dostupnu AI uslugu ili mjesečni proračun');
+  await expect(matchedRow).toHaveCount(0);
+  await capture(admin, 'daily-pending-retry');
+  await admin.getByRole('button', { name: 'Za pregled', exact: true }).click();
+  await expect(admin.locator('.tip-row')).toHaveCount(1);
+  await expect(admin.locator('.tip-row')).toContainText(held.title);
+  await expect(admin.locator('.tip-row')).toContainText('Moguće podudaranje s izvorom');
+  await capture(admin, 'daily-ready');
+  await admin.getByRole('button', { name: 'Arhiva', exact: true }).click();
+  await expect(matchedRow).toContainText('događaj je već objavljen');
+  const spamRow = admin
+    .locator('.tip-row')
+    .filter({ has: admin.locator('.tip-note', { hasText: spam.note }) });
+  await expect(spamRow).toContainText('ponovljeni besmisleni sadržaj');
+  await capture(admin, 'daily-archive');
+  await spamRow.getByRole('button', { name: 'Vrati na provjeru', exact: true }).click();
+  await admin.getByRole('button', { name: 'Čeka provjeru', exact: true }).click();
+  await expect(spamRow).toBeVisible();
+  await expect(spamRow.getByRole('button', { name: 'Uredi prijedlog', exact: true })).toBeEnabled();
+  await spamRow.getByRole('button', { name: 'Arhiviraj', exact: true }).click();
+  await admin.getByRole('button', { name: 'Arhiva', exact: true }).click();
+  await matchedRow.getByRole('button', { name: 'Vrati na pregled', exact: true }).click();
+  await admin.getByRole('button', { name: 'Za pregled', exact: true }).click();
   await expect(matchedRow).toContainText('Moguće podudaranje s izvorom');
-  record('real sourced public submission arrives in already-open inbox automatically');
+  record(
+    'daily batch separates source-backed drafts, published duplicates, obvious spam and retryable AI unavailability; archives retain reasons and meaningful restore actions',
+  );
   let releasePrepare;
   await admin.route('**/api/admin/tips/*/prepare', async (route) => {
     await new Promise((resolve) => {
@@ -262,6 +366,7 @@ try {
     body: JSON.stringify({ note: realNote }),
   });
   assert.equal(submitted.status, 201);
+  await admin.getByRole('button', { name: 'Čeka provjeru', exact: true }).click();
   await admin.evaluate(() => window.dispatchEvent(new Event('focus')));
   const row = admin
     .locator('.tip-row')
@@ -271,6 +376,7 @@ try {
   await admin.getByLabel('Naziv događaja', { exact: true }).fill(realNote);
   await admin.getByRole('button', { name: 'Spremi prijedlog' }).click();
   await expect(admin.getByRole('dialog')).toHaveCount(0);
+  await admin.getByRole('button', { name: 'Za pregled', exact: true }).click();
   await expect(row).toContainText('Datum još nije poznat');
   let partial = (await repo.tips()).find((tip) => tip.note === realNote);
   assert.equal(partial.draft.startsAt, '');
@@ -371,6 +477,7 @@ try {
     body: JSON.stringify({ note: pastNote }),
   });
   assert.equal(historical.status, 201);
+  await admin.getByRole('button', { name: 'Čeka provjeru', exact: true }).click();
   await admin.evaluate(() => window.dispatchEvent(new Event('focus')));
   const historicalRow = admin
     .locator('.tip-row')
@@ -386,6 +493,7 @@ try {
     .fill('https://kulturni-centar.hr/dogadjanja/129-marko-kutli-moram-dalje-tour');
   await admin.getByRole('button', { name: 'Spremi prijedlog' }).click();
   await expect(admin.getByRole('dialog')).toHaveCount(0);
+  await admin.getByRole('button', { name: 'Za pregled', exact: true }).click();
   await historicalRow.getByRole('button', { name: 'Pregledaj prijedlog' }).click();
   await expect(admin.getByLabel('Vrijeme ako je poznato')).toHaveValue('20:00');
   await admin.getByRole('button', { name: 'Prihvati i objavi' }).click();

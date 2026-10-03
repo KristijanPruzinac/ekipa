@@ -67,18 +67,15 @@ export function createApp(
     });
   });
   app.post('/api/tips', async (req, res) => {
-    if (!allowed(`tips:${req.ip}`, 5, 60)) {
+    if (!(await service.repo.consumeTipQuota(req.ip ?? 'unknown'))) {
       res.status(429).json({ error: 'Previše dojava u kratkom vremenu. Pokušaj ponovno kasnije.' });
       return;
     }
-    const tip = await service.submitTip(req.body ?? {});
-    if (tip.status === 'inbox')
-      background(
-        service.prepareTip(tip.id).catch(() => {
-          /* Original tip is safely persisted; operator can retry. */
-        }),
-      );
-    res.status(201).json({ ok: true, message: 'Hvala! Tvoja dojava je spremljena za provjeru.' });
+    await service.submitTip(req.body ?? {});
+    res.status(201).json({
+      ok: true,
+      message: 'Hvala! Tvoja dojava je spremljena za sljedeću dnevnu provjeru.',
+    });
   });
   app.use('/api/admin', (req, res, next) => {
     const expected = service.config.adminKey;

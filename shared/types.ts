@@ -113,8 +113,12 @@ export interface Tip {
   reason: string;
   submittedAt: string;
   updatedAt: string;
+  /** Daily automatic checks use the Zagreb calendar day; operator refresh remains available. */
+  lastAutomaticAttemptAt?: string | null;
   draft: EventDraft | null;
   matchedEventId: string | null;
+  /** Material source-event state reviewed with this linked draft. */
+  matchedEventSnapshot?: string | null;
   verification: 'unverified' | 'source_match';
 }
 export interface PublicFeed {

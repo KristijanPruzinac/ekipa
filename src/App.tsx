@@ -93,7 +93,6 @@ function PublicApp() {
         <section className="hero wrap" aria-labelledby="hero-title">
           <div className="hero-topline">
             <p className="eyebrow">TVOJ GRAD. TVOJA EKIPA. TVOJ PLAN.</p>
-            <span className="coordinates">45°33′ N &nbsp; 18°41′ E</span>
           </div>
           <div className="hero-heading">
             <h1 id="hero-title">
@@ -532,7 +531,10 @@ function TipDialog({ onClose }: { onClose: () => void }) {
       {sent ? (
         <div className="tip-success">
           <Spark />
-          <p>Tvoja dojava je spremljena. Pregledat ćemo informacije prije objave.</p>
+          <p>
+            Tvoja dojava je spremljena za sljedeću dnevnu provjeru. Pronađeni događaj pregledat ćemo
+            prije objave.
+          </p>
           <button className="button button-dark" onClick={onClose}>
             Natrag na događaje <Arrow />
           </button>
@@ -587,7 +589,8 @@ function TipDialog({ onClose }: { onClose: () => void }) {
             {!busy && <Arrow diagonal />}
           </button>
           <p className="fine-print">
-            Dojave provjeravamo prije objave. Pošalji informacije o događaju, bez osobnih podataka.
+            Dojave provjeravamo uz dnevni dohvat događaja. Svaki prijedlog pregledamo prije objave.
+            Pošalji informacije o događaju, bez osobnih podataka.
           </p>
         </form>
       )}

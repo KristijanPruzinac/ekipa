@@ -161,18 +161,18 @@ class EventScreen extends StatelessWidget {
   ) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Material(
-      color: const Color(0xffeef2d4),
+      color: const Color(0xffe7edc5),
       borderRadius: BorderRadius.circular(4),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         shape: RoundedRectangleBorder(
-          side: const BorderSide(color: Color(0xffaab581)),
+          side: const BorderSide(color: Color(0xff96a366)),
           borderRadius: BorderRadius.circular(4),
         ),
         focusColor: const Color(0xffd8e294),
         hoverColor: const Color(0xffe3eab8),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(subtitle),
+        subtitle: Text(subtitle, style: const TextStyle(color: muted)),
         trailing: const Icon(Icons.north_east),
         onTap: () => openSource(context, url),
       ),

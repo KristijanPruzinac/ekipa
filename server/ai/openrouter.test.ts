@@ -115,6 +115,26 @@ test('disabled, exhausted and invalid configuration never send requests or settl
   assert.deepEqual(book.settlements, []);
 });
 
+test('the daily deadline prevents a second search stage and any fresh reservation after time is exhausted', async (context) => {
+  context.mock.timers.enable({ apis: ['Date'], now: new Date(input.now) });
+  const deadlineMs = Date.now() + 1000;
+  const book = accounting();
+  let calls = 0;
+  const result = await prepareTip(input, { ...config, searchEnabled: true }, book.ledger, {
+    deadlineMs,
+    fetch: mock(() => {
+      calls++;
+      context.mock.timers.setTime(deadlineMs + 1);
+      return response('Lookup done.', 0.001);
+    }),
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.complete, false);
+  assert.equal(result.draft, null);
+  assert.deepEqual(book.reservations, [REQUEST_RESERVATION_USD]);
+  assert.deepEqual(book.settlements, [['reservation-1', 0.001]]);
+});
+
 test('tip reserves before sending and limits the current server search tool', async () => {
   const book = accounting();
   let calls = 0;
@@ -459,7 +479,8 @@ test('a draft without a submitted URL links to its exact date-evidence citation'
       fetch: mock(() => response(tip(), 0.0001, annotations)),
     });
     assert.equal(result.complete, true);
-    assert.equal(result.draft?.sourceUrl, submittedUrl ?? page.url);
+    assert.equal(result.draft?.sourceUrl, page.url);
+    assert.equal(result.sourceEvidence, true);
   }
 });
 

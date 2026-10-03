@@ -18,6 +18,8 @@ const schema = (remote: boolean) => `
   CREATE TABLE IF NOT EXISTS evidence (source_id TEXT NOT NULL, external_id TEXT NOT NULL, event_id TEXT NOT NULL REFERENCES events(id), url TEXT NOT NULL, last_seen TEXT NOT NULL, PRIMARY KEY(source_id, external_id));
   CREATE INDEX IF NOT EXISTS ${remote ? 'wagz_' : ''}evidence_event ON evidence(event_id);
   CREATE TABLE IF NOT EXISTS tips (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS tip_quotas (client_key TEXT PRIMARY KEY, attempts INTEGER NOT NULL, expires_at BIGINT NOT NULL);
+  CREATE INDEX IF NOT EXISTS ${remote ? 'wagz_' : ''}tip_quotas_expiry ON tip_quotas(expires_at);
   CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, payload TEXT NOT NULL${remote ? ', ordinal BIGSERIAL NOT NULL' : ''});
   CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS ai_charges (id TEXT PRIMARY KEY, month TEXT NOT NULL, amount ${remote ? 'DOUBLE PRECISION' : 'REAL'} NOT NULL, state TEXT NOT NULL);
@@ -98,7 +100,10 @@ export interface PostgresPool {
 export function postgresSql(sql: string) {
   let parameter = 0;
   return sql
-    .replace(/\b(events|evidence|tips|runs|settings|ai_charges|ai_cache)\b/g, 'public.wagz_$1')
+    .replace(
+      /\b(events|evidence|tips|tip_quotas|runs|settings|ai_charges|ai_cache)\b/g,
+      'public.wagz_$1',
+    )
     .replace(/\browid\b/g, 'ordinal')
     .replace(/\?/g, () => `$${++parameter}`);
 }

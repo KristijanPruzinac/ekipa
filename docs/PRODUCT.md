@@ -26,7 +26,15 @@ Automatic publishing is **on by default and toggleable**. Incomplete imports rem
 
 ## Community tips
 
-Accept a short note and optional URL. Save before attempting enrichment. Archive obvious automated junk and AI-classified spam with an explanation; retain an easy restore action. Missing details, no search result or uncertainty are not evidence of spam. Match an existing event only when unambiguous. Otherwise prepare a draft; the owner edits, accepts or rejects it. AI draft evidence does not equal verification.
+Accept a short note and optional URL. Save immediately, with cheap bot screening; normal source investigation happens with the daily collection, after source imports. A completed check prepares a draft only for a scheduled, upcoming Osijek event with a valid title/date, venue and external date/year evidence. The owner must approve publication. A completed check that finds spam, no confirmed event, a past/cancelled event or insufficient evidence archives the submission with a reason and restore action. Uncertainty is not labelled spam. Provider/source failures, malformed or incomplete output, disabled lookup and exhausted budget stay queued for retry.
+
+Before any scraping or AI, local checks archive obvious profanity-only abuse, repetitive junk and promotional spam. Real event titles with profanity are retained when they have meaningful event context. Submission variants differing only in case, spacing, punctuation or common tracking parameters deduplicate for 24 hours without paid processing.
+
+The admin inbox defaults to ready drafts, with separate queued and archived views and counts. Manual preparation remains available. Restore returns an archived raw submission to the daily queue, or a preserved draft to review. Automatic checks do not reprocess drafts or overwrite operator edits. Each queued tip is attempted at most once per Zagreb calendar day; a run processes at most 20 tips within its remaining deadline, oldest waiting work first. Overflow and failed work stay queued.
+
+An unambiguous already-published match archives as already listed. A valid unpublished match becomes a linked review draft; fresh source evidence can complete a missing venue. Ambiguous same-day occurrences stay for review and cannot publish as duplicates. Approval checks for intervening imports/approvals and changes to linked events. AI draft evidence still requires human source review.
+
+Public submissions allow **five requests per client address per hour**, enforced atomically in the shared database across API instances and restarts. Excess requests return HTTP 429 before tip preparation. Quota records contain SHA-256 client keys rather than raw addresses; each request removes at most 128 expired records. Authentication and administrator collection request limits remain per process.
 
 ## Cost decisions
 
@@ -43,7 +51,7 @@ Accept a short note and optional URL. Save before attempting enrichment. Archive
 2. A repeat collection does not duplicate an occurrence; separate showtimes remain separate.
 3. Failed fetching is visible and does not delete already collected events.
 4. A user tip reaches the protected inbox; a complete approved draft appears publicly once.
-5. Spam archive entries can be restored; uncertain entries remain reviewable.
+5. Archived spam/no-event submissions retain reasons and can be restored; operational failures stay queued.
 6. The publishing toggle persists through restart and respects manual decisions.
 7. Missing AI credentials or exhausted budget produce an explicit pending state, not invented results.
 8. The public feed and admin flow work on a narrow mobile screen and desktop.

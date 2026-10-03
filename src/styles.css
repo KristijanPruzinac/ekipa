@@ -9,8 +9,8 @@
   --paper: #f5f3eb;
   --ink: #171a17;
   --lime: #dfff00;
-  --muted: #65685f;
-  --line: #d8d9cd;
+  --muted: #565c50;
+  --line: #c3c8b8;
   --display: 'Space Grotesk', 'DM Sans', Arial, sans-serif;
 }
 * {
@@ -215,11 +215,6 @@ summary:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-.coordinates {
-  font-size: 14.5px;
-  letter-spacing: 1px;
-  color: var(--muted);
 }
 .hero-heading {
   position: relative;
@@ -1204,8 +1199,8 @@ summary:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  border: 1px solid #aab581;
-  background: #eef2d4;
+  border: 1px solid #96a366;
+  background: #e7edc5;
   border-radius: 4px;
   min-height: 52px;
   padding: 14px 16px;
@@ -1232,7 +1227,7 @@ summary:focus-visible {
   font-size: 14.5px;
   font-weight: 400;
   margin-top: 4px;
-  color: #6b715c;
+  color: var(--muted);
 }
 .detail-sources > .fine-print {
   margin-top: 17px;
@@ -1962,9 +1957,6 @@ summary:focus-visible {
     font-size: 14.5px;
     letter-spacing: 1.3px;
   }
-  .coordinates {
-    font-size: 14.5px;
-  }
   .hero-stamp {
     width: 94px;
     height: 94px;
@@ -2148,9 +2140,6 @@ summary:focus-visible {
   .hero-topline .eyebrow {
     font-size: 14.5px;
     letter-spacing: 1.3px;
-  }
-  .coordinates {
-    display: none;
   }
   .hero-heading {
     margin-top: 24px;
@@ -2833,9 +2822,6 @@ summary:focus-visible {
 @media (max-width: 800px) {
   .hero-topline {
     gap: 20px;
-  }
-  .coordinates {
-    flex-shrink: 0;
   }
   .hero-bottom {
     gap: 24px;

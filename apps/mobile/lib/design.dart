@@ -5,8 +5,8 @@ import 'models.dart';
 const paper = Color(0xfff5f3eb);
 const ink = Color(0xff171a17);
 const lime = Color(0xffdfff00);
-const muted = Color(0xff65685f);
-const line = Color(0xffd8d9cd);
+const muted = Color(0xff565c50);
+const line = Color(0xffc3c8b8);
 
 ThemeData wagzTheme() => ThemeData(
   fontFamily: 'DM Sans',

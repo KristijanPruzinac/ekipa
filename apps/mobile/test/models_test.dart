@@ -25,6 +25,10 @@ void main() {
     expect(formatTime('2026-10-25T01:30:00Z'), '02:30');
     expect(formatTime('2026-10-03'), 'Vrijeme nije navedeno');
     expect(dayOnly('2026-10-03'), DateTime.utc(2026, 10, 3));
+    expect(formatDate('2026-10-03', 'EEE'), 'sub');
+    expect(formatDate('2026-10-03T23:30:00Z', 'EEE'), 'ned');
+    expect(formatDate('2026-10-24T22:30:00Z', 'EEE'), 'ned');
+    expect(formatDate('2026-10-25T01:30:00Z', 'EEE'), 'ned');
   });
 
   test('date filters include spanning events and Friday through Sunday', () {

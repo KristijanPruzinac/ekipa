@@ -4,16 +4,16 @@ import 'discovery.dart';
 import 'models.dart';
 
 Color themeColor(DiscoveryTheme? theme) => switch (theme) {
-  DiscoveryTheme.goOut => const Color(0xff8672b7),
-  DiscoveryTheme.culture => const Color(0xffc87652),
-  DiscoveryTheme.joinIn => const Color(0xff568773),
+  DiscoveryTheme.goOut => const Color(0xff674587),
+  DiscoveryTheme.culture => const Color(0xff914a2b),
+  DiscoveryTheme.joinIn => const Color(0xff286d62),
   null => muted,
 };
 
 Color eventPaper(WagzEvent event) => switch (themeForCategory(event.category)) {
-  DiscoveryTheme.goOut => const Color(0xffe9e1f0),
-  DiscoveryTheme.culture => const Color(0xfff2e4d4),
-  DiscoveryTheme.joinIn => const Color(0xffdeeadc),
+  DiscoveryTheme.goOut => const Color(0xffe8ddf3),
+  DiscoveryTheme.culture => const Color(0xfff3dfd0),
+  DiscoveryTheme.joinIn => const Color(0xffd9ebe2),
   null => const Color(0xffe9e7df),
 };
 
@@ -163,7 +163,7 @@ class _EventTimelineState extends State<EventTimeline> {
           ? const EdgeInsets.fromLTRB(12, 20, 12, 8)
           : const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xffeeeee5),
+        color: const Color(0xffe9edde),
         border: Border.all(color: line),
         borderRadius: BorderRadius.circular(5),
       ),
@@ -349,164 +349,191 @@ class _TimelineStation extends StatelessWidget {
     final color = themeColor(themeForCategory(event.category));
     return CustomPaint(
       painter: _SpinePainter(timeline, index),
-      child: Stack(
-        children: [
-          Positioned(
-            top: 16,
-            left: 0,
-            width: 43,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  formatDate(moment.value, 'd. M.'),
-                  textAlign: TextAlign.right,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: SizedBox(
+                width: 43,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      formatDate(moment.value, 'EEE').toUpperCase(),
+                      key: ValueKey(
+                        'timeline-weekday-${ending ? 'end' : 'event'}-${event.id}',
+                      ),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: ink,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      formatDate(moment.value, 'd. M.'),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      moment.value.length == 10
+                          ? 'sat nije naveden'
+                          : formatTime(moment.value),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: muted,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  moment.value.length == 10
-                      ? 'sat nije naveden'
-                      : formatTime(moment.value),
-                  textAlign: TextAlign.right,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: muted,
-                    height: 1.3,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(54 + 18 + lanes * 7, 0, 0, 12),
-            child: Material(
-              color: ending ? Colors.transparent : paper,
-              borderRadius: BorderRadius.circular(7),
-              child: InkWell(
-                key: ValueKey(
-                  'timeline-${ending ? 'end' : 'event'}-${event.id}',
+            SizedBox(width: 29 + lanes * 7),
+            Expanded(
+              child: Material(
+                color: ending ? Colors.transparent : paper,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
+                  side: ending
+                      ? BorderSide.none
+                      : const BorderSide(color: Color(0xffcfd5c4)),
                 ),
-                borderRadius: BorderRadius.circular(7),
-                onTap: onTap,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 70),
-                  child: Padding(
-                    padding: const EdgeInsets.all(11),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (ending) ...[
-                          Text(
-                            'ZAVRŠETAK',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.9,
-                              color: color,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            event.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: muted,
-                              height: 1.4,
-                            ),
-                          ),
-                        ] else ...[
-                          if (now != null && isOngoing(event, now!)) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 3,
+                child: InkWell(
+                  key: ValueKey(
+                    'timeline-${ending ? 'end' : 'event'}-${event.id}',
+                  ),
+                  borderRadius: BorderRadius.circular(7),
+                  onTap: onTap,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 70),
+                    child: Padding(
+                      padding: const EdgeInsets.all(11),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (ending) ...[
+                            Text(
+                              'ZAVRŠETAK',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.9,
+                                color: color,
                               ),
-                              color: const Color(0xffe1ecc8),
-                              child: const Text(
-                                'U TIJEKU',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  color: Color(0xff425124),
-                                  fontWeight: FontWeight.w700,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              event.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: muted,
+                                height: 1.4,
+                              ),
+                            ),
+                          ] else ...[
+                            if (now != null && isOngoing(event, now!)) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 3,
                                 ),
+                                color: const Color(0xffe1ecc8),
+                                child: const Text(
+                                  'U TIJEKU',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Color(0xff425124),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                            ],
+                            Text(
+                              event.title,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                height: 1.4,
                               ),
                             ),
                             const SizedBox(height: 5),
-                          ],
-                          Text(
-                            event.title,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              height: 1.4,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            categoryNames[event.category] ?? 'Ostalo',
-                            style: TextStyle(fontSize: 11, color: color),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            end == null
-                                ? 'Kraj nije naveden'
-                                : '↳ ${duration ?? '${formatDate(event.startsAt, 'd. M.')} – ${formatDate(end, 'd. M.')}'}',
-                            style: TextStyle(
-                              fontSize: end == null ? 10 : 12,
-                              color: end == null ? muted : ink,
-                              fontWeight: end == null
-                                  ? FontWeight.normal
-                                  : FontWeight.w700,
-                            ),
-                          ),
-                          if (event.status != 'scheduled') ...[
-                            const SizedBox(height: 4),
                             Text(
-                              event.status == 'cancelled'
-                                  ? 'Otkazano'
-                                  : 'Odgođeno',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Color(0xff9b3022),
-                                fontWeight: FontWeight.w700,
+                              categoryNames[event.category] ?? 'Ostalo',
+                              style: TextStyle(fontSize: 11, color: color),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              end == null
+                                  ? 'Kraj nije naveden'
+                                  : '↳ ${duration ?? '${formatDate(event.startsAt, 'd. M.')} – ${formatDate(end, 'd. M.')}'}',
+                              style: TextStyle(
+                                fontSize: end == null ? 10 : 12,
+                                color: end == null ? muted : ink,
+                                fontWeight: end == null
+                                    ? FontWeight.normal
+                                    : FontWeight.w700,
                               ),
                             ),
-                          ],
-                        ],
-                        const SizedBox(height: 5),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
+                            if (event.status != 'scheduled') ...[
+                              const SizedBox(height: 4),
                               Text(
-                                'Detalji',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: color,
+                                event.status == 'cancelled'
+                                    ? 'Otkazano'
+                                    : 'Odgođeno',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xff9b3022),
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              Icon(Icons.chevron_right, size: 14, color: color),
                             ],
+                          ],
+                          const SizedBox(height: 5),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Detalji',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: color,
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.chevron_right,
+                                  size: 14,
+                                  color: color,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -524,7 +551,7 @@ class _SpinePainter extends CustomPainter {
       Offset(x, index == 0 ? y : 0),
       Offset(x, size.height),
       Paint()
-        ..color = const Color(0xffa6aa99)
+        ..color = const Color(0xff7e8873)
         ..strokeWidth = 1,
     );
     for (final range in timeline.ranges) {
@@ -560,7 +587,7 @@ class _SpinePainter extends CustomPainter {
       moment.ending ? 4 : 5,
       Paint()
         ..color = moment.ending || moment.event.status != 'scheduled'
-            ? const Color(0xffeeeee5)
+            ? const Color(0xffe9edde)
             : color,
     );
     canvas.drawCircle(
@@ -598,7 +625,7 @@ class _OngoingEventsState extends State<OngoingEvents> {
   Widget build(BuildContext context) => Container(
     key: const ValueKey('ongoing-events'),
     decoration: BoxDecoration(
-      color: const Color(0xffeeeee5),
+      color: const Color(0xffe9edde),
       border: Border.all(color: line),
       borderRadius: BorderRadius.circular(6),
     ),

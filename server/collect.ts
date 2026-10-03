@@ -15,6 +15,12 @@ try {
     console.log(
       `${source.name}: ${source.latestRun?.status} · ${source.latestRun?.imported ?? 0} imports`,
     );
+  if (service.lastTipBatch) {
+    const batch = service.lastTipBatch;
+    console.log(
+      `Dojave: ${batch.queued} queued · ${batch.processed} checked · ${batch.drafted} drafts · ${batch.archived} archived · ${batch.deferred} pending`,
+    );
+  }
   if ((await repo.sourceHealth()).some((source) => source.latestRun?.status === 'error'))
     process.exitCode = 1;
 } finally {

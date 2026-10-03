@@ -155,13 +155,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           Icon(Icons.circle, size: 8, color: Color(0xff728400)),
                           SizedBox(width: 8),
                           Expanded(child: Eyebrow('OSIJEK, HR')),
-                          Flexible(
-                            child: Text(
-                              '45°33′ N  18°41′ E',
-                              textAlign: TextAlign.right,
-                              style: TextStyle(fontSize: 10, color: muted),
-                            ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 22),
@@ -491,13 +484,13 @@ class _EventCard extends StatelessWidget {
                     horizontal: 6,
                     vertical: 3,
                   ),
-                  color: const Color(0xffe8eddf),
+                  color: const Color(0xffdfe9d2),
                   child: Text(
                     audiences.join(' · '),
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xff4c6037),
+                      color: Color(0xff40582c),
                     ),
                   ),
                 ),
@@ -599,8 +592,8 @@ class _EventCard extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xffe8eedf),
-                      border: Border.all(color: const Color(0xffb9c3ad)),
+                      color: const Color(0xffe0ebd3),
+                      border: Border.all(color: const Color(0xffa9b998)),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,

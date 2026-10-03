@@ -214,6 +214,16 @@ void main() {
       expect(find.text('↳ 5 h'), findsOneWidget);
       expect(find.text('U TIJEKU'), findsOneWidget);
       expect(find.text('sat nije naveden'), findsOneWidget);
+      expect(find.text('PET'), findsOneWidget);
+      expect(find.text('NED'), findsNWidgets(3));
+      final endWeekday = find.byKey(
+        const ValueKey('timeline-weekday-end-festival'),
+      );
+      expect(tester.widget<Text>(endWeekday).data, 'NED');
+      expect(
+        tester.getBottomLeft(endWeekday).dy,
+        lessThan(tester.getTopLeft(find.text('4. 10.').last).dy),
+      );
       expect(
         find.byKey(const ValueKey('timeline-end-festival')),
         findsOneWidget,
@@ -291,6 +301,14 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('timeline-toggle')));
       await tester.pumpAndSettle();
       final late = find.byKey(const ValueKey('timeline-event-late'));
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('timeline-weekday-event-late')),
+            )
+            .data,
+        'NED',
+      );
       expect(find.text('Početak'), findsOneWidget);
       expect(find.text('Kraj'), findsOneWidget);
       expect(

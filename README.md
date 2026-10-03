@@ -48,7 +48,7 @@ Run `npm run test:review -- --dev` to repeat these checks with React StrictMode,
 - Source-backed imports with a title, valid date and venue can publish automatically. Incomplete imports can publish when their missing facts arrive. An operator's decision to hold or reject an event always survives re-fetching; drafts collected with the toggle off stay held.
 - Repeated collection updates existing source records. Exact cross-source matches share an event; different performances remain separate. Human edits and publication decisions survive refetching.
 - Source failures remain visible. Events never disappear just because an upstream site failed or removed a listing; explicit cancellation data can update their status.
-- Tips are durable before processing. Obvious spam is archived, with restore available. Uncertain tips remain in the inbox. Source lookup and optional OpenRouter help prepare drafts. An operator approves publication.
+- Tips are saved immediately and checked with the daily collection, after source imports. Valid upcoming, sourced events become drafts for owner approval; completed spam/no-event/past-event checks archive with a reason and restore action. Provider, source, validation or budget failures remain queued for retry. The admin inbox separates ready drafts from queued submissions and archives; manual source checking remains available.
 - AI output is untrusted input. Invalid dates or fields are rejected, missing evidence stays unverified, and no AI tip publishes itself.
 
 ## Data and hosting
@@ -70,3 +70,8 @@ git worktree add ../ekipa-milestone milestone/ekipa-before-wagz
 ```
 
 Decisions and v1 acceptance criteria: [product brief](docs/PRODUCT.md).
+
+## Planned reviews
+
+- [Release review queue](docs/RELEASE-QUEUE.md): access, security, reliability, SEO and accessibility checks requested for the next review; these are not completed audits.
+- [Domain options](docs/DOMAIN-OPTIONS.md): dated `.hr` registration/renewal comparison, eligibility and the exact-name lookup result; no domain purchased.

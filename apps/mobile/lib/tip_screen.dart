@@ -71,7 +71,7 @@ class _TipScreenState extends State<TipScreen> {
               const SizedBox(height: 24),
               if (sent) ...[
                 const Notice(
-                  'Tvoja dojava je spremljena. Pregledat ćemo informacije prije objave.',
+                  'Tvoja dojava je spremljena za sljedeću dnevnu provjeru. Pronađeni događaj pregledat ćemo prije objave.',
                 ),
                 const SizedBox(height: 24),
                 FilledButton.icon(
@@ -148,7 +148,7 @@ class _TipScreenState extends State<TipScreen> {
                       ),
                       const SizedBox(height: 16),
                       const Text(
-                        'Bez prijave. Dojave provjeravamo prije objave. '
+                        'Bez prijave. Dojave provjeravamo uz dnevni dohvat događaja. Svaki prijedlog pregledamo prije objave. '
                         'Pošalji informacije o događaju, bez osobnih podataka.',
                         style: TextStyle(
                           fontSize: 12,

@@ -289,6 +289,17 @@ try {
   }
   if (!live) {
     await expect(timeline).toContainText('U TIJEKU');
+    // Zagreb Sunday starts while the browser (Los Angeles) is still on Saturday.
+    // Weekdays must also appear at real endpoints, including date-only endings.
+    await expect(stations.locator('.station-weekday')).toHaveText([
+      'pet',
+      'sub',
+      'ned',
+      'ned',
+      'ned',
+      'pon',
+    ]);
+    await expect(timeline.locator('.station-ending .station-weekday')).toHaveText(['ned', 'ned']);
     await expect(timeline.locator('.station-duration')).toContainText([
       '02. 10. – 04. 10.',
       'Kraj nije naveden',
@@ -378,6 +389,21 @@ try {
   await expect(button('Cijela vremenska crta')).toHaveCount(0);
   await button('Otvori vremensku crtu').click();
   await expectTimeline(1);
+  await expect(timeline.locator('.station-weekday')).toHaveText(['ned']);
+  // The repeated hour during the Zagreb autumn clock change retains Sunday at both ends.
+  currentFeed = {
+    ...fixtureFeed,
+    events: [
+      fixture('dst', 'Promjena sata', '2026-10-24T22:30:00Z', 'music', blankDiscovery, {
+        endsAt: '2026-10-25T01:30:00Z',
+      }),
+    ],
+  };
+  await page.reload();
+  await button('Otvori vremensku crtu').click();
+  await expectTimeline(1);
+  await expect(timeline.locator('.station-weekday')).toHaveText(['ned', 'ned']);
+  await expect(timeline.locator('.station-duration')).toContainText(['3 h']);
   // Compact ongoing rows retain every event; a real timed event moves at start/end.
   const timed = fixture(
     'timed',
