@@ -7,8 +7,10 @@ import { checkSourceDeadline, type ReaderOptions } from './reader.ts';
  *
  * The adapter produces text-only extraction pages, one per recent post. Dates, venues and prices
  * come exclusively from the existing AI extraction stage, which accepts a fact only when the
- * caption itself contains a supporting quote with an explicit year. Dates printed only on a
- * poster image, or captions without a year, are therefore rejected by design, never guessed.
+ * caption itself contains a supporting quote with an explicit year. Captions usually omit the
+ * year ("srijeda, 7.10."), so annotateYears() appends the year of the next occurrence on or after
+ * the post's publication (within a short window) and the page says so. Dates printed only on a
+ * poster image are still not read.
  * Events from these sources are always held as drafts for review (see isInstagramSource).
  */
 export const APIFY_ACTOR = 'apify~instagram-scraper';
@@ -37,6 +39,13 @@ export const instagramProfiles: readonly InstagramProfile[] = [
     name: 'Plesni klub D&D (Instagram)',
     organiser: 'Plesni klub D&D',
   },
+  {
+    // Confirmed from the 3 October 2026 Apify pilot: owner "ŠPU Feniks Osijek".
+    id: 'instagram-feniks',
+    handle: 'spufeniksosijek',
+    name: 'ŠPU Feniks Osijek (Instagram)',
+    organiser: 'Športsko-plesna udruga Feniks',
+  },
 ];
 
 export const instagramSources: SourceDefinition[] = instagramProfiles.map((profile) => ({
@@ -44,7 +53,7 @@ export const instagramSources: SourceDefinition[] = instagramProfiles.map((profi
   name: profile.name,
   url: `https://www.instagram.com/${profile.handle}/`,
   description:
-    'Javne objave profila putem Apify čitača, najviše pet najnovijih po pokretanju. Datum se prihvaća samo ako ga tekst objave izričito navodi s godinom; datumi samo na plakatu ostaju nečitljivi. Događaji čekaju pregled.',
+    'Javne objave profila putem Apify čitača, najviše pet najnovijih po pokretanju. Datum se prihvaća samo iz teksta objave; datumu bez godine dodaje se prva sljedeća godina od objave. Datumi samo na plakatu ostaju nečitljivi. Događaji čekaju pregled.',
   // Off until an Apify token is configured; no token means no request and no cost.
   enabled: Boolean(process.env.APIFY_TOKEN),
 }));
@@ -57,6 +66,92 @@ export interface InstagramOptions extends ReaderOptions {
   token?: string;
   postsPerProfile?: number;
   maxCostUsd?: number;
+}
+
+const YEAR_NOTE =
+  'Napomena: godina uz datume koji je u objavi nemaju dodana je automatski kao prva sljedeća godina od trenutka objave.';
+const ANNOTATION_BACKDATE_DAYS = 14;
+// Croatian genitive month names, first with and then without diacritics (index % 12 = month).
+const WRITTEN_MONTHS = [
+  'siječnja',
+  'veljače',
+  'ožujka',
+  'travnja',
+  'svibnja',
+  'lipnja',
+  'srpnja',
+  'kolovoza',
+  'rujna',
+  'listopada',
+  'studenoga',
+  'prosinca',
+  'sijecnja',
+  'veljace',
+  'ozujka',
+  'travnja',
+  'svibnja',
+  'lipnja',
+  'srpnja',
+  'kolovoza',
+  'rujna',
+  'listopada',
+  'studenog',
+  'prosinca',
+];
+const ANNOTATION_HORIZON_DAYS = 300;
+
+/**
+ * Appends a year to day.month dates that lack one, choosing the first occurrence no earlier than
+ * two weeks before publication (announcements may repeat a just-started course) and no later
+ * than ~10 months after it. Dates that already carry a year, impossible dates and dates outside
+ * that window are left untouched, so the evidence check still rejects them.
+ */
+export function annotateYears(
+  caption: string,
+  publishedAt: Date,
+): { text: string; changed: boolean } {
+  let changed = false;
+  const pick = (d: number, m: number): number | null => {
+    if (d < 1 || d > 31 || m < 1 || m > 12) return null;
+    const earliest = publishedAt.getTime() - ANNOTATION_BACKDATE_DAYS * 86_400_000;
+    for (const year of [publishedAt.getUTCFullYear(), publishedAt.getUTCFullYear() + 1]) {
+      const candidate = new Date(Date.UTC(year, m - 1, d, 12));
+      if (candidate.getUTCMonth() !== m - 1 || candidate.getUTCDate() !== d) return null;
+      if (candidate.getTime() < earliest) continue;
+      if (candidate.getTime() - publishedAt.getTime() > ANNOTATION_HORIZON_DAYS * 86_400_000)
+        return null;
+      return year;
+    }
+    return null;
+  };
+  const written = caption.replace(
+    new RegExp(
+      `(?<![\\d.])(\\d{1,2})\\.?(\\s+)(${WRITTEN_MONTHS.join('|')})(?!\\s*,?\\s*\\d{4})(?![\\p{L}])`,
+      'giu',
+    ),
+    (match, day: string, space: string, name: string) => {
+      const month =
+        (WRITTEN_MONTHS.findIndex(
+          (item) => item.toLocaleLowerCase('hr') === name.toLocaleLowerCase('hr'),
+        ) %
+          12) +
+        1;
+      const year = pick(Number(day), month);
+      if (year === null) return match;
+      changed = true;
+      return `${match} ${year}.`;
+    },
+  );
+  const text = written.replace(
+    /(?<![\d./])(\d{1,2})(\s*\.\s*)(\d{1,2})\s*\.(?!\s*\d{4}(?!\d))(?!\d)/g,
+    (match, day: string, separator: string, month: string) => {
+      const year = pick(Number(day), Number(month));
+      if (year === null) return match;
+      changed = true;
+      return `${day}${separator}${month}.${year}.`;
+    },
+  );
+  return { text, changed };
 }
 
 const controlCharacters = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
@@ -177,13 +272,15 @@ export async function fetchInstagramProfile(
     usable.push({ url: `https://www.instagram.com/${match[1]}/${match[2]}/`, caption, at });
   }
   usable.sort((a, b) => b.at - a.at);
-  for (const post of usable.slice(0, posts))
+  for (const post of usable.slice(0, posts)) {
+    const annotated = annotateYears(post.caption, new Date(post.at));
     result.extractionPages.push({
       url: post.url,
-      // Captions are untrusted DATA for the extraction stage. The publication date is left out
-      // on purpose: it must never be mistaken for the date of the announced event.
-      text: `Instagram objava profila @${profile.handle} (${profile.organiser}).\n\n${post.caption}`,
+      // Captions are untrusted DATA for the extraction stage. The publication date itself is left
+      // out on purpose: it must never be mistaken for the date of the announced event.
+      text: `Instagram objava profila @${profile.handle} (${profile.organiser}).${annotated.changed ? `\n${YEAR_NOTE}` : ''}\n\n${annotated.text}`,
     });
+  }
   result.skipped += foreign + textless + stale + Math.max(0, usable.length - posts);
   if (textless)
     result.warnings.push(

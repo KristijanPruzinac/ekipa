@@ -65,14 +65,15 @@ test.afterEach(() => {
   }
 });
 
-test('registry: the D&D profile is an Instagram source listed in the ingestion index', () => {
+test('registry: confirmed D&D and Feniks profiles are Instagram sources in the ingestion index', () => {
   assert.ok(isInstagramSource(ID));
   assert.equal(isInstagramSource('kc-osijek'), false);
   assert.equal(isInstagramSource('unknown'), false);
   assert.deepEqual(
     instagramProfiles.map((profile) => profile.handle),
-    [HANDLE],
+    [HANDLE, 'spufeniksosijek'],
   );
+  assert.ok(isInstagramSource('instagram-feniks'));
   const source = sources.find((item) => item.id === ID);
   assert.ok(source);
   assert.equal(source, instagramSources[0]);
@@ -633,4 +634,60 @@ test('service control: the same extraction from a non-Instagram source id is pub
   const { events } = await collectWithAi(context, source);
   assert.equal(events.length, 1);
   assert.equal(events[0].publication, 'published');
+});
+
+test('yearless caption dates gain the next year after publication and pass evidence parsing', async () => {
+  const { annotateYears } = await import('./instagram.ts');
+  const { supportedDays } = await import('../ai/evidence.ts');
+  const cases: Array<[string, string, string[]]> = [
+    // Real captions from the 3 October 2026 Feniks pilot.
+    ['📅 Početak: srijeda, 7.10. 🕕 Vrijeme: 18:00', '2026-09-23T22:03:36Z', ['2026-10-07']],
+    ['Vidimo se u Campusu 24. 7. i 1. 8.!', '2026-07-18T10:05:55Z', ['2026-07-24', '2026-08-01']],
+    ['Vidimo se u petak, 7. kolovoza od 20 h', '2026-08-06T14:21:38Z', ['2026-08-07']],
+    ['s početkom 12.10. i 14.10.', '2026-09-23T22:11:12Z', ['2026-10-12', '2026-10-14']],
+    // Across New Year, and an explicit year that must stay untouched.
+    ['Party 3.1. za Novu godinu', '2026-12-20T10:00:00Z', ['2027-01-03']],
+    ['📅 Trajanje: 7. - 30.9.2026.', '2026-09-01T00:06:42Z', ['2026-09-07', '2026-09-30']],
+  ];
+  for (const [caption, published, days] of cases) {
+    const { text, changed } = annotateYears(caption, new Date(published));
+    assert.deepEqual([...supportedDays(text)].sort(), days, caption);
+    assert.equal(changed, !/\d{4}/.test(caption), caption);
+  }
+  for (const untouched of ['Cijena 10.50 eura', '31.2. nije datum', 'Tel 098 457 557', '18.00 h'])
+    assert.equal(annotateYears(untouched, new Date('2026-10-01T00:00:00Z')).text, untouched);
+  // A date already weeks past is not pushed ~a year ahead as a new event; it stays yearless and
+  // is therefore rejected by the evidence check.
+  const stale = annotateYears('Hvala svima na 1.9.!', new Date('2026-09-25T00:00:00Z'));
+  assert.equal(stale.text, 'Hvala svima na 1.9.!');
+  assert.equal(stale.changed, false);
+});
+
+test('annotated pages disclose the automatic year and Feniks is a confirmed profile', async () => {
+  const { instagramProfiles } = await import('./instagram.ts');
+  assert.ok(instagramProfiles.some((item) => item.handle === 'spufeniksosijek'));
+  const calls: unknown[] = [];
+  const fetch = (async () => {
+    calls.push(1);
+    return new Response(
+      JSON.stringify([
+        {
+          url: 'https://www.instagram.com/p/DdpVsZ2uQNP/',
+          timestamp: '2026-09-23T22:03:36.000Z',
+          ownerUsername: 'spufeniksosijek',
+          caption: 'Početni plesni tečaj. 📅 Početak: srijeda, 7.10. 🕕 18:00',
+        },
+      ]),
+      { status: 200 },
+    );
+  }) as typeof globalThis.fetch;
+  const result = await fetchInstagramProfile('instagram-feniks', {
+    fetch,
+    token: 'test-token',
+    now: new Date('2026-10-03T10:00:00Z'),
+  });
+  assert.equal(calls.length, 1);
+  assert.match(result.extractionPages![0].text, /godina .* dodana je automatski/);
+  assert.match(result.extractionPages![0].text, /7\.10\.2026\./);
+  assert.doesNotMatch(result.extractionPages![0].text, /2026-09-23|22:03/);
 });
