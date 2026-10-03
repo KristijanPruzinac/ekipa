@@ -4,11 +4,12 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
+import { request as httpRequest } from 'node:http';
 import { load } from 'cheerio';
 import { createApp } from './app.ts';
 import { mountPublicPages, PRODUCTION_CSP } from './public-pages.ts';
 import { eventStructuredData, readPageTemplate } from './event-pages.ts';
-import { ADMIN_PATH, eventPath, publicSiteUrl } from '../shared/site.ts';
+import { ADMIN_PATH, SITE_ORIGIN, eventPath, publicSiteUrl } from '../shared/site.ts';
 import type { EventCandidate, PublicPageData } from '../shared/types.ts';
 import { Repository } from './repository.ts';
 import { WagzService } from './service.ts';
@@ -37,7 +38,44 @@ const candidate = (overrides: Partial<EventCandidate> = {}): EventCandidate => (
   ...overrides,
 });
 
-async function fixture(context: TestContext) {
+// Node's fetch transport can normalize Host back to the URL origin. Use a raw
+// HTTP request so these regressions exercise the actual production Host header.
+function fetchWithHost(
+  url: string,
+  options: { headers: Record<string, string>; method?: string; body?: string; redirect?: string },
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      url,
+      { method: options.method, headers: options.headers },
+      (response) => {
+        const headers = new Headers();
+        for (const [key, values] of Object.entries(response.headers)) {
+          for (const value of Array.isArray(values) ? values : values === undefined ? [] : [values])
+            headers.append(key, value);
+        }
+        response.setEncoding('utf8');
+        let body = '';
+        response.on('data', (chunk: string) => {
+          body += chunk;
+        });
+        response.on('end', () =>
+          resolve(
+            new Response(options.method === 'HEAD' ? null : body, {
+              status: response.statusCode,
+              headers,
+            }),
+          ),
+        );
+        response.on('error', reject);
+      },
+    );
+    request.on('error', reject);
+    request.end(options.body);
+  });
+}
+
+async function fixture(context: TestContext, hosted = false) {
   const directory = await mkdtemp(join(tmpdir(), 'wagz-event-pages-'));
   await mkdir(join(directory, 'assets'));
   const template = (await readFile(new URL('../index.html', import.meta.url), 'utf8')).replace(
@@ -54,6 +92,7 @@ async function fixture(context: TestContext) {
     databasePath: ':memory:',
     adminKey: 'isolated-pages-test',
     autoPublish: true,
+    hosted,
     fetchOnStart: false,
     fetchIntervalMinutes: 360,
     ai: { apiKey: '', model: 'disabled', monthlyBudgetUsd: 0, searchEnabled: false },
@@ -75,6 +114,115 @@ async function fixture(context: TestContext) {
   };
 }
 
+test('only legacy-host public documents permanently redirect with their exact path and query', async (context) => {
+  const { base, repository } = await fixture(context, true);
+  const event = await repository.upsert(candidate());
+  const query = '?from=share&utm_content=ples%20i%20glazba&next=%2Fapi%2Fevents&tag=a&tag=b';
+  for (const method of ['GET', 'HEAD']) {
+    for (const path of [
+      '/',
+      eventPath(event.id),
+      `${eventPath(event.id)}/`,
+      '/robots.txt',
+      '/sitemap.xml',
+    ]) {
+      const response = await fetchWithHost(base + path + query, {
+        method,
+        redirect: 'manual',
+        headers: { host: 'wagz.vercel.app', 'x-forwarded-host': 'attacker.invalid' },
+      });
+      assert.equal(response.status, 308, `${method} ${path}`);
+      assert.equal(response.headers.get('location'), `https://wagz.com.hr${path}${query}`);
+    }
+  }
+  for (const host of [
+    'wagz.com.hr',
+    'www.wagz.com.hr',
+    'localhost',
+    '127.0.0.1:3000',
+    'wagz-preview.vercel.app',
+    'wagz.vercel.app.attacker.invalid',
+    'wagz.vercel.app:8443',
+  ]) {
+    const response = await fetchWithHost(base + '/?from=share', {
+      redirect: 'manual',
+      headers: { host, 'x-forwarded-host': 'wagz.vercel.app' },
+    });
+    assert.equal(response.status, 200, host);
+    assert.equal(response.headers.get('location'), null, host);
+    const $ = load(await response.text());
+    assert.equal($('link[rel="canonical"]').attr('href'), 'https://wagz.com.hr/');
+  }
+  for (const host of ['wagz.vercel.app', 'wagz.com.hr']) {
+    for (const path of [ADMIN_PATH, `${ADMIN_PATH}/`]) {
+      const response = await fetchWithHost(base + path + '?from=bookmark', {
+        redirect: 'manual',
+        headers: { host },
+      });
+      assert.equal(response.status, 200, `${host}${path}`);
+      assert.equal(response.headers.get('location'), null);
+      assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+    }
+  }
+  for (const [path, status] of [
+    ['/assets/index-fixture.js', 200],
+    ['/unrecognized', 404],
+    ['/admin', 404],
+    ['/dogadaji/id/extra', 404],
+  ] as const) {
+    const response = await fetchWithHost(base + path, {
+      redirect: 'manual',
+      headers: { host: 'wagz.vercel.app' },
+    });
+    assert.equal(response.status, status, path);
+    assert.equal(response.headers.get('location'), null, path);
+  }
+});
+
+test('legacy-host APIs continue serving directly with same-origin requests and authorization', async (context) => {
+  const { base, repository } = await fixture(context, true);
+  const event = await repository.upsert(candidate());
+  const headers = { host: 'wagz.vercel.app', origin: 'https://wagz.vercel.app' };
+  for (const [path, status] of [
+    ['/api/health', 200],
+    ['/api/events?from=mobile', 200],
+    [`/api/events/${event.id}`, 200],
+    ['/api/not-a-route', 404],
+    ['/api/admin/dashboard', 401],
+  ] as const) {
+    const response = await fetchWithHost(base + path, { headers, redirect: 'manual' });
+    assert.equal(response.status, status, path);
+    assert.equal(response.headers.get('location'), null, path);
+    assert.match(response.headers.get('content-type')!, /application\/json/);
+  }
+  const admin = await fetchWithHost(base + '/api/admin/dashboard', {
+    headers: { ...headers, authorization: 'Bearer isolated-pages-test' },
+    redirect: 'manual',
+  });
+  assert.equal(admin.status, 200);
+  assert.equal(admin.headers.get('location'), null);
+  const tip = await fetchWithHost(base + '/api/tips', {
+    method: 'POST',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify({ note: 'Isolated legacy-host compatibility check.' }),
+    redirect: 'manual',
+  });
+  assert.equal(tip.status, 201);
+  assert.equal(tip.headers.get('location'), null);
+  assert.equal((await repository.tips()).length, 1);
+  const detail = await (await fetchWithHost(base + `/api/events/${event.id}`, { headers })).json();
+  assert.deepEqual(detail.event, await repository.publicEvent(event.id));
+});
+
+test('static fallback metadata uses the same explicit custom origin as rendered pages', async () => {
+  assert.equal(SITE_ORIGIN, 'https://wagz.com.hr');
+  const $ = load(await readFile(new URL('../index.html', import.meta.url), 'utf8'));
+  assert.equal($('link[rel="canonical"]').attr('href'), publicSiteUrl('/'));
+  assert.equal($('meta[property="og:url"]').attr('content'), publicSiteUrl('/'));
+  assert.equal($('meta[property="og:image"]').attr('content'), publicSiteUrl('/share.png'));
+});
+
 test('server-rendered feed and stable pages expose only published events, including their past records', async (context) => {
   const { base, repository } = await fixture(context);
   const future = await repository.upsert(candidate());
@@ -95,7 +243,7 @@ test('server-rendered feed and stable pages expose only published events, includ
     candidate({ externalId: 'rejected', title: 'Odbijena najava' }),
   );
   await repository.editEvent(rejected.id, 'rejected');
-  const home = await fetch(base + '/?from=share', {
+  const home = await fetchWithHost(base + '/?from=share', {
     headers: { host: 'attacker.invalid', 'x-forwarded-host': 'attacker.invalid' },
   });
   assert.equal(home.status, 200);
