@@ -1,6 +1,8 @@
 # WagZ application security review
 
-Reviewed **3 October 2026**, starting from `097f949`. This is a bounded application review, not security certification or proof that every attack is prevented. The fixes below are working-tree changes; this review did not deploy them or change production records, credentials or account settings.
+Reviewed **3 October 2026**, starting from `097f949`. This is a bounded application review, not security certification or proof that every attack is prevented. At the original review, the fixes below were working-tree changes; that review did not deploy them or change production records, credentials or account settings.
+
+**Deployment follow-up, 3 October:** the reviewed fixes were subsequently committed and are included in production release `219c4e9`. Limited production read checks passed for public pages/API, sitemap/robots, CSP/editor headers and anonymous admin denial; see [deployment evidence](DEPLOYMENT.md). Per-test statements below retain their original snapshot and isolation limits. Live database privileges/concurrency, provider/account controls and the other explicitly unverified risks remain open.
 
 The review covers Express authorization and public responses, community submissions, source URL admission, provider response validation, spending reservations and the React administrator/public rendering boundaries. Requirements were informed by [OWASP ASVS 5.0.0](https://owasp.org/projects/asvs), [WSTG](https://owasp.org/www-project-web-security-testing-guide/) and the [REST Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html). A checklist reference is not itself test evidence.
 

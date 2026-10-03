@@ -53,7 +53,12 @@ function accounting(available = true) {
   };
   return { ledger, reservations, settlements };
 }
-function response(content: unknown, cost: unknown = 0.002, annotations?: unknown, finish = 'stop') {
+function response(
+  content: unknown,
+  cost: unknown = 0.002,
+  annotations?: unknown,
+  finish: unknown = 'stop',
+) {
   return new Response(
     JSON.stringify({
       choices: [
@@ -834,6 +839,72 @@ test('a partial extraction exposes rejected rows and keeps independently valid e
   });
   assert.equal(valid.complete, true);
   assert.equal(valid.rejectedCount, 0);
+});
+
+test('extraction diagnostics count fixed validation reasons without exposing rejected fields', async () => {
+  const missingYear = '5. listopada, 20:00';
+  const missingDay = 'listopad 2026.';
+  const hiddenMarker = 'untrusted-candidate-marker';
+  const result = await extractEvents(
+    { ...page, text: `${page.text}\n${missingYear}\n${missingDay}` },
+    config,
+    accounting().ledger,
+    {
+      fetch: mock(() =>
+        response(
+          extraction([
+            candidate,
+            { ...candidate, dateEvidence: hiddenMarker },
+            { ...candidate, dateEvidence: `${hiddenMarker}-second` },
+            { ...candidate, dateEvidence: missingYear },
+            { ...candidate, dateEvidence: missingDay },
+            { ...candidate, startsAt: '2026-02-30' },
+            { ...candidate, unexpected: hiddenMarker },
+          ]),
+        ),
+      ),
+    },
+  );
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].startsAt, candidate.startsAt);
+  assert.equal(result.complete, false);
+  assert.equal(result.rejectedCount, 6);
+  assert.match(result.reason, /Odbačeno neispravnih ili nepotkrijepljenih zapisa: 6;/);
+  assert.match(result.reason, /citat izvan izvora \(2\)/);
+  assert.match(result.reason, /godina izvan dokaza \(1\)/);
+  assert.match(result.reason, /datum izvan dokaza \(1\)/);
+  assert.match(result.reason, /nepostojeći datum \(1\)/);
+  assert.match(result.reason, /neispravna polja \(1\)/);
+  assert.equal(result.reason.match(/citat izvan izvora/g)?.length, 1);
+  assert.doesNotMatch(result.reason, /untrusted-candidate-marker|unexpected|2026-02-30/);
+});
+
+test('incomplete provider diagnostics allowlist finish reasons and preserve settlement', async () => {
+  for (const finish of [
+    'length',
+    'tool_calls',
+    'content_filter',
+    'error',
+    'untrusted-provider-marker',
+    { reason: 'untrusted-provider-marker' },
+    null,
+  ]) {
+    const book = accounting();
+    const result = await extractEvents(page, config, book.ledger, {
+      fetch: mock(() => response(extraction(), 0.002, undefined, finish)),
+    });
+    assert.equal(result.complete, false);
+    assert.equal(result.attempted, true);
+    assert.equal(result.events.length, 0);
+    assert.equal(result.rejectedCount, 0);
+    assert.match(result.reason, /AI odgovor nije dovršen/);
+    if (typeof finish === 'string' && finish !== 'untrusted-provider-marker')
+      assert.ok(result.reason.includes(`Razlog završetka: ${finish} (`));
+    else assert.doesNotMatch(result.reason, /Razlog završetka/);
+    assert.doesNotMatch(result.reason, /untrusted-provider-marker|\[object Object\]/);
+    assert.deepEqual(book.reservations, [REQUEST_RESERVATION_USD]);
+    assert.deepEqual(book.settlements, [['reservation-1', 0.002]]);
+  }
 });
 
 test('one 45-second deadline aborts the request without refunding or retrying', async (context) => {
