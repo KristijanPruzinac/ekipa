@@ -238,6 +238,7 @@ test('legacy-host APIs continue serving directly with same-origin requests and a
 test('static fallback metadata uses the same explicit custom origin as rendered pages', async () => {
   assert.equal(SITE_ORIGIN, 'https://wagz.com.hr');
   const $ = load(await readFile(new URL('../index.html', import.meta.url), 'utf8'));
+  assert.equal($('link[rel="icon"]').attr('href'), '/favicon.svg');
   assert.equal($('link[rel="canonical"]').attr('href'), publicSiteUrl('/'));
   assert.equal($('meta[property="og:url"]').attr('content'), publicSiteUrl('/'));
   assert.equal($('meta[property="og:image"]').attr('content'), publicSiteUrl('/share.png'));
@@ -276,6 +277,7 @@ test('server-rendered feed and stable pages expose only published events, includ
   assert.equal($home('meta[name="description"]').attr('content'), homeDescription);
   assert.equal($home('meta[property="og:title"]').attr('content'), $home('title').text());
   assert.equal($home('meta[property="og:description"]').attr('content'), homeDescription);
+  assert.equal($home('link[rel="icon"]').attr('href'), '/favicon.svg');
   assert.equal($home('h2#feed-title').text(), 'Događanja u Osijeku');
   const $fallback = load(await readFile(new URL('../index.html', import.meta.url), 'utf8'));
   assert.equal($fallback('title').text(), $home('title').text());

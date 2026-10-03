@@ -7,7 +7,7 @@ import { tipDates, upcoming } from '../validation.ts';
 export const EXTRACTION_VERSION = 7;
 // Tip prompts, response envelopes and source evidence are part of the cache contract.
 export const TIP_PREPARATION_VERSION = 7;
-export const CLASSIFICATION_VERSION = 4;
+export const CLASSIFICATION_VERSION = 5;
 export const MAX_CLASSIFICATION_BATCH = 8;
 export const MAX_CLASSIFICATION_TEXT = 16_000;
 /**
