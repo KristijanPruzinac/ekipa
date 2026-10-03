@@ -137,7 +137,8 @@ test('recorded cinema pages pass offline fetch, collection and public feed with 
     assert.equal((await repo.events()).length, 3);
     assert.equal((await repo.publicEvents(beforeScreenings)).length, 3);
     const screenings = await repo.publicEvents(beforeScreenings);
-    assert.ok(screenings.every((event) => event.category === 'other'));
+    // AI disabled: no event is left as `other`; each keeps its source category.
+    assert.ok(screenings.every((event) => event.category !== 'other'));
     assert.ok(screenings.every((event) => !event.discovery?.screening));
     assert.ok(
       screenings.every(isFeaturedEvent),

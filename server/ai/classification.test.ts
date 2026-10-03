@@ -118,22 +118,40 @@ test('semantic request uses shared written criteria, strict quotes and the same 
   assert.deepEqual(accounting.settled, [0.001]);
 });
 
-test('invented quotes, duplicate IDs, extra fields and non-film screening labels fail closed', async () => {
+test('invalid labels, foreign IDs and extra fields drop only that item; unsupported quotes are discarded', async () => {
   for (const invalid of [
-    { ...decision(input), evidence: ['Invented outside source evidence'] },
     { ...decision(input), sourceUrl: 'https://injected.example/' },
-    { ...decision(input), screening: 'routine', screeningEvidence: [input.title] },
     { ...decision(input), category: 'made-up' },
+    { ...decision(input), category: 'other' },
     { ...decision(input), id: 'another-record' },
   ]) {
     const accounting = ledger();
     const result = await classifyEvents([input], config, accounting.value, {
       fetch: async () => envelope({ classifications: [invalid] }),
     });
-    assert.equal(result.complete, false);
-    assert.deepEqual(result.classifications, []);
+    assert.equal(result.complete, true);
+    assert.deepEqual(result.classifications, [], JSON.stringify(invalid));
     assert.deepEqual(accounting.settled, [0.001]);
   }
+  // An invented quote never survives, but the category judgment is kept.
+  const invented = await classifyEvents([input], config, ledger().value, {
+    fetch: async () =>
+      envelope({
+        classifications: [{ ...decision(input), evidence: ['Invented outside source evidence'] }],
+      }),
+  });
+  assert.equal(invented.classifications[0].category, decision(input).category);
+  assert.deepEqual(invented.classifications[0].evidence, []);
+  // A screening claim on a non-film, or without a supported quote, becomes unknown.
+  const screening = await classifyEvents([input], config, ledger().value, {
+    fetch: async () =>
+      envelope({
+        classifications: [
+          { ...decision(input), screening: 'routine', screeningEvidence: ['not in the source'] },
+        ],
+      }),
+  });
+  assert.equal(screening.classifications[0].screening, 'unknown');
 });
 
 test('cache ignores occurrence/date churn, invalidates changed evidence/model, and budget failure never falls back to keywords', async () => {
@@ -202,7 +220,7 @@ test('cache ignores occurrence/date churn, invalidates changed evidence/model, a
       },
     },
   );
-  assert.equal(fallback.events[0].category, 'other');
+  assert.notEqual(fallback.events[0].category, 'other', 'no event is ever left as other');
   assert.equal(fallback.events[0].discovery?.screening, undefined);
   assert.equal(fallback.events[0].venue, original.venue);
   assert.ok(fallback.warnings.length);
@@ -230,14 +248,15 @@ test('invalid batch is not retried within the collection, and source instruction
         fetch: fetcher,
         attemptedKeys,
       })
-    ).events[0].category,
-    'other',
+    ).events[0].category !== 'other',
+    true,
   );
   await classifyCandidates(events, config, accounting.value, cache, {
     fetch: fetcher,
     attemptedKeys,
   });
-  assert.equal(calls, 1);
+  // Two batches (8 + 2) are each sent once; nothing is retried within the collection.
+  assert.equal(calls, 2);
 });
 
 test('captured ballet, open day, workshops and real cinema pages carry evidence through semantic classification and persistence', async () => {
@@ -405,8 +424,8 @@ test('criteria decide by attendee activity, never by art form, venue, organiser 
       line,
     ),
   );
-  assert.equal(definitions.length, 11);
+  assert.equal(definitions.length, 10, 'ten real categories and no other');
   for (const line of definitions)
     assert.match(line, /attendees|presentations|nights|fairs|exhibitions|evidence/, line);
-  assert.match(SEMANTIC_CRITERIA, /other: .*Never guess/);
+  assert.match(SEMANTIC_CRITERIA, /There is no "other" category: always choose/);
 });

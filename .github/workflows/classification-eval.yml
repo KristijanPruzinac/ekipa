@@ -1,0 +1,32 @@
+name: Classification check (real model)
+on:
+  push:
+    branches: [claude/classifier-fix]
+    paths:
+      - server/ai/**
+      - scripts/classification-*.ts
+      - .github/workflows/classification-eval.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_MODEL: google/gemini-2.5-flash-lite
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Hand-labelled cases
+        run: npx tsx scripts/classification-eval.ts
+        continue-on-error: true
+      - name: Live sources vs keyword rules
+        run: npx tsx scripts/classification-compare.ts
