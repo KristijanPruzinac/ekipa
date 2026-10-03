@@ -10,7 +10,7 @@ const repo = await createRepository(
 );
 const service = new WagzService(repo, config);
 try {
-  await service.collect();
+  await service.collect(true);
   const health = await repo.sourceHealth();
   for (const source of health) {
     console.log(
