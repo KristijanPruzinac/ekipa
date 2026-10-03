@@ -7,7 +7,7 @@ import { tipDates, upcoming } from '../validation.ts';
 export const EXTRACTION_VERSION = 7;
 // Tip prompts, response envelopes and source evidence are part of the cache contract.
 export const TIP_PREPARATION_VERSION = 7;
-export const CLASSIFICATION_VERSION = 3;
+export const CLASSIFICATION_VERSION = 4;
 export const MAX_CLASSIFICATION_BATCH = 8;
 export const MAX_CLASSIFICATION_TEXT = 16_000;
 /**
@@ -20,14 +20,14 @@ Decide the category from what attendees actually do. Genre, art form, subject, p
 Category definitions:
 theatre: attendees watch a live staged performance (drama, opera, operetta, musical, ballet or contemporary dance performance, comedy, stand-up, puppetry).
 dance: attendees themselves dance or learn to dance: social dance evenings, dance classes and workshops, the start of a dance course, or a dance school's open day where visitors take part. Incidental dance music does not make an event dance.
-workshop: attendees take part in hands-on learning or making of a practical skill other than dancing. A festival, concert or open day that merely contains workshops keeps its main category.
+workshop: attendees take part in hands-on learning, making, building or experimenting (crafts, cooking, photography, coding, science or STEM sessions), other than dancing. A festival, concert or open day that merely contains workshops keeps its main category.
 film: attendees watch a film screening, wherever and however it is held, even when the title is only the film's name or the synopsis never says film. A filmmaking or costume workshop is workshop.
 literature: book presentations, readings, poetry evenings, author talks and literary discussions; a library venue alone is insufficient.
 music: attendees listen to live music (concerts, recitals, gigs).
 nightlife: DJ, club and party nights where the party itself is the event.
 sport: attendees compete in or watch organised sport, or take part in organised physical recreation.
-community: career fairs/days, general open days, civic, family and neighbourhood gatherings.
-culture: exhibitions, lectures, guided tours and other cultural events not covered above.
+community: fairs and markets of any kind (antiques, crafts, books, food and drink, technology, careers), food or local-product festivals, general open days, civic, charity, family and neighbourhood gatherings.
+culture: exhibitions, museum and gallery programmes, lectures, talks, conferences, guided tours, commemorations and other cultural events not covered above. A fair or market is community even when it sells cultural goods.
 There is no "other" category: always choose the single category above that best fits the primary activity, even when the evidence is thin.
 When an event combines activities, choose the main announced activity, not a side programme, an after-party, an incidental mention or a performer biography.
 Screening kind applies only to film: routine means affirmative source evidence of an ordinary cinema programme, including at least three independently bookable showtimes on three distinct dates for the same film. Ticket tiers, duplicate rows or one continuous date range are not separate screenings. special means the current screening is outdoor/open-air/courtyard/rooftop, festival, retrospective, premiere, special presentation or a weather-relocated special event. Special evidence overrides repeated dates. A historical festival award in a plot synopsis does not make the current screening a festival. Unknown screening format stays unknown and visible in Featured; never infer routine merely from a venue/domain/city name or absent special wording.

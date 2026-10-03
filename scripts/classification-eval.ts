@@ -117,6 +117,34 @@ const cases: Case[] = [
     venue: 'Klub',
     expected: ['culture', 'community', 'music', 'nightlife'],
   },
+  {
+    id: 'c16',
+    title: 'Sajam antikviteta',
+    text: 'Prodaja starina, knjiga i kolekcionarskih predmeta na trgu.',
+    venue: 'Glavni trg',
+    expected: ['community'],
+  },
+  {
+    id: 'c17',
+    title: 'STEM radionica za djecu',
+    text: 'Djeca grade robote i izvode pokuse uz mentore.',
+    venue: 'Knjižnica',
+    expected: ['workshop'],
+  },
+  {
+    id: 'c18',
+    title: 'Craft beer & honey festival',
+    text: 'Local producers sell honey, beer and brandy; tastings all weekend.',
+    venue: 'Promenade',
+    expected: ['community'],
+  },
+  {
+    id: 'c19',
+    title: 'Tech summit 2026',
+    text: 'Keynotes and panel discussions on green technology.',
+    venue: 'Congress hall',
+    expected: ['culture'],
+  },
 ];
 
 const apiKey = process.env.OPENROUTER_API_KEY;
