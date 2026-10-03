@@ -45,7 +45,7 @@ test('production pages preserve root/admin/assets and API 404s without a catch-a
       assert.equal(response.status, 200, path);
       assert.equal(response.headers.get('content-security-policy'), PRODUCTION_CSP);
       assert.match(response.headers.get('content-type')!, /text\/html/);
-      assert.match(await response.text(), /<title>Događaji u Osijeku \| WagZ<\/title>/);
+      assert.match(await response.text(), /<title>We are gen Z<\/title>/);
       if (path.startsWith(ADMIN_PATH)) {
         assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
         assert.equal(response.headers.get('cache-control'), 'no-store');

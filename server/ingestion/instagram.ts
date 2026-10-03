@@ -68,7 +68,7 @@ export interface InstagramOptions extends ReaderOptions {
   maxCostUsd?: number;
 }
 
-const YEAR_NOTE =
+export const YEAR_NOTE =
   'Napomena: godina uz datume koji je u objavi nemaju dodana je automatski kao prva sljedeća godina od trenutka objave.';
 const ANNOTATION_BACKDATE_DAYS = 14;
 // Croatian genitive month names, first with and then without diacritics (index % 12 = month).
@@ -233,7 +233,7 @@ export async function fetchInstagramProfile(
   result.pagesFetched = 1;
   result.discovered = items.length;
   const seen = new Set<string>();
-  const usable: Array<{ url: string; caption: string; at: number }> = [];
+  const usable: Array<{ url: string; caption: string; at: number; imageUrl?: string }> = [];
   let foreign = 0,
     textless = 0,
     stale = 0;
@@ -265,17 +265,30 @@ export async function fetchInstagramProfile(
       typeof row.caption === 'string'
         ? row.caption.replace(controlCharacters, ' ').trim().slice(0, MAX_CAPTION_CHARS)
         : '';
-    if (!caption) {
+    const imageUrl =
+      typeof row.displayUrl === 'string' && /^https:\/\//.test(row.displayUrl)
+        ? row.displayUrl
+        : undefined;
+    // A poster-only post is kept when its image can be transcribed.
+    if (!caption && !imageUrl) {
       textless++;
       continue;
     }
-    usable.push({ url: `https://www.instagram.com/${match[1]}/${match[2]}/`, caption, at });
+    usable.push({
+      url: `https://www.instagram.com/${match[1]}/${match[2]}/`,
+      caption: caption || '(objava bez teksta; podaci su na plakatu)',
+      at,
+      ...(imageUrl ? { imageUrl } : {}),
+    });
   }
   usable.sort((a, b) => b.at - a.at);
   for (const post of usable.slice(0, posts)) {
     const annotated = annotateYears(post.caption, new Date(post.at));
     result.extractionPages.push({
       url: post.url,
+      ...(post.imageUrl
+        ? { imageUrl: post.imageUrl, publishedAt: new Date(post.at).toISOString() }
+        : {}),
       // Captions are untrusted DATA for the extraction stage. The publication date itself is left
       // out on purpose: it must never be mistaken for the date of the announced event.
       text: `Instagram objava profila @${profile.handle} (${profile.organiser}).${annotated.changed ? `\n${YEAR_NOTE}` : ''}\n\n${annotated.text}`,

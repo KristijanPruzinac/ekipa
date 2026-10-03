@@ -236,7 +236,7 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
   }, []);
   useEffect(() => {
     homeTitle.current ??= document.title;
-    document.title = selected ? `${selected.title} — WagZ` : homeTitle.current;
+    document.title = selected ? `${selected.title} — We are gen Z` : homeTitle.current;
     document
       .querySelector('link[rel="canonical"]')
       ?.setAttribute('href', publicSiteUrl(selected ? eventPath(selected.id) : '/'));
@@ -774,7 +774,7 @@ export function EventPage({
   const [tipOpen, setTipOpen] = useState(false);
   const refreshing = useRef(false);
   useEffect(() => {
-    document.title = `${event.title} — WagZ`;
+    document.title = `${event.title} — We are gen Z`;
     document
       .querySelector('link[rel="canonical"]')
       ?.setAttribute('href', publicSiteUrl(eventPath(event.id)));

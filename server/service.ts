@@ -23,6 +23,7 @@ import { fetchSource } from './ingestion/index.ts';
 import {
   prepareTip as aiPrepareTip,
   extractEvents,
+  transcribePoster,
   EXTRACTION_VERSION,
   TIP_PREPARATION_VERSION,
   REQUEST_RESERVATION_USD,
@@ -32,6 +33,7 @@ import type { Config } from './config.ts';
 import { inferDiscovery, isFree } from './discovery.ts';
 import { supportedTime } from './ai/evidence.ts';
 import { classifyCandidates } from './ai/classification.ts';
+import { annotateYears, YEAR_NOTE } from './ingestion/instagram.ts';
 
 function submittedTimeMatches(note: string, startsAt: string): boolean {
   const explicitTime =
@@ -300,7 +302,7 @@ export class WagzService {
       const enrichment: Array<{
         sourceId: string;
         candidates: EventCandidate[];
-        pages: Array<{ url: string; text: string }>;
+        pages: Array<{ url: string; text: string; imageUrl?: string; publishedAt?: string }>;
         reviewExternalIds: string[];
         run: SourceRun;
         savedIds: Set<string>;
@@ -400,7 +402,8 @@ export class WagzService {
         const { run } = job;
         let candidates = job.candidates;
         try {
-          for (const page of job.pages) {
+          for (const rawPage of job.pages) {
+            const page = await this.withPosterText(rawPage, run, sourceBudgetEnd);
             const key = createHash('sha256')
               .update(
                 JSON.stringify({
@@ -506,6 +509,39 @@ export class WagzService {
         /* A concurrently edited tip is left for the operator. */
       }
     }
+  }
+  /** Appends a cached verbatim poster transcription so extraction can quote it as evidence. */
+  private async withPosterText(
+    page: { url: string; text: string; imageUrl?: string; publishedAt?: string },
+    run: SourceRun,
+    deadlineMs: number,
+  ): Promise<{ url: string; text: string }> {
+    if (!page.imageUrl || !this.config.ai.apiKey) return { url: page.url, text: page.text };
+    const key = `ocr:${createHash('sha256').update(page.url).digest('hex')}`;
+    let transcript = await this.repo.cached<string>(key);
+    if (transcript === null && deadlineMs - Date.now() > 60_000) {
+      const result = await transcribePoster(page.imageUrl, this.config.ai, this.ledger, {
+        deadlineMs,
+      });
+      if (result.complete) {
+        transcript = result.text;
+        await this.repo.cache(key, transcript);
+      } else run.warnings.push(`${page.url}: plakat nije pročitan (${result.reason})`);
+    }
+    if (transcript && page.publishedAt) {
+      // Posters rarely print the year either: same disclosed next-occurrence rule as captions.
+      const annotated = annotateYears(transcript, new Date(page.publishedAt));
+      if (annotated.changed) transcript = `${annotated.text}\n${YEAR_NOTE}`;
+    }
+    return transcript
+      ? {
+          url: page.url,
+          text: `${page.text}\n\nTekst s plakata (automatski prepisan, doslovno):\n${transcript}`.slice(
+            0,
+            12_000,
+          ),
+        }
+      : { url: page.url, text: page.text };
   }
   private isQueuedTip(tip: Tip): boolean {
     return (

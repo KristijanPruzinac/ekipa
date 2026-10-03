@@ -86,7 +86,8 @@ export interface FetchResult {
   discovered: number;
   skipped: number;
   warnings: string[];
-  extractionPages?: Array<{ url: string; text: string }>;
+  /** imageUrl: a poster to transcribe before extraction (Instagram). */
+  extractionPages?: Array<{ url: string; text: string; imageUrl?: string; publishedAt?: string }>;
 }
 export interface SourceRun {
   id: string;

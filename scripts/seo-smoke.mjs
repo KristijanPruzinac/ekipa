@@ -131,7 +131,7 @@ try {
   });
   const staticPage = await noJs.newPage();
   await staticPage.goto(base);
-  await expect(staticPage).toHaveTitle('Događaji u Osijeku | WagZ');
+  await expect(staticPage).toHaveTitle('We are gen Z');
   await expect(
     staticPage.getByRole('heading', { name: 'Događanja u Osijeku', level: 2 }),
   ).toBeVisible();
@@ -182,7 +182,7 @@ try {
       if (/hydration|hydrated|did not match/i.test(message.text())) errors.push(message.text());
     });
     await page.goto(base, { waitUntil: 'networkidle' });
-    await expect(page).toHaveTitle('Događaji u Osijeku | WagZ');
+    await expect(page).toHaveTitle('We are gen Z');
     await expect(
       page.getByRole('heading', { name: 'Događanja u Osijeku', level: 2 }),
     ).toBeVisible();

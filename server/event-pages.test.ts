@@ -272,7 +272,7 @@ test('server-rendered feed and stable pages expose only published events, includ
   const homeDescription =
     'Pronađi koncerte, predstave, radionice i druga događanja u Osijeku. Datumi, lokacije i izvorne najave na jednom mjestu.';
   assert.equal($home('html').attr('lang'), 'hr');
-  assert.equal($home('title').text(), 'Događaji u Osijeku | WagZ');
+  assert.equal($home('title').text(), 'We are gen Z');
   assert.equal($home('meta[name="description"]').attr('content'), homeDescription);
   assert.equal($home('meta[property="og:title"]').attr('content'), $home('title').text());
   assert.equal($home('meta[property="og:description"]').attr('content'), homeDescription);
