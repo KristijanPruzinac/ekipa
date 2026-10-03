@@ -115,7 +115,7 @@ const cases: Case[] = [
     title: 'Večer',
     text: 'Više informacija uskoro.',
     venue: 'Klub',
-    expected: ['uncertain', 'other'],
+    expected: ['culture', 'community', 'music', 'nightlife'],
   },
 ];
 
