@@ -494,7 +494,6 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final audiences = sourceAudienceLabels(event);
     return Material(
       color: eventPaper(event),
       shape: RoundedRectangleBorder(
@@ -537,25 +536,6 @@ class _EventCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (audiences.isNotEmpty) ...[
-                Container(
-                  key: ValueKey('audience-label-${event.id}'),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 3,
-                  ),
-                  color: const Color(0xffdfe9d2),
-                  child: Text(
-                    audiences.join(' · '),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xff40582c),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
               if (event.status == 'scheduled' &&
                   event.discovery.prominenceLabel != null) ...[
                 Text(

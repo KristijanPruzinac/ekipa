@@ -1,10 +1,4 @@
-import {
-  eventDurationText,
-  isOngoing,
-  rankForAudience,
-  sourceAudienceLabels,
-  timelineFor,
-} from '../shared/discovery.ts';
+import { eventDurationText, isOngoing, rankForAudience, timelineFor } from '../shared/discovery.ts';
 import { chromium, expect } from '@playwright/test';
 import { createServer } from 'vite';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -62,9 +56,9 @@ const fixture = (id, title, startsAt, category, discovery = blankDiscovery, extr
   ],
   ...extra,
 });
-// Source audience tags never alter chronology or hide unknown-audience/cancelled events.
+// Stored source audience evidence never adds UI labels, alters chronology or hides events.
 const events = [
-  fixture('first', 'Izložba bez dobne oznake', '2026-10-03T08:00:00Z', 'culture'),
+  fixture('first', 'Izložba bez dobne oznake', '2026-10-03T08:00:00Z', 'culture', studentDiscovery),
   fixture(
     'unverified',
     'Studentski susret bez potvrđene publike',
@@ -82,7 +76,16 @@ const events = [
     free: true,
     prominence,
   }),
-  fixture('student', 'Studentska radionica', '2026-10-05T12:00:00Z', 'community', studentDiscovery),
+  fixture(
+    'student',
+    'Studentska radionica',
+    '2026-10-05T12:00:00Z',
+    'community',
+    studentDiscovery,
+    {
+      description: 'Program je namijenjen studentima. Izvorni opis ostaje prikazan.',
+    },
+  ),
   fixture(
     'cancelled',
     'Otkazani studentski koncert',
@@ -186,6 +189,13 @@ try {
       .getByRole('button', { name, exact: true })
       .or(page.getByRole('link', { name, exact: true }));
   const chronological = () => rankForAudience(currentFeed.events).map((row) => row.event);
+  async function expectNoAudienceLabels(scope = page) {
+    await expect(scope.locator('.card-audience')).toHaveCount(0);
+    await expect(scope.getByText('Publika navedena u najavi', { exact: true })).toHaveCount(0);
+    await expect(
+      scope.getByText(/^(?:Studenti|Odrasli|Stariji)(?: · (?:Studenti|Odrasli|Stariji))*$/),
+    ).toHaveCount(0);
+  }
   async function expectCards() {
     const ranked = rankForAudience(currentFeed.events);
     const ongoing = ranked.filter((row) => isOngoing(row.event, currentFeed.meta.now));
@@ -196,12 +206,7 @@ try {
       upcoming.map((row) => eventDurationText(row.event)),
     );
     await expect(page.locator('.card-personal')).toHaveCount(0);
-    await expect(page.locator('.card-audience')).toHaveText(
-      upcoming.flatMap(({ event }) => {
-        const labels = sourceAudienceLabels(event);
-        return labels.length ? [labels.join(' · ')] : [];
-      }),
-    );
+    await expectNoAudienceLabels();
     await expect(page.locator('.ongoing-event strong')).toHaveText(
       ongoing.slice(0, 2).map((row) => row.event.title),
     );
@@ -294,11 +299,14 @@ try {
   await expect(page.getByRole('textbox')).toHaveCount(0);
   await expect(page.getByRole('combobox')).toHaveCount(0);
   const tagged = chronological().find(
-    (event) => !isOngoing(event, currentFeed.meta.now) && sourceAudienceLabels(event).length,
+    (event) => !isOngoing(event, currentFeed.meta.now) && event.discovery?.audienceEvidence?.length,
   );
   if (tagged) {
     await button(`Detalji: ${tagged.title}`).click();
-    await expect(page.getByRole('dialog')).toContainText('Publika navedena u najavi');
+    await expectNoAudienceLabels(page.getByRole('dialog'));
+    await expect(page.locator('dialog .event-description')).toHaveText(tagged.description);
+    if (!tagged.discovery?.prominence)
+      await expect(page.locator('dialog .detail-discovery')).toHaveCount(0);
     await expect(page.getByRole('dialog')).not.toContainText('Prijedlog za tebe');
     await page.keyboard.press('Escape');
   }
@@ -351,11 +359,13 @@ try {
       const card = cards.filter({
         has: page.getByRole('heading', { name: tagged.title, exact: true }),
       });
-      await card.screenshot({ path: resolve(directory, `audience-card-${width}.png`) });
+      await expectNoAudienceLabels();
+      await card.screenshot({ path: resolve(directory, `no-audience-card-${width}.png`) });
       await button(`Detalji: ${tagged.title}`).click();
       await page
         .getByRole('dialog')
-        .screenshot({ path: resolve(directory, `audience-detail-${width}.png`) });
+        .screenshot({ path: resolve(directory, `no-audience-detail-${width}.png`) });
+      await expectNoAudienceLabels(page.getByRole('dialog'));
       await page.keyboard.press('Escape');
     }
     await page.evaluate(() => document.activeElement?.blur());
@@ -675,7 +685,7 @@ try {
   await expect.poll(() => feedRequests).toBe(beforeHidden + 1);
   expect(failures).toEqual([]);
   console.log(
-    `Discovery passed (${live ? 'live data' : 'fixtures'}): chronology, source-only audience tags, source reasons, exact/date-only/unknown spans, shared spine, keyboard, ignored legacy preferences, refreshed details, 320/390/1440px. Screenshots: ${directory}`,
+    `Discovery passed (${live ? 'live data' : 'fixtures'}): chronology, audience labels absent with source descriptions preserved, activity filters, exact/date-only/unknown spans, shared spine, keyboard, ignored legacy preferences, refreshed details, 320/390/1440px. Screenshots: ${directory}`,
   );
 } finally {
   await browser?.close();

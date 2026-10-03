@@ -1,12 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  audienceLabels,
   durationLabel,
   eventDurationText,
   isOngoing,
   rankForAudience,
-  sourceAudienceEvidence,
-  sourceAudienceLabels,
   themeForCategory,
 } from '../shared/discovery';
 import {
@@ -384,7 +381,7 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
                     </div>
                   ) : (
                     upcoming.length === 0 && (
-                      <p className="audience-result-note">
+                      <p className="ongoing-result-note">
                         Nove najave stižu uskoro. Programi koji traju dostupni su iznad.
                       </p>
                     )
@@ -510,7 +507,6 @@ function OngoingEvents({
 }
 
 function EventCard({ event, onSelect }: { event: PublicEvent; onSelect: () => void }) {
-  const audiences = sourceAudienceLabels(event);
   const prominence = event.status === 'scheduled' ? event.discovery?.prominence : null;
   return (
     <article
@@ -528,7 +524,6 @@ function EventCard({ event, onSelect }: { event: PublicEvent; onSelect: () => vo
         <div className="card-topline">
           <span className="category-label">{eventCategoryLabel(event)}</span>
         </div>
-        {audiences.length > 0 && <p className="card-audience">{audiences.join(' · ')}</p>}
         <div className="card-title-area">
           {event.status !== 'scheduled' && (
             <span className={`status-label status-${event.status}`}>
@@ -596,7 +591,6 @@ function EventDetail({
 
 export function EventFacts({ event, now }: { event: PublicEvent; now: string }) {
   const sources = event.sources.filter((source) => safeLink(source.url));
-  const audienceEvidence = sourceAudienceEvidence(event);
   const discovery = event.discovery;
   return (
     <>
@@ -650,22 +644,10 @@ export function EventFacts({ event, now }: { event: PublicEvent; now: string }) 
         </div>
       </dl>
       {event.description && <div className="event-description">{event.description}</div>}
-      {Boolean(discovery?.prominence || audienceEvidence.length) && (
+      {discovery?.prominence && (
         <section className="detail-discovery" aria-label="Razlozi oznaka">
           <h3>Dobro je znati</h3>
-          {audienceEvidence.length > 0 && <p>Publika navedena u najavi</p>}
           <ul>
-            {audienceEvidence.map((evidence) => (
-              <li key={`${evidence.audience}-${evidence.sourceUrl}`}>
-                <strong>{audienceLabels[evidence.audience]}</strong>
-                <p>{evidence.reason}</p>
-                {safeLink(evidence.sourceUrl) && (
-                  <a href={safeLink(evidence.sourceUrl)!} target="_blank" rel="noopener noreferrer">
-                    Provjeri u najavi <Arrow diagonal />
-                  </a>
-                )}
-              </li>
-            ))}
             {discovery?.prominence && (
               <li>
                 <strong>{discovery.prominence.label}</strong>

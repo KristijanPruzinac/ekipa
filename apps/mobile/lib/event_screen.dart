@@ -14,7 +14,6 @@ class EventScreen extends StatelessWidget {
       (source) => safeLink(source.url) != null,
     );
     final evidence = [
-      ...sourceAudienceEvidence(event),
       if (event.discovery.prominenceEvidence != null)
         event.discovery.prominenceEvidence!,
     ];
@@ -118,9 +117,7 @@ class EventScreen extends StatelessWidget {
               ))
                 _source(
                   context,
-                  item.audience == null
-                      ? 'Zašto je istaknuto?'
-                      : 'Publika navedena u najavi: ${audienceNames[item.audience]}',
+                  'Zašto je istaknuto?',
                   item.reason,
                   item.sourceUrl,
                 ),

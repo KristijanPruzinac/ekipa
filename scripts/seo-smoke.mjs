@@ -55,6 +55,32 @@ const historical = await repo.upsert({
   price: null,
   status: 'scheduled',
 });
+const audienceSource = 'https://example.org/isolated-audience-workshop';
+const audienceEvent = await repo.upsert({
+  sourceId: fixture.sources[0].id,
+  sourceUrl: audienceSource,
+  externalId: 'seo-audience',
+  title: 'Radionica bez dodatnih oznaka publike',
+  description: 'Program je namijenjen studentima. Izvorni opis ostaje prikazan.',
+  startsAt: '2026-10-04T10:00:00+02:00',
+  endsAt: '2026-10-04T12:00:00+02:00',
+  venue: 'Testna lokacija',
+  address: null,
+  city: 'Osijek',
+  category: 'workshop',
+  price: null,
+  status: 'scheduled',
+  discovery: {
+    audiences: ['students', 'adults', 'seniors'],
+    audienceEvidence: ['students', 'adults', 'seniors'].map((audience) => ({
+      audience,
+      reason: 'Izolirani dokaz publike; ne prikazuje se kao oznaka.',
+      sourceUrl: audienceSource,
+    })),
+    prominence: null,
+    free: false,
+  },
+});
 const app = createApp(service);
 mountPublicPages(app, builtDirectory, repo);
 const server = app.listen(0, '127.0.0.1');
@@ -69,6 +95,13 @@ const record = (name) => {
   checks.push(name);
   console.log(`PASS ${name}`);
 };
+async function expectNoAudienceLabels(page) {
+  await expect(page.locator('.card-audience')).toHaveCount(0);
+  await expect(page.getByText('Publika navedena u najavi', { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText(/^(?:Studenti|Odrasli|Stariji)(?: · (?:Studenti|Odrasli|Stariji))*$/),
+  ).toHaveCount(0);
+}
 try {
   const feed = await (await fetch(base + '/api/events')).json();
   const event = feed.events.find((item) => !item.endsAt || Date.parse(item.startsAt) > Date.now());
@@ -98,6 +131,7 @@ try {
   });
   const staticPage = await noJs.newPage();
   await staticPage.goto(base);
+  await expectNoAudienceLabels(staticPage);
   await expect(staticPage.locator(`a[href^="/admin"], a[href^="${ADMIN_PATH}"]`)).toHaveCount(0);
   await expect(staticPage.locator(`a.event-card-button[href="${path}"]`)).toContainText(
     event.title,
@@ -113,6 +147,14 @@ try {
   record(
     'Initial homepage/event HTML exposes event links, facts and sources with JavaScript disabled',
   );
+  await staticPage.goto(base + eventPath(audienceEvent.id));
+  await expectNoAudienceLabels(staticPage);
+  await expect(staticPage.locator('.detail-discovery')).toHaveCount(0);
+  await expect(staticPage.locator('.event-description')).toHaveText(audienceEvent.description);
+  const retained = await (await fetch(base + `/api/events/${audienceEvent.id}`)).json();
+  assert.deepEqual(retained.event.discovery.audiences, ['students', 'adults', 'seniors']);
+  assert.equal(retained.event.discovery.audienceEvidence.length, 3);
+  record('SSR hides audience labels while preserving source descriptions and public evidence data');
   await noJs.close();
   for (const width of [1440, 390, 320]) {
     const context = await browser.newContext({
@@ -131,6 +173,7 @@ try {
       if (/hydration|hydrated|did not match/i.test(message.text())) errors.push(message.text());
     });
     await page.goto(base, { waitUntil: 'networkidle' });
+    await expectNoAudienceLabels(page);
     const card = page.locator(`a.event-card-button[href="${path}"]`);
     const skip = page.getByRole('link', { name: 'Preskoči na nadolazeće događaje' });
     await skip.focus();
@@ -173,6 +216,15 @@ try {
     await expect(page.locator('.event-past')).toContainText('Događaj je završio.');
     await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(0);
     await page.screenshot({ path: resolve(directory, `past-event-${width}.png`), fullPage: true });
+    await page.goto(base + eventPath(audienceEvent.id), { waitUntil: 'networkidle' });
+    await expectNoAudienceLabels(page);
+    await expect(page.locator('.detail-discovery')).toHaveCount(0);
+    await expect(page.locator('.event-description')).toHaveText(audienceEvent.description);
+    await expect(page.locator('.event-page-content > .eyebrow')).toHaveText('Radionica');
+    await page.screenshot({
+      path: resolve(directory, `no-audience-page-${width}.png`),
+      fullPage: true,
+    });
     await page.goto(base);
     const popupPromise = context.waitForEvent('page');
     await page.locator(`a.event-card-button[href="${path}"]`).click({ modifiers: ['Control'] });

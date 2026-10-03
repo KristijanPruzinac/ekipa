@@ -62,7 +62,7 @@
   font-size: 11px;
   letter-spacing: 0.5px;
 }
-.audience-result-note {
+.ongoing-result-note {
   margin: 0 0 18px;
   font-size: 13px;
   line-height: 1.6;
@@ -609,16 +609,4 @@
   .event-card .card-title-area h3 {
     font-size: 26px;
   }
-}
-
-/* Informational source audience label; never a control or a personal recommendation. */
-.card-audience {
-  display: inline-block;
-  margin: 10px 0 0;
-  padding: 3px 6px;
-  background: #dfe9d2;
-  color: #40582c;
-  font-size: 12px;
-  line-height: 1.4;
-  font-weight: 600;
 }

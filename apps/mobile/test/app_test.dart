@@ -176,7 +176,7 @@ void main() {
   );
 
   testWidgets(
-    'only source audience tags appear on chronological cards without profile controls',
+    'activity labels and source details remain without audience tags or profile controls',
     (tester) async {
       final api = WagzApi(
         baseUrl: 'https://wagz.example',
@@ -205,9 +205,10 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey('audience-label-student-concert')),
-        findsOneWidget,
+        findsNothing,
       );
-      expect(find.text('Studenti'), findsOneWidget);
+      expect(find.text('Studenti'), findsNothing);
+      expect(find.text('GLAZBA'), findsOneWidget);
       await tester.ensureVisible(
         find.byKey(const ValueKey('event-card-student-concert')),
       );
@@ -216,14 +217,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
-        find.text('Publika navedena u najavi: Studenti'),
+        find.text('Otvori izvornu najavu'),
         220,
         scrollable: find.byType(Scrollable).last,
       );
-      expect(
-        find.text('Organizator izričito poziva studente.'),
-        findsOneWidget,
-      );
+      expect(find.text('Organizator izričito poziva studente.'), findsNothing);
+      expect(find.textContaining('Publika navedena u najavi'), findsNothing);
+      expect(find.text('Organizator'), findsOneWidget);
+      expect(find.text('Koncert u dvorištu kampusa.'), findsOneWidget);
       expect(find.textContaining('Prijedlog za tebe'), findsNothing);
       expect(tester.takeException(), isNull);
     },
