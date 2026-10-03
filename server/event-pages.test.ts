@@ -114,7 +114,7 @@ async function fixture(context: TestContext, hosted = false) {
   };
 }
 
-test('only legacy-host public documents permanently redirect with their exact path and query', async (context) => {
+test('legacy-host public documents remain available while metadata advertises the custom origin', async (context) => {
   const { base, repository } = await fixture(context, true);
   const event = await repository.upsert(candidate());
   const query = '?from=share&utm_content=ples%20i%20glazba&next=%2Fapi%2Fevents&tag=a&tag=b';
@@ -131,8 +131,28 @@ test('only legacy-host public documents permanently redirect with their exact pa
         redirect: 'manual',
         headers: { host: 'wagz.vercel.app', 'x-forwarded-host': 'attacker.invalid' },
       });
-      assert.equal(response.status, 308, `${method} ${path}`);
-      assert.equal(response.headers.get('location'), `https://wagz.com.hr${path}${query}`);
+      assert.equal(response.status, 200, `${method} ${path}`);
+      assert.equal(response.headers.get('location'), null, `${method} ${path}`);
+      if (method === 'GET') {
+        const body = await response.text();
+        if (path === '/robots.txt') {
+          assert.match(body, /Sitemap: https:\/\/wagz\.com\.hr\/sitemap\.xml/);
+        } else if (path === '/sitemap.xml') {
+          const $ = load(body, { xml: true });
+          assert.deepEqual(
+            $('loc')
+              .map((_, element) => $(element).text())
+              .get(),
+            ['https://wagz.com.hr/', `https://wagz.com.hr${eventPath(event.id)}`],
+          );
+        } else {
+          const $ = load(body);
+          const canonical =
+            path === '/' ? 'https://wagz.com.hr/' : `https://wagz.com.hr${eventPath(event.id)}`;
+          assert.equal($('link[rel="canonical"]').attr('href'), canonical);
+          assert.equal($('meta[property="og:url"]').attr('content'), canonical);
+        }
+      }
     }
   }
   for (const host of [
