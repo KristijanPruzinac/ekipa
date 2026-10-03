@@ -101,6 +101,18 @@ test('server-rendered feed and stable pages expose only published events, includ
   assert.equal(home.status, 200);
   assert.equal(home.headers.get('content-security-policy'), PRODUCTION_CSP);
   const $home = load(await home.text());
+  const homeDescription =
+    'Pronađi koncerte, predstave, radionice i druga događanja u Osijeku. Datumi, lokacije i izvorne najave na jednom mjestu.';
+  assert.equal($home('html').attr('lang'), 'hr');
+  assert.equal($home('title').text(), 'Događaji u Osijeku | WagZ');
+  assert.equal($home('meta[name="description"]').attr('content'), homeDescription);
+  assert.equal($home('meta[property="og:title"]').attr('content'), $home('title').text());
+  assert.equal($home('meta[property="og:description"]').attr('content'), homeDescription);
+  assert.equal($home('h2#feed-title').text(), 'Događanja u Osijeku');
+  const $fallback = load(await readFile(new URL('../index.html', import.meta.url), 'utf8'));
+  assert.equal($fallback('title').text(), $home('title').text());
+  assert.equal($fallback('meta[name="description"]').attr('content'), homeDescription);
+  assert.equal($fallback('meta[property="og:description"]').attr('content'), homeDescription);
   assert.ok($home(`#root a[href="${eventPath(future.id)}"]`).length > 0);
   assert.match($home('#root').text(), /Radionica javnog programa/);
   assert.doesNotMatch($home('#root').text(), /Privatni nacrt|Odbijena najava|Prošla radionica/);
@@ -117,6 +129,8 @@ test('server-rendered feed and stable pages expose only published events, includ
   assert.equal($detail('title').text(), `${future.title} — WagZ`);
   assert.equal($detail('title').length, 1);
   assert.equal($detail('meta[name="description"]').length, 1);
+  assert.equal($detail('meta[name="description"]').attr('content'), future.description);
+  assert.equal($detail('html').attr('lang'), 'hr');
   assert.equal($detail('link[rel="canonical"]').attr('href'), publicSiteUrl(eventPath(future.id)));
   assert.equal(
     $detail('meta[property="og:url"]').attr('content'),

@@ -10,9 +10,9 @@ import { upcoming } from './validation.ts';
 const ROOT = '<div id="root"></div>';
 const METADATA_START = '<!-- wagz:metadata:start -->';
 const METADATA_END = '<!-- wagz:metadata:end -->';
-const HOME_TITLE = 'WagZ — Događaji u Osijeku';
+const HOME_TITLE = 'Događaji u Osijeku | WagZ';
 const HOME_DESCRIPTION =
-  'Koncerti, kultura, sport i druga događanja u Osijeku. Pregled nadolazećih događaja s datumima, lokacijama i poveznicama na izvore.';
+  'Pronađi koncerte, predstave, radionice i druga događanja u Osijeku. Datumi, lokacije i izvorne najave na jednom mjestu.';
 
 export function escapeMarkup(value: string): string {
   return value.replace(

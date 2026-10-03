@@ -280,7 +280,7 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
           </div>
           <div className="hero-bottom">
             <p>
-              Koncerti, izlasci i sve između.
+              Koncerti, predstave, radionice i izlasci.
               <br />
               Pronađi svoj razlog za izaći.
             </p>
@@ -295,7 +295,7 @@ export function PublicApp({ initialFeed }: { initialFeed?: PublicFeed }) {
               <span className="tiny-cross" aria-hidden="true">
                 ✳
               </span>
-              <h2 id="feed-title">Uhvati grad.</h2>
+              <h2 id="feed-title">Događanja u Osijeku</h2>
               <span className="event-count" aria-label={`${feed?.events.length ?? 0} događaja`}>
                 {loading && !feed ? '—' : (feed?.events.length ?? '—')}
               </span>

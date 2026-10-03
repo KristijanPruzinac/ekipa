@@ -131,6 +131,15 @@ try {
   });
   const staticPage = await noJs.newPage();
   await staticPage.goto(base);
+  await expect(staticPage).toHaveTitle('Događaji u Osijeku | WagZ');
+  await expect(
+    staticPage.getByRole('heading', { name: 'Događanja u Osijeku', level: 2 }),
+  ).toBeVisible();
+  await expect(staticPage.locator('html')).toHaveAttribute('lang', 'hr');
+  await expect(staticPage.locator('meta[name="description"]')).toHaveAttribute(
+    'content',
+    'Pronađi koncerte, predstave, radionice i druga događanja u Osijeku. Datumi, lokacije i izvorne najave na jednom mjestu.',
+  );
   await expectNoAudienceLabels(staticPage);
   await expect(staticPage.locator(`a[href^="/admin"], a[href^="${ADMIN_PATH}"]`)).toHaveCount(0);
   await expect(staticPage.locator(`a.event-card-button[href="${path}"]`)).toContainText(
@@ -173,6 +182,15 @@ try {
       if (/hydration|hydrated|did not match/i.test(message.text())) errors.push(message.text());
     });
     await page.goto(base, { waitUntil: 'networkidle' });
+    await expect(page).toHaveTitle('Događaji u Osijeku | WagZ');
+    await expect(
+      page.getByRole('heading', { name: 'Događanja u Osijeku', level: 2 }),
+    ).toBeVisible();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: resolve(directory, `homepage-${width}.png`), fullPage: true });
+    await page
+      .locator('.section-title-row')
+      .screenshot({ path: resolve(directory, `events-heading-${width}.png`) });
     await expectNoAudienceLabels(page);
     const card = page.locator(`a.event-card-button[href="${path}"]`);
     const skip = page.getByRole('link', { name: 'Preskoči na nadolazeće događaje' });
