@@ -1,35 +1,37 @@
 # WagZ domain setup
 
-Status recorded **3 October 2026**. The working production address is still **https://wagz.vercel.app**. `wagz.com.hr` is the selected future primary hostname; DNS and HTTPS verification are pending, so no cutover is claimed.
+Status recorded **3 October 2026, 09:51 Europe/Zagreb**. **https://wagz.com.hr** is the deployed canonical origin, delegated to Vercel with verified HTTPS. Release `7d9dd21` (deployment `dpl_3bFRNAeGPqx1wHGZG5WJDodcTmej`) passed live custom-origin checks. Some resolver caches were still failing at the latest 09:45 check, so **https://wagz.vercel.app** homepage/API remain available and the old public-page redirect stays disabled.
 
 ## Completed configuration
 
 - `wagz.com.hr` is attached to the Vercel project `wagz`.
-- `www.wagz.com.hr` is attached with a redirect to `wagz.com.hr`; Vercel API configuration confirms status **308**. The public redirect cannot be verified until DNS/HTTPS work.
-- The current delegation is **`dns.iskon.hr` and `dns2.iskon.hr`**, confirmed by the parent zone and Vercel. The previously recorded `dns1.com.hr`, `dns2.com.hr` and `dns-ez-1.carnet.hr` are the **parent `com.hr` zone's** nameservers, not the delegated nameservers for `wagz.com.hr`.
-- Both Iskon servers refuse direct queries for this domain; public recursive lookups return `SERVFAIL`. Existing A/CNAME, MX and TXT records are **unknown**, not proven absent. Obtain any existing mail/verification records from the owner or Iskon before moving the zone.
-- Vercel's DNS zone already has its default apex and wildcard ALIAS records plus three certificate-authority CAA records. Direct queries to **both** `ns1.vercel-dns.com` and `ns2.vercel-dns.com` resolve the apex and `www` to Vercel IPv4 addresses (TTL 1800). No DNS records were added or deleted. No MX/TXT records are present in this Vercel zone.
+- At 09:51, both apex and legacy hostname returned homepage/detail **200**, 23 events, and 24 sitemap URLs using the custom origin. Homepage/detail canonicals and the robots sitemap reference name `wagz.com.hr`; editor pages remain noindex, and anonymous admin API reads return 401. The existing `www` 308 still preserves paths/queries. Evidence: `.artifacts/domain-launch-report.json`.
+- `www.wagz.com.hr` redirects to `wagz.com.hr` with **308**. At 09:44, a real HTTPS response preserved `/dogadaji/dns-check?source=dns-check` in the redirect target.
+- All three parent `com.hr` nameservers returned **`ns1.vercel-dns.com` and `ns2.vercel-dns.com`** at 09:42 (delegation TTL 14400). Both `vercel domains verify` checks subsequently reported correct configuration.
+- At 09:44, the apex homepage, `/api/events` and a real published event page returned **200**, with normal hostname/SNI and certificate validation against Google-observed IPv4 answers. The API returned 23 events; the homepage/detail had SSR content and the detail had Event JSON-LD. Their canonicals still named the old Vercel origin at this pre-cutover check.
+- Local/default and Cloudflare resolution still returned `SERVFAIL` at 09:45, while Google and authoritative answers worked. These are resolver-specific results, not a claim that every network can already resolve the new hostname.
+- Existing Vercel apex/wildcard ALIAS and CAA records were preserved. The supplied Google Search Console TXT was added to the Vercel zone (record `rec_6804e1591bee7caf4d005c5a`) and confirmed on both authoritative nameservers and Google `8.8.8.8` at 09:48. Owner-side Search Console verification and sitemap submission remain incomplete. No mail records were added.
 
 Hosting remains **Vercel + Neon**. Railway is only an alternative to evaluate later if commercial hosting costs warrant it; no migration is decided.
 
-## Registrar nameserver change
+## Registrar change and earlier DNS history
 
-If the REGica form only offers DNS servers, use these exact values after checking whether the domain has any existing mail, verification or other service records to copy into Vercel:
+The owner saved this nameserver pair at REGica; the parent delegation now confirms it:
 
 | Field             | Value                |
 | ----------------- | -------------------- |
 | First DNS server  | `ns1.vercel-dns.com` |
 | Second DNS server | `ns2.vercel-dns.com` |
 
-Replace the Iskon pair; enter hostnames without `https://` or IP addresses. Preserve every existing Vercel record. Its default ALIAS records already serve the website, so the external-provider A/CNAME records below do not need adding to Vercel. Nameserver changes are made at the registrar and can take up to 48 hours to propagate. [Vercel nameservers](https://vercel.com/docs/domains/managing-nameservers)
+Vercel's default ALIAS records serve the website. The external-provider A/CNAME alternative below was not used. Nameserver changes can take up to 48 hours to propagate. [Vercel nameservers](https://vercel.com/docs/domains/managing-nameservers)
 
-The owner reports saving the Vercel nameservers manually at REGica after Windows computer-use could not connect. At **07:34 UTC on 3 October 2026**, direct queries to all three parent `com.hr` servers still returned the Iskon delegation (TTL 14400); Cloudflare/Google recursive lookups and ordinary HTTPS resolution still failed. Both `vercel domains verify` checks report invalid external configuration. Registrar publication and subsequent propagation are pending; no further nameserver or record edits were made. Vercel's zone preflight is separate from public DNS and HTTPS verification.
+**Historical preflight, 09:34 Zagreb / 07:34 UTC:** all three parent servers still returned `dns.iskon.hr` and `dns2.iskon.hr`; those servers refused direct domain queries, recursive lookups failed, and Vercel checks reported invalid external configuration. Existing Iskon mail/verification records could not be established. This was superseded by the 09:42 delegation and 09:44 HTTPS results above. The names `dns1.com.hr`, `dns2.com.hr` and `dns-ez-1.carnet.hr` belong to the parent `com.hr` zone, not the current delegated zone. The initial Vercel preflight found no MX/TXT records, before the later Google verification TXT addition.
 
 REGica's Croatian FAQ gives a **24–48 hour** activation window and says WHOIS/ROOT publication runs once daily. Its English FAQ gives 24–72 hours. The documented domain form procedure does not mention a second confirmation step; the current delay is not evidence that the owner needs to repeat the edit. [REGica FAQ](https://www.regica.net/hr/faq), [English FAQ](https://www.regica.net/en/faq?locale=en)
 
-## Alternative: keep an external DNS provider
+## Historical alternative: external DNS provider (not used)
 
-If the owner can restore the Iskon zone and access its record editor, preserve that delegation and add the records currently recommended by `vercel domains verify` for this project:
+Before the registrar change, Vercel recommended these external-provider records for this project. They are the unused alternative, not instructions to change the active Vercel zone:
 
 | Type  | Name  | Value                                 |
 | ----- | ----- | ------------------------------------- |
@@ -37,15 +39,15 @@ If the owner can restore the Iskon zone and access its record editor, preserve t
 | A     | `@`   | `64.29.17.1`                          |
 | CNAME | `www` | `cae9f53892f4c2e5.vercel-dns-017.com` |
 
-Use both apex A records from the current recommendation. Preserve all unrelated records, including mail and verification records. If the provider requires a full name, use `wagz.com.hr` for `@` and `www.wagz.com.hr` for `www`. Use the project's current recommended values if Vercel changes them later; generic example records are not a substitute. Vercel supports changing website A/CNAME records at an external DNS provider without moving the rest of the zone. [Vercel domain setup](https://vercel.com/docs/domains/working-with-domains/add-a-domain)
+Any future DNS-provider migration must use the project's then-current recommended values and preserve unrelated mail/verification records. The current setup uses Vercel nameservers. [Vercel domain setup](https://vercel.com/docs/domains/working-with-domains/add-a-domain)
 
 ## Remaining launch checks
 
-1. Complete one DNS approach above, preserving any existing service records. Verify the public delegation, authoritative answers and Vercel domain status for both hostnames.
-2. Confirm valid HTTPS certificates and anonymous access to the homepage, a published event page and `/api/events` on the apex hostname. Confirm `www` redirects with **308** and preserves an event path/query. Domain redirect configuration and a verified public response are separate checks. [Vercel domain redirects](https://vercel.com/docs/domains/working-with-domains/deploying-and-redirecting)
-3. Only after those checks pass, switch canonical, sitemap and share URLs to `https://wagz.com.hr` and enable old public-page redirects. Keep `https://wagz.vercel.app/api/*` working directly for existing mobile clients; do not apply an unconditional hostname redirect to the API.
-4. Verify root/event canonicals, one-hop redirects, a missing-event 404, admin `noindex`, and the old mobile API after deployment. Until then, keep the current Vercel address and its canonical configuration working.
-5. Complete Search Console ownership verification in the owner's signed-in account, then submit the final sitemap. Owner login is still required; Search Console verification has not been completed.
+1. Continue checking ordinary local/public recursive DNS until cached failures clear; delegation, authoritative resolution, Vercel configuration and strict HTTPS have passed.
+2. Keep the old homepage available during propagation. Canonical/share/sitemap deployment has passed; enable an old public-page redirect only after resolver readiness is confirmed. Preserve paths/queries and keep `https://wagz.vercel.app/api/*` working directly for existing mobile clients.
+3. Repeat the route/header matrix after any later redirect change, including a missing-event 404 and the old mobile API. The 09:51 live matrix already passed the current root/detail canonicals, `www` 308 and admin protections. [Vercel domain redirects](https://vercel.com/docs/domains/working-with-domains/deploying-and-redirecting)
+4. Click **Verify** in the owner's signed-in Search Console and submit `https://wagz.com.hr/sitemap.xml`; the Google TXT is already publicly visible. DNS publication alone does not complete account-side verification or sitemap submission.
+5. After Google ownership is verified, import the property/sitemap into the owner's Bing Webmaster Tools account. DuckDuckGo largely sources traditional results from Bing; this is a discovery route, not guaranteed inclusion. The [SEO review](SEO-REVIEW.md#other-search-engines-and-indexnow) records the official guidance.
 
 Verification commands:
 
@@ -58,6 +60,6 @@ vercel domains verify wagz.com.hr
 vercel domains verify www.wagz.com.hr
 ```
 
-The read-only DNS results are saved locally in ignored `.artifacts/domain-dns-preflight.json` and `.artifacts/domain-delegation-latest.json`. With Vercel DNS, `www` resolves through its wildcard ALIAS and need not return an explicit CNAME.
+Read-only evidence is in ignored `.artifacts/domain-dns-preflight.json` (historical), `.artifacts/domain-delegation-latest.json` (09:42 delegation), and `.artifacts/domain-https-latest.json` (09:44 strict TLS/HTTP). With Vercel DNS, `www` resolves through its wildcard ALIAS and need not return an explicit CNAME.
 
 The historical price/name research is in [domain options](DOMAIN-OPTIONS.md). Runtime deployment instructions remain in [hosting](DEPLOYMENT.md).

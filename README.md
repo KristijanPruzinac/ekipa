@@ -2,7 +2,9 @@
 
 A movement, starting with a simple way to find upcoming events in Osijek.
 
-Live pilot: <https://wagz.vercel.app>. Owner inbox: <https://wagz.vercel.app/ured-231b67e86427>.
+Live pilot: <https://wagz.com.hr>. Owner inbox: <https://wagz.com.hr/ured-231b67e86427>.
+
+Custom-domain canonical/share/sitemap URLs were deployed and verified at 09:51 Zagreb on 3 October 2026. Some resolver caches are still propagating; <https://wagz.vercel.app> and its API remain available without an old-host redirect. See the [domain activation record](docs/DOMAIN-SETUP.md).
 
 This v1 collects public event sources, keeps their evidence links, merges exact duplicates, and gives the owner an inbox for community tips and incomplete imports. Matching and dating are deferred.
 
@@ -31,7 +33,7 @@ npm start
 
 `npm run test:browser` checks the public-to-inbox-to-publication flow and mobile layout in an isolated database copy. It uses an installed Chrome on Windows, or Playwright Chromium (`npx playwright install chromium`). Run the build first. Screenshots go under `.artifacts/`; test submissions never enter the app database.
 
-`npm run test:discovery` checks chronological discovery, source-backed audience tags, source explanations and narrow-screen layouts with isolated fixtures.
+`npm run test:discovery` checks chronological discovery, activity filters, absence of audience tags, retained source descriptions and narrow-screen layouts with isolated fixtures.
 
 `npm run test:review` uses real captured source events in an in-memory database to check submission, background refresh, preparation feedback, incomplete saves, concurrent review conflicts, source-preserving approval, duplicate prevention, archive/restore and 320px layouts. It also verifies that an actual past performance can be saved but cannot publish as upcoming. Run the build first; the server clock is fixed to the fixture capture date (2026-10-03), and no production database or paid AI is used. Reports and screenshots go under `.artifacts/review-*`.
 
@@ -42,7 +44,7 @@ Run `npm run test:review -- --dev` to repeat these checks with React StrictMode,
 ## What v1 does
 
 - Public event cards with pastel category illustrations, a single chronological timeline with colored duration branches, details and source links. Known ends connect back to the spine; unknown ends stay unknown.
-- All events stay chronological. Small audience labels (Studenti, Odrasli, Stariji; multiple allowed) appear only when a matching source explicitly mentions that audience. Details show the source reason. There are no audience controls, personalized ranking or inferred demographic labels.
+- All events stay chronological. Single-select activity filters show present categories with counts and apply to cards, ongoing events and the timeline together. Audience labels and controls are hidden; original event descriptions and source data remain intact.
 - A Flutter Android/iOS client uses the same public API. See [mobile setup and Android builds](apps/mobile/README.md).
 - Dates follow `Europe/Zagreb`. Missing times and prices remain unknown.
 - Source-backed imports with a title, valid date and venue can publish automatically. Incomplete imports can publish when their missing facts arrive. An operator's decision to hold or reject an event always survives re-fetching; drafts collected with the toggle off stay held.
