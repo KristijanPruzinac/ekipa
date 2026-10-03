@@ -19,6 +19,8 @@ Hosting remains **Vercel + Neon**. Railway is only an alternative to evaluate la
 
 For immediate access, use **https://wagz.vercel.app**. Retry the custom domain after approximately **13:30 Zagreb**; if it still fails, ask [A1 support](https://www.a1.hr/podrska/kontakti) to flush the `wagz.com.hr` NS/delegation cache on the two resolvers above, replacing the cached Iskon pair with `ns1.vercel-dns.com` / `ns2.vercel-dns.com`. A browser-only alternative is selecting Cloudflare or Google as Chrome's Secure DNS provider; this bypasses the affected cache for that browser, without repairing A1's cache. [Official browser instructions](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/encrypted-dns-browsers/). No machine/browser DNS settings, hosts file or registrar records were changed by this diagnostic, and no A1 support request was sent.
 
+**Subsequent approved PC workaround, verified 10:49:43 Zagreb:** with the user's approval, Ethernet DNS was changed to Google **8.8.8.8 / 8.8.4.4** and the local DNS cache cleared; DHCP IP assignment and IPv6 settings were unchanged. Ordinary DNS and HTTPS then returned homepage **200** with valid TLS and **24 sitemap URLs**, without an IP/resolver override; the custom-domain browser page also loaded **23 events**. This fixes access on this PC but does not purge A1's cache for other users; the earlier **13:25** expiry remains an estimate. Ignored evidence: [original DNS configuration and rollback](../.artifacts/windows-dns-before.json), [ordinary DNS/HTTPS verification](../.artifacts/windows-dns-google-verification.json).
+
 ## Registrar change and earlier DNS history
 
 The owner saved this nameserver pair at REGica; the parent delegation now confirms it:
