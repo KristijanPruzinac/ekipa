@@ -397,8 +397,17 @@ test('fresh special overrides routine, withdrawn evidence clears, and automatic 
     assert.equal(alias.category, 'film');
     assert.equal(alias.discovery?.screening?.kind, 'special');
     await repo.editEvent(alias.id, 'published', { ...alias, category: 'community', sourceUrl });
-    const refreshed = await repo.upsert(candidate({ category: 'theatre' }));
+    const refreshed = await repo.upsert(
+      candidate({
+        category: 'theatre',
+        discovery: {
+          ...inferDiscovery('', '', sourceUrl),
+          screening: { kind: 'routine', reason: 'Tri projekcije.', sourceUrl },
+        },
+      }),
+    );
     assert.equal(refreshed.category, 'community');
+    assert.equal(refreshed.discovery?.screening?.kind, 'routine');
   } finally {
     await repo.close();
   }

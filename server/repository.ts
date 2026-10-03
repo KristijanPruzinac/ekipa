@@ -252,13 +252,12 @@ export class Repository {
                 status: fields.status !== 'scheduled' ? fields.status : current.status,
               };
         event = { ...current, ...nextFields, updatedAt: stamp };
-        if (!current.manuallyEdited)
-          event.discovery = mergeDiscovery(
-            current.discovery,
-            fields.discovery,
-            sourceUrl,
-            event.price,
-          );
+        event.discovery = mergeDiscovery(
+          current.discovery,
+          fields.discovery,
+          sourceUrl,
+          event.price,
+        );
         const eligible =
           current.autoPublishEligible ??
           (current.publication === 'draft' && !current.venue && !current.manuallyEdited);
