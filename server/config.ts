@@ -15,7 +15,7 @@ export const config = {
   adminKey: process.env.WAGZ_ADMIN_KEY || '',
   autoPublish: process.env.WAGZ_AUTO_PUBLISH !== 'false',
   fetchOnStart: process.env.WAGZ_FETCH_ON_START !== 'false',
-  fetchIntervalMinutes: number('WAGZ_FETCH_INTERVAL_MINUTES', 360, 5),
+  fetchIntervalMinutes: number('WAGZ_FETCH_INTERVAL_MINUTES', 1440, 5),
   ai: {
     apiKey: process.env.OPENROUTER_API_KEY || '',
     model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite',

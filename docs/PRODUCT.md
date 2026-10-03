@@ -37,7 +37,7 @@ Accept a short note and optional URL. Save before attempting enrichment. Archive
 - Monthly AI budget: **$1**. Reserve estimated costs before calls; retain reserves when the provider fails to report actual cost. Cache successful unchanged inputs. Configure the same cap on the provider key for authoritative billing protection.
 - Avoid repeated web searches for regular sources. Search is an optional bounded aid for unmatched tips.
 - Hosting uses Vercel and a new Neon Free database. The owner authorized deployment on free tiers; paid upgrades and changes to the old Ekipa database are outside this release.
-- Scheduled collection runs through GitHub Actions every six hours. Mobile and web share hosted data and the persistent AI ledger.
+- Scheduled collection runs through GitHub Actions daily at 05:23 UTC. Mobile and web share hosted data and the persistent AI ledger.
 
 ## Acceptance checks
 

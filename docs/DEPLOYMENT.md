@@ -18,7 +18,7 @@ node --env-file=.env.hosted.local --import tsx scripts/migrate-local.ts
 
 ## Collection
 
-`.github/workflows/collect.yml` runs at minute 23 every six hours in UTC and supports manual dispatch. It requires repository secrets `WAGZ_DATABASE_URL` and `OPENROUTER_API_KEY`. Scheduled GitHub workflows run from the repository's default branch. GitHub can delay scheduled work and disables inactive public-repository schedules after 60 days; source status remains visible in the admin view. [GitHub schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+`.github/workflows/collect.yml` runs daily at 05:23 UTC (06:23 in Croatia in winter, 07:23 in summer) and supports manual dispatch. It requires repository secrets `WAGZ_DATABASE_URL` and `OPENROUTER_API_KEY`. Scheduled GitHub workflows run from the repository's default branch. GitHub can delay scheduled work and disables inactive public-repository schedules after 60 days; source status remains visible in the admin view. [GitHub schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
 
 An admin refresh uses the same collector with a 240-second work deadline, inside Vercel's 300-second function limit. It preserves completed source work and reports deferred pages or AI enrichment. The scheduled runner permits longer complete collections. A shared database lease prevents overlapping collection runs, and each AI reservation is transactional. [Vercel function limits](https://vercel.com/docs/functions/limitations)
 

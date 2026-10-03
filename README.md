@@ -35,7 +35,7 @@ npm start
 
 `npm run test:review` uses real captured source events in an in-memory database to check submission, background refresh, preparation feedback, incomplete saves, concurrent review conflicts, source-preserving approval, duplicate prevention, archive/restore and 320px layouts. It also verifies that an actual past performance can be saved but cannot publish as upcoming. Run the build first; the server clock is fixed to the fixture capture date (2026-10-03), and no production database or paid AI is used. Reports and screenshots go under `.artifacts/review-*`.
 
-`npm run collect` performs a collection run from the terminal. Local development uses SQLite; the hosted API and scheduled collector share Neon Postgres through `DATABASE_URL`. The local server collects on startup and every six hours while running. Hosted collection runs through GitHub Actions every six hours, with manual refresh available in the admin screen.
+`npm run collect` performs a collection run from the terminal. Local development uses SQLite; the hosted API and scheduled collector share Neon Postgres through `DATABASE_URL`. The local server collects on startup and every 24 hours while running by default (`WAGZ_FETCH_INTERVAL_MINUTES=1440`). Hosted collection runs through GitHub Actions daily at 05:23 UTC (06:23 in Croatia in winter, 07:23 in summer), with manual refresh available in the admin screen.
 
 ## What v1 does
 
