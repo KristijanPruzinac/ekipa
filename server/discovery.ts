@@ -13,8 +13,8 @@ const audienceRules: Array<{ audience: Audience; pattern: RegExp; reason: string
   {
     audience: 'students',
     pattern:
-      /\b(?:za studente|studentima|studentsk\w* (?:popust|ulaznic|program|party|zabav)|brucosijad|za mlade|mladima|program za mlad|poziva\w*[^.!?]{0,160}\b(?:studente|mlade)\b)/,
-    reason: 'Najava navodi program ili pogodnost za studente i mlade.',
+      /\b(?:za studente|studentima|studentsk\w* (?:popust|ulaznic|program|party|zabav)|brucosijad|poziva\w*[^.!?]{0,160}\bstudente\b)/,
+    reason: 'Najava navodi program ili pogodnost za studente.',
   },
   {
     audience: 'adults',

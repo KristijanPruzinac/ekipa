@@ -10,7 +10,9 @@ WagZ has a Croatian web interface and a native Flutter mobile client sharing the
 
 ## Personal discovery
 
-People can optionally select an audience (everyone, students/young adults, adults, older adults) and topic interests. The choice stays on their device and never hides events. Chronological ordering is the default; “Za tebe” orders by explainable source audience evidence, chosen interests and event-format cues. Subtle card colors and text labels explain recommendations. Age alone does not imply a genre or a budget. Free-entry filtering requires a confirmed free price.
+The only public discovery control is **Svi · Studenti · Odrasli · Stariji**. It is visible directly above the feed, saved on the device, and never hides events. Svi shows chronological order. An audience selection moves scheduled events with explicit matching source evidence first, then keeps all other events in chronological order. General youth programmes are not automatically student programmes. Old saved category interests no longer affect the feed. Age does not imply a genre or a budget.
+
+Pastel category illustrations distinguish music/nightlife, stage/culture and sport/community; unclassified events stay neutral. These are visual cues, not more filters. Festival and audience badges keep their source explanations. A chronological station-style timeline shows six upcoming entries on desktop and three on phones, with one expand/collapse action. Timeline entries and cards open the same event details. The timeline remains chronological when the cards are personalized. There are no public date, category, search, price or sort controls.
 
 ## Collection
 

@@ -58,6 +58,31 @@ test('explicit audiences retain source reasons and independent chosen interests 
   assert.equal(recommendationFor(event(discovery), { audience: 'adults', interests: [] }).score, 0);
 });
 
+test('student audiences require student evidence, not a general youth or pupil programme', () => {
+  for (const text of [
+    'Radionica za mlade.',
+    'Program za mlade i učenike.',
+    'Ulaz je besplatan mladima.',
+    'Pozivamo sve mlade u Osijeku.',
+    'Koncert za srednjoškolce i učenike.',
+    'Na pozornici nastupaju studenti akademije.',
+  ])
+    assert.deepEqual(inferDiscovery('Program', text, url).audiences, [], text);
+  for (const text of [
+    'Radionica za studente.',
+    'Studentski popust na ulaznice.',
+    'Brucošijada.',
+    'Pozivamo sve zainteresirane studente.',
+  ]) {
+    const result = inferDiscovery('Program', text, url);
+    assert.deepEqual(result.audiences, ['students'], text);
+    assert.equal(
+      result.audienceEvidence[0].reason,
+      'Najava navodi program ili pogodnost za studente.',
+    );
+  }
+});
+
 test('festival cue states a format, not popularity; cancellation removes recommendations', () => {
   const discovery = inferDiscovery('Festival svjetla', 'Program.', url);
   assert.equal(discovery.prominence?.kind, 'festival');

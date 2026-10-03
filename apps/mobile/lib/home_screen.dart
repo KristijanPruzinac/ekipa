@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'design.dart';
+import 'discovery.dart';
+import 'discovery_widgets.dart';
 import 'event_screen.dart';
 import 'models.dart';
 import 'preferences.dart';
@@ -19,11 +21,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   PublicFeed? feed;
   String? error;
   bool loading = false;
-  bool forYou = false;
-  String category = 'all';
-  DateFilter date = DateFilter.all;
-  final search = TextEditingController();
-  late DiscoveryProfile profile = DiscoveryProfile.load(widget.preferences);
+  late DiscoveryProfile savedProfile = DiscoveryProfile.load(
+    widget.preferences,
+  );
+  DiscoveryProfile get profile => audienceProfile(savedProfile);
 
   @override
   void initState() {
@@ -35,7 +36,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    search.dispose();
     super.dispose();
   }
 
@@ -60,10 +60,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> editPreferences() async {
-    final value = await showPreferences(context, profile);
-    if (value == null || !mounted) return;
-    setState(() => profile = value);
+  Future<void> selectAudience(String audience) async {
+    final value = DiscoveryProfile(audience: audience);
+    setState(() => savedProfile = value);
     try {
       if (await value.save(widget.preferences)) return;
     } catch (_) {
@@ -85,39 +84,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     MaterialPageRoute<void>(builder: (_) => TipScreen(api: widget.api)),
   );
 
-  void clearFilters() => setState(() {
-    date = DateFilter.all;
-    category = 'all';
-    search.clear();
-  });
+  void openEvent(WagzEvent event) => Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      builder: (_) => EventScreen(event: event, profile: profile),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
-    final query = normalize(search.text.trim());
-    final events =
-        (feed?.events ?? [])
-            .where(
-              (event) =>
-                  (category == 'all' || category == event.category) &&
-                  inDateFilter(event, date, feed!.now) &&
-                  normalize(
-                    '${event.title} ${event.venue ?? ''} ${event.description}',
-                  ).contains(query),
-            )
-            .toList()
-          ..sort((a, b) => compareEvents(a, b, profile, forYou));
-    final filtered =
-        category != 'all' || date != DateFilter.all || query.isNotEmpty;
+    final events = rankForAudience(
+      feed?.events ?? [],
+      audience: profile.audience,
+    );
+    final matches = events.where((row) => row.audienceMatch).length;
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 76,
         title: const Brand(),
         actions: [
-          IconButton(
-            onPressed: editPreferences,
-            tooltip: 'Tvoj radar',
-            icon: const Icon(Icons.tune),
-          ),
           IconButton(
             onPressed: openTip,
             tooltip: 'Dojavi događaj',
@@ -132,12 +117,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onRefresh: refresh,
           color: ink,
           child: CustomScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 26),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -155,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 22),
                       const Text(
                         'Osijek,\nvidimo se',
                         style: TextStyle(
@@ -180,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
                       const Text(
                         'Koncerti, izlasci i sve između.\nPronađi svoj razlog za izaći.',
                         style: TextStyle(
@@ -189,173 +173,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           height: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 28),
                       const Divider(height: 1, color: ink),
-                      const SizedBox(height: 26),
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Uhvati grad.',
-                              style: TextStyle(
-                                fontFamily: 'Space Grotesk',
-                                fontSize: 29,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -1,
-                              ),
-                            ),
-                          ),
-                          if (feed != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              color: lime,
-                              child: Text(
-                                '${feed!.events.length}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      InkWell(
-                        onTap: editPreferences,
-                        borderRadius: BorderRadius.circular(4),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: line),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.tune, size: 20),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      profile.isSet
-                                          ? '${audienceNames[profile.audience]}${profile.interests.isEmpty ? '' : ' · ${profile.interests.length} interesa'}'
-                                          : 'Prilagodi svoj radar',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    const Text(
-                                      'Tvoj izbor ističe planove. Svi ostaju tu.',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: muted,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(Icons.chevron_right),
-                            ],
-                          ),
+                      const SizedBox(height: 22),
+                      const Text(
+                        'Za koga tražiš plan?',
+                        style: TextStyle(
+                          fontFamily: 'Space Grotesk',
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.6,
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: search,
-                        onChanged: (_) => setState(() {}),
-                        decoration: InputDecoration(
-                          labelText: 'Pretraži događaje',
-                          hintText: 'Što ti se radi?',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: search.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  onPressed: () => setState(search.clear),
-                                  tooltip: 'Očisti pretragu',
-                                  icon: const Icon(Icons.close),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: dateFilterNames.entries
-                              .map(
-                                (entry) => Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: ChoiceChip(
-                                    label: Text(entry.value),
-                                    selected: date == entry.key,
-                                    onSelected: (_) =>
-                                        setState(() => date = entry.key),
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: {'all': 'Sve kategorije', ...categoryNames}
-                              .entries
-                              .map(
-                                (entry) => Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: ChoiceChip(
-                                    label: Text(entry.value),
-                                    selected: category == entry.key,
-                                    onSelected: (_) =>
-                                        setState(() => category = entry.key),
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                        ),
+                      const SizedBox(height: 13),
+                      AudienceSelector(
+                        audience: profile.audience,
+                        onChanged: selectAudience,
                       ),
                       const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          const Text(
-                            'POREDAK',
-                            style: TextStyle(
-                              fontSize: 10,
-                              letterSpacing: 1,
-                              color: muted,
-                            ),
-                          ),
-                          ChoiceChip(
-                            label: const Text('Po datumu'),
-                            selected: !forYou,
-                            onSelected: (_) => setState(() => forYou = false),
-                          ),
-                          ChoiceChip(
-                            label: const Text('Za tebe'),
-                            selected: forYou,
-                            onSelected: (_) => setState(() => forYou = true),
-                          ),
-                        ],
-                      ),
-                      if (forYou)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: Text(
-                            'Prednost imaju tvoj odabir i istaknuta gradska događanja. Razlog vidiš uz događaj.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              height: 1.5,
-                              color: muted,
-                            ),
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          profile.audience == 'all'
+                              ? 'Svi događaji, po datumu. Odabir se pamti samo na ovom uređaju.'
+                              : matches > 0
+                              ? '$matches ${matches == 1 ? 'događaj odgovara' : 'događaja odgovaraju'} odabiru i ${matches == 1 ? 'dolazi prvi' : 'dolaze prvi'}. Svi ostaju u pregledu.'
+                              : 'Zasad nema potvrđenih događaja za ovaj odabir. Svi ostaju u pregledu.',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            height: 1.5,
+                            color: muted,
                           ),
                         ),
+                      ),
                       if (error != null) ...[
                         const SizedBox(height: 20),
                         Notice(
@@ -376,17 +226,54 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             semanticsLabel: 'Učitavanje događaja',
                           ),
                         ),
+                      if (events.isNotEmpty) ...[
+                        const SizedBox(height: 26),
+                        EventTimeline(events: feed!.events, onOpen: openEvent),
+                      ],
+                      const SizedBox(height: 28),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Uhvati grad.',
+                              style: TextStyle(
+                                fontFamily: 'Space Grotesk',
+                                fontSize: 29,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -1,
+                              ),
+                            ),
+                          ),
+                          if (feed != null)
+                            Container(
+                              key: const ValueKey('all-events-count'),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              color: lime,
+                              child: Text(
+                                '${events.length}',
+                                semanticsLabel:
+                                    '${events.length} događaja, svi prikazani',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                       if (feed != null)
                         Padding(
-                          padding: const EdgeInsets.only(top: 24),
-                          child: Semantics(
-                            liveRegion: true,
-                            child: Text(
-                              '${events.length} ${events.length == 1 ? 'događaj' : 'događaja'} ${filtered ? 'za tvoj odabir' : 'na tvom radaru'}',
-                              style: const TextStyle(
-                                color: muted,
-                                fontSize: 13,
-                              ),
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            profile.audience == 'all'
+                                ? 'Svi planovi, od najbližeg datuma.'
+                                : 'Prvo potvrđeni odabir, zatim ostali planovi po datumu.',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.5,
+                              color: muted,
                             ),
                           ),
                         ),
@@ -401,30 +288,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          filtered
-                              ? 'Ovdje je zasad mirno.'
-                              : 'Novi planovi su na putu.',
-                          style: const TextStyle(
+                        const Text(
+                          'Novi planovi su na putu.',
+                          style: TextStyle(
                             fontSize: 25,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Text(
-                          filtered
-                              ? 'Pogledaj druge datume ili kategorije.'
-                              : 'Znaš što se sprema u Osijeku? Podijeli s ekipom.',
-                          style: const TextStyle(color: muted, height: 1.5),
+                        const Text(
+                          'Znaš što se sprema u Osijeku? Podijeli s ekipom.',
+                          style: TextStyle(color: muted, height: 1.5),
                         ),
                         const SizedBox(height: 20),
                         FilledButton(
-                          onPressed: filtered ? clearFilters : openTip,
-                          child: Text(
-                            filtered
-                                ? 'Prikaži sve događaje'
-                                : 'Dojavi događaj',
-                          ),
+                          onPressed: openTip,
+                          child: const Text('Dojavi događaj'),
                         ),
                       ],
                     ),
@@ -437,18 +316,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   itemBuilder: (context, index) => Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: _EventCard(
-                      event: events[index],
+                      key: ValueKey('event-card-${events[index].event.id}'),
+                      event: events[index].event,
                       profile: profile,
                       index: index,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => EventScreen(
-                            event: events[index],
-                            profile: profile,
-                          ),
-                        ),
-                      ),
+                      onTap: () => openEvent(events[index].event),
                     ),
                   ),
                 ),
@@ -524,6 +396,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
 class _EventCard extends StatelessWidget {
   const _EventCard({
+    super.key,
     required this.event,
     required this.profile,
     required this.index,
@@ -537,17 +410,8 @@ class _EventCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final match = recommendation(event, profile);
-    final color = switch (event.category) {
-      'music' => const Color(0xffe9e1f0),
-      'nightlife' => const Color(0xffe1e5f4),
-      'theatre' => const Color(0xfff4e0d6),
-      'culture' => const Color(0xfff2e8c8),
-      'sport' => const Color(0xffdeeadc),
-      'community' => const Color(0xffdfeae5),
-      _ => const Color(0xffe9e7df),
-    };
     return Material(
-      color: color,
+      color: eventPaper(event),
       shape: RoundedRectangleBorder(
         side: BorderSide(color: match.personal ? ink : line),
         borderRadius: BorderRadius.circular(4),
@@ -562,6 +426,11 @@ class _EventCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  EventMotif(
+                    theme: themeForCategory(event.category),
+                    compact: true,
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Eyebrow(
                       (categoryNames[event.category] ?? 'Ostalo').toUpperCase(),

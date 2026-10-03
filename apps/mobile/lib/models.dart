@@ -12,7 +12,7 @@ const categoryNames = {
 };
 const audienceNames = {
   'all': 'Svi',
-  'students': 'Studenti i mladi',
+  'students': 'Studenti',
   'adults': 'Odrasli',
   'seniors': 'Stariji',
 };

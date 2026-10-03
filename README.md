@@ -37,8 +37,8 @@ npm start
 
 ## What v1 does
 
-- Public event list with date/category/search/free-entry filters, details and source links.
-- Optional audience and interest preferences stay on the device. Source-backed festival highlights and audience matches explain why an event is featured. Chronological order remains the default; personal sorting is optional and never hides other events.
+- Public event cards with pastel category illustrations, a chronological station-style timeline, details and source links.
+- One audience selector: Svi, Studenti, Odrasli, Stariji. Explicit source-backed audience matches move first; all events remain visible. Selection stays on the device. No stacked filters or inferred genre preferences.
 - A Flutter Android/iOS client uses the same public API. See [mobile setup and Android builds](apps/mobile/README.md).
 - Dates follow `Europe/Zagreb`. Missing times and prices remain unknown.
 - Source-backed imports with a title, valid date and venue can publish automatically. Incomplete imports can publish when their missing facts arrive. An operator's decision to hold or reject an event always survives re-fetching; drafts collected with the toggle off stay held.

@@ -1,27 +1,17 @@
 import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
-import { recommendationFor, type DiscoveryProfile } from '../shared/discovery';
-import { categories, type Category, type PublicFeed, type WagzEvent } from '../shared/types';
-import { Admin } from './Admin';
-import { Preferences, readPreferences, savePreferences } from './Preferences';
 import {
-  api,
-  categoryNames,
-  dateFormat,
-  errorText,
-  inDateFilter,
-  normalize,
-  safeLink,
-  timeFormat,
-  type DateFilter,
-} from './lib';
-import { Arrow, Brand, Message, Modal, Pin, SearchIcon, Spark, Spinner } from './ui';
-
-const dateTabs: { id: DateFilter; label: string }[] = [
-  { id: 'all', label: 'Sve' },
-  { id: 'today', label: 'Danas' },
-  { id: 'weekend', label: 'Ovaj vikend' },
-  { id: 'week', label: 'Ovaj tjedan' },
-];
+  rankForAudience,
+  recommendationFor,
+  themeForCategory,
+  type DiscoveryProfile,
+} from '../shared/discovery';
+import { type PublicFeed, type WagzEvent } from '../shared/types';
+import { Admin } from './Admin';
+import { AudiencePicker, readPreferences, savePreferences } from './AudiencePicker';
+import { EventArt } from './EventArt';
+import { EventTimeline } from './EventTimeline';
+import { api, categoryNames, dateFormat, errorText, safeLink, timeFormat } from './lib';
+import { Arrow, Brand, Message, Modal, Pin, Spark, Spinner } from './ui';
 
 export function App() {
   return /^\/admin\/?$/.test(window.location.pathname) ? <Admin /> : <PublicApp />;
@@ -31,19 +21,12 @@ function PublicApp() {
   const [feed, setFeed] = useState<PublicFeed | null>(null),
     [error, setError] = useState(''),
     [loading, setLoading] = useState(true);
-  const [date, setDate] = useState<DateFilter>('all'),
-    [category, setCategory] = useState<Category | 'all'>('all'),
-    [query, setQuery] = useState(''),
-    [freeOnly, setFreeOnly] = useState(false),
-    [sort, setSort] = useState<'date' | 'personal'>('date');
   const [preferences, setPreferences] = useState<DiscoveryProfile>(readPreferences);
   const [selected, setSelected] = useState<WagzEvent | null>(null),
     [tipOpen, setTipOpen] = useState(false);
-  const personalized = preferences.audience !== 'all' || preferences.interests.length > 0;
   function changePreferences(value: DiscoveryProfile) {
     setPreferences(value);
     savePreferences(value);
-    if (value.audience === 'all' && value.interests.length === 0) setSort('date');
   }
   async function refresh() {
     setLoading(true);
@@ -60,30 +43,9 @@ function PublicApp() {
     void refresh();
   }, []);
   const events = useMemo(
-    () =>
-      (feed?.events ?? [])
-        .filter(
-          (event) =>
-            (category === 'all' || event.category === category) &&
-            (!freeOnly || event.discovery?.free === true) &&
-            inDateFilter(event, date, feed!.meta.now) &&
-            normalize(`${event.title} ${event.venue ?? ''} ${event.description}`).includes(
-              normalize(query.trim()),
-            ),
-        )
-        .map((event, index) => ({
-          event,
-          index,
-          recommendation: recommendationFor(event, preferences),
-        }))
-        .sort((a, b) =>
-          sort === 'personal'
-            ? b.recommendation.score - a.recommendation.score || a.index - b.index
-            : a.index - b.index,
-        ),
-    [feed, category, date, query, freeOnly, preferences, sort],
+    () => rankForAudience(feed?.events ?? [], preferences.audience),
+    [feed, preferences.audience],
   );
-  const filtered = date !== 'all' || category !== 'all' || query.trim().length > 0 || freeOnly;
   const noAudienceEvidence =
     preferences.audience !== 'all' &&
     feed &&
@@ -92,12 +54,6 @@ function PublicApp() {
         event.status === 'scheduled' &&
         event.discovery?.audienceEvidence.some((item) => item.audience === preferences.audience),
     );
-  const clear = () => {
-    setDate('all');
-    setCategory('all');
-    setQuery('');
-    setFreeOnly(false);
-  };
   return (
     <>
       <a className="skip-link" href="#dogadaji">
@@ -150,101 +106,20 @@ function PublicApp() {
               <h2 id="feed-title">Uhvati grad.</h2>
               <span
                 className="event-count"
-                aria-label={`${feed?.meta.totalUpcoming ?? 0} nadolazećih događaja`}
+                aria-label={`${feed?.events.length ?? 0} nadolazećih događaja`}
               >
-                {loading && !feed ? '—' : (feed?.meta.totalUpcoming ?? '—')}
+                {loading && !feed ? '—' : (feed?.events.length ?? '—')}
               </span>
             </div>
             <p className="section-note">DOBRI PLANOVI POČINJU OVDJE.</p>
           </div>
-          <Preferences value={preferences} onChange={changePreferences} />
-          <div className="filter-top">
-            <div className="date-filters" role="group" aria-label="Razdoblje">
-              {dateTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  className={`date-tab ${date === tab.id ? 'active' : ''}`}
-                  aria-pressed={date === tab.id}
-                  onClick={() => setDate(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            <label className="search-field">
-              <SearchIcon />
-              <input
-                aria-label="Pretraži događaje"
-                placeholder="Što ti se radi?"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-              {query && (
-                <button onClick={() => setQuery('')} aria-label="Očisti pretragu">
-                  ×
-                </button>
-              )}
-            </label>
-          </div>
-          <div className="category-filters" role="group" aria-label="Kategorija">
-            <button
-              className={`category-chip ${category === 'all' ? 'active' : ''}`}
-              aria-pressed={category === 'all'}
-              onClick={() => setCategory('all')}
-            >
-              Sve kategorije
-            </button>
-            {categories.map((id) => (
-              <button
-                key={id}
-                className={`category-chip ${category === id ? 'active' : ''}`}
-                aria-pressed={category === id}
-                onClick={() => setCategory(id)}
-              >
-                {categoryNames[id]}
-              </button>
-            ))}
-          </div>
-          <div className="filter-bottom">
-            <div className="extra-filters">
-              <button
-                className={`free-filter ${freeOnly ? 'active' : ''}`}
-                aria-pressed={freeOnly}
-                onClick={() => setFreeOnly(!freeOnly)}
-              >
-                <span className="free-filter-mark" aria-hidden="true">
-                  {freeOnly ? '✓' : ''}
-                </span>
-                Besplatan ulaz
-              </button>
-              {filtered && (
-                <button className="text-button filter-reset" onClick={clear}>
-                  Očisti filtre
-                </button>
-              )}
-            </div>
-            <label className="sort-select">
-              Redoslijed
-              <select
-                value={sort}
-                onChange={(event) => setSort(event.target.value as 'date' | 'personal')}
-              >
-                <option value="date">Po datumu</option>
-                <option value="personal" disabled={!personalized}>
-                  Za tebe
-                </option>
-              </select>
-            </label>
-          </div>
+          <AudiencePicker value={preferences} onChange={changePreferences} />
           {loading ? (
             <div className="feed-loading">
               <Spinner label="Tražimo tvoj sljedeći plan…" />
             </div>
           ) : error ? (
             <div className="empty-state">
-              <span className="empty-symbol" aria-hidden="true">
-                ↻
-              </span>
               <h3>Grad je tu. Veza je zapela.</h3>
               <p>{error}</p>
               <button className="button button-dark" onClick={() => void refresh()}>
@@ -255,53 +130,51 @@ function PublicApp() {
             <>
               {noAudienceEvidence && (
                 <p className="discovery-feedback" role="status">
-                  Za odabranu publiku zasad nema posebno označenih programa u našim najavama.
-                  Odaberi i interese za osobne prijedloge; svi događaji ostaju dostupni.
+                  Za ovu publiku zasad nemamo posebno označenih programa. Svi događaji ostaju ovdje,
+                  po datumu.
                 </p>
               )}
-              <div className="results-line" aria-live="polite">
-                <span>
-                  {events.length} {events.length === 1 ? 'događaj' : 'događaja'}{' '}
-                  {filtered ? 'za tvoj odabir' : 'na tvom radaru'}
-                </span>
-                <span>{sort === 'date' ? 'NAJBLIŽI DATUMI PRVO' : 'PREMA TVOM ODABIRU'}</span>
-              </div>
-              <p className="discovery-note">
-                {personalized && (
-                  <span className="personal-legend">Zeleno: prema tvom odabiru</span>
-                )}
-                <span>Topla nijansa: festivali i gradska događanja</span>
-                Razlog oznake vidi u detaljima.
-              </p>
-              <div className="event-grid">
-                {events.map(({ event, recommendation }, index) => (
-                  <EventCard
-                    key={event.id}
-                    event={event}
-                    index={index}
-                    recommendation={recommendation}
-                    onSelect={() => setSelected(event)}
-                  />
-                ))}
+              <div className="discovery-layout">
+                <EventTimeline events={feed!.events} onSelect={setSelected} />
+                <div className="card-feed">
+                  <div className="results-line" aria-live="polite">
+                    <span>
+                      {events.length} {events.length === 1 ? 'događaj' : 'događaja'} na tvom radaru
+                    </span>
+                    <span>
+                      {preferences.audience === 'all' || noAudienceEvidence
+                        ? 'PO DATUMU'
+                        : 'ZA TVOJ ODABIR PRVO'}
+                    </span>
+                  </div>
+                  {preferences.audience !== 'all' && !noAudienceEvidence && (
+                    <p className="audience-result-note">
+                      Označeni programi su na vrhu. Ispod njih su svi ostali događaji.
+                    </p>
+                  )}
+                  <div className="event-grid">
+                    {events.map(({ event, recommendation }) => (
+                      <EventCard
+                        key={event.id}
+                        event={event}
+                        recommendation={recommendation}
+                        onSelect={() => setSelected(event)}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             </>
           ) : (
             <div className="empty-state">
               <Spark className="empty-spark" />
-              <p className="eyebrow">{filtered ? 'MALO ŠIRI PLAN?' : 'RADAR JE UKLJUČEN'}</p>
-              <h3>{filtered ? 'Ovdje je zasad mirno.' : 'Novi planovi su na putu.'}</h3>
+              <p className="eyebrow">RADAR JE UKLJUČEN</p>
+              <h3>Novi planovi su na putu.</h3>
               <p>
-                {filtered
-                  ? freeOnly
-                    ? 'Za ovaj odabir nemamo najava s potvrđenim besplatnim ulazom. U drugim najavama cijena možda još nije navedena.'
-                    : 'Za ovaj odabir još nema događaja. Pogledaj druge datume ili kategorije.'
-                  : 'Trenutno nema najavljenih događaja u našem pregledu. Znaš što se sprema u Osijeku? Podijeli s ekipom.'}
+                Trenutno nema najavljenih događaja u našem pregledu. Znaš što se sprema u Osijeku?
               </p>
-              <button
-                className="button button-dark"
-                onClick={filtered ? clear : () => setTipOpen(true)}
-              >
-                {filtered ? 'Prikaži sve događaje' : 'Dojavi događaj'} <Arrow diagonal />
+              <button className="button button-dark" onClick={() => setTipOpen(true)}>
+                Dojavi događaj <Arrow diagonal />
               </button>
             </div>
           )}
@@ -313,8 +186,8 @@ function PublicApp() {
                 month: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit',
-              })}{' '}
-              · Sve vrijeme prikazano je za Osijek.
+              })}
+              {' · '}Sve vrijeme prikazano je za Osijek.
             </p>
           )}
         </section>
@@ -354,28 +227,28 @@ function PublicApp() {
 
 function EventCard({
   event,
-  index,
   recommendation,
   onSelect,
 }: {
   event: WagzEvent;
-  index: number;
   recommendation: ReturnType<typeof recommendationFor>;
   onSelect: () => void;
 }) {
   const prominence = event.status === 'scheduled' ? event.discovery?.prominence : null;
   return (
     <article
-      className={`event-card ${prominence ? 'card-prominent' : ''} ${recommendation.personal ? 'card-personal' : ''} ${event.status !== 'scheduled' ? 'card-inactive' : ''}`}
+      className={`event-card theme-${themeForCategory(event.category) ?? 'other'} ${prominence ? 'card-prominent' : ''} ${recommendation.personal ? 'card-personal' : ''} ${event.status !== 'scheduled' ? 'card-inactive' : ''}`}
     >
       <button
         className="event-card-button"
         onClick={onSelect}
         aria-label={`Detalji: ${event.title}`}
       >
+        <div className="card-visual">
+          <EventArt category={event.category} />
+        </div>
         <div className="card-topline">
           <span className="category-label">{categoryNames[event.category]}</span>
-          <span className="card-number">/{String(index + 1).padStart(2, '0')}</span>
         </div>
         <div className="card-title-area">
           {event.status !== 'scheduled' && (
@@ -437,7 +310,7 @@ function EventDetail({
   const sources = event.sources.filter((source) => safeLink(source.url));
   const recommendation = recommendationFor(event, preferences);
   const discovery = event.discovery;
-  const audienceLabels = { students: 'Studenti i mladi', adults: 'Odrasli', seniors: 'Stariji' };
+  const audienceLabels = { students: 'Studenti', adults: 'Odrasli', seniors: 'Stariji' };
   return (
     <Modal
       title={event.title}

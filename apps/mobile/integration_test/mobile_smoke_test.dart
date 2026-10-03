@@ -58,28 +58,22 @@ void main() {
     await tester.pumpAndSettle();
     await binding.takeScreenshot('wagz-mobile-home');
 
-    await tester.tap(find.byTooltip('Tvoj radar'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Studenti i mladi'));
-    await tester.tap(find.text('Spremi moj odabir'));
-    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Za tebe'),
+      find.byKey(const ValueKey('audience-students')),
       220,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Za tebe'));
+    await tester.tap(find.byKey(const ValueKey('audience-students')));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Studentski koncert'),
+      find.byKey(const ValueKey('event-card-student-concert')),
       180,
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('ZA TVOJ RADAR'), findsOneWidget);
     await tester.pumpAndSettle();
     await binding.takeScreenshot('wagz-mobile-feed');
-    await tester.tap(find.text('Studentski koncert'));
+    await tester.tap(find.byKey(const ValueKey('event-card-student-concert')));
     await tester.pumpAndSettle();
     expect(find.text('Detalji događaja'), findsOneWidget);
     expect(find.textContaining('20:00'), findsWidgets);

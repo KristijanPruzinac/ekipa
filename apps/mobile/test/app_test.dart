@@ -17,7 +17,7 @@ void main() {
     await initializeDateFormatting('hr');
   });
 
-  testWidgets('narrow phone filters, details and tip submission work', (
+  testWidgets('narrow phone timeline, details and tip submission work', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(360, 800);
@@ -42,19 +42,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.scrollUntilVisible(
-      find.byType(TextField),
+      find.byKey(const ValueKey('timeline-event-student-concert')),
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.enterText(find.byType(TextField), 'Studentski');
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('Studentski koncert'),
-      220,
-      scrollable: find.byType(Scrollable).first,
+    expect(find.byType(TextField), findsNothing);
+    expect(find.byTooltip('Tvoj radar'), findsNothing);
+    await tester.tap(
+      find.byKey(const ValueKey('timeline-event-student-concert')),
     );
-    expect(find.text('Gradska predstava'), findsNothing);
-    await tester.tap(find.text('Studentski koncert'));
     await tester.pumpAndSettle();
     expect(find.text('Detalji događaja'), findsOneWidget);
     expect(find.textContaining('20:00'), findsWidgets);
@@ -91,7 +88,12 @@ void main() {
   testWidgets('preferences do not hide other events and save locally', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({
+      'wagz.discovery.v1': jsonEncode({
+        'audience': 'all',
+        'interests': ['theatre'],
+      }),
+    });
     final preferences = await SharedPreferences.getInstance();
     final api = WagzApi(
       baseUrl: 'https://wagz.example',
@@ -103,32 +105,64 @@ void main() {
     addTearDown(api.close);
     await tester.pumpWidget(WagzApp(api: api, preferences: preferences));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Tvoj radar'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Studenti i mladi'));
-    await tester.tap(find.text('Spremi moj odabir'));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('audience-students')),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('audience-students')));
     await tester.pumpAndSettle();
     expect(preferences.getString('wagz.discovery.v1'), contains('students'));
+    expect(
+      jsonDecode(preferences.getString('wagz.discovery.v1')!)['interests'],
+      isEmpty,
+    );
     await tester.scrollUntilVisible(
-      find.text('Za tebe'),
+      find.byKey(const ValueKey('event-card-student-concert')),
       240,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Za tebe'));
+    expect(find.text('ZA TVOJ RADAR'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('event-card-student-concert')));
+    await tester.pumpAndSettle();
+    expect(find.text('Detalji događaja'), findsOneWidget);
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Studentski koncert'),
+      find.byKey(const ValueKey('event-card-theatre')),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('ZA TVOJ RADAR'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Gradska predstava'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('Gradska predstava'), findsOneWidget);
+    expect(find.byKey(const ValueKey('event-card-theatre')), findsOneWidget);
+    for (final audience in ['adults', 'seniors', 'all']) {
+      await tester.scrollUntilVisible(
+        find.byKey(ValueKey('audience-$audience')),
+        -280,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ValueKey('audience-$audience')));
+      await tester.pumpAndSettle();
+      expect(
+        jsonDecode(preferences.getString('wagz.discovery.v1')!)['audience'],
+        audience,
+      );
+      expect(find.text('ZA TVOJ RADAR'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('all-events-count')),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('all-events-count')),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+    }
     expect(tester.takeException(), isNull);
   });
 

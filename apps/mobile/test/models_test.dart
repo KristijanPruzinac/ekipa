@@ -3,6 +3,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as timezone;
 import 'package:wagz_mobile/models.dart';
+import 'package:wagz_mobile/discovery.dart';
 import 'package:wagz_mobile/preferences.dart';
 import 'fixtures.dart';
 
@@ -103,13 +104,19 @@ void main() {
     'personal sorting reorders all events without removing unmatched ones',
     () {
       final feed = PublicFeed.fromJson(feedJson());
-      const profile = DiscoveryProfile(audience: 'students');
-      final dates = [...feed.events]
-        ..sort((a, b) => compareEvents(a, b, profile, false));
-      expect(dates.first.id, 'theatre');
-      final personal = [...feed.events]
-        ..sort((a, b) => compareEvents(a, b, profile, true));
-      expect(personal.map((event) => event.id), ['student-concert', 'theatre']);
+      final dates = rankForAudience(feed.events);
+      expect(dates.first.event.id, 'theatre');
+      final personal = rankForAudience(feed.events, audience: 'students');
+      expect(personal.map((row) => row.event.id), [
+        'student-concert',
+        'theatre',
+      ]);
+      expect(
+        audienceProfile(
+          const DiscoveryProfile(audience: 'students', interests: ['theatre']),
+        ).interests,
+        isEmpty,
+      );
     },
   );
 

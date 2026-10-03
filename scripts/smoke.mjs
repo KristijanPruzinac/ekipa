@@ -77,10 +77,13 @@ try {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
   }
-  await page.getByRole('textbox', { name: 'Pretraži događaje' }).fill('zzzz-no-such-event');
-  await expect(page.getByRole('heading', { name: 'Ovdje je zasad mirno.' })).toBeVisible();
-  await page.getByRole('button', { name: 'Prikaži sve događaje' }).click();
-  await expect(page.locator('.event-card')).toHaveCount(realCount);
+  for (const audience of ['Studenti', 'Odrasli', 'Stariji', 'Svi']) {
+    const choice = page.getByRole('button', { name: audience, exact: true });
+    await choice.click();
+    await expect(choice).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.event-card')).toHaveCount(realCount);
+  }
+  await expect(page.getByRole('textbox')).toHaveCount(0);
   await page.getByRole('button', { name: 'Dojavi događaj', exact: true }).first().click();
   const note = `QA provjera sučelja ${runId}, bez stvarne objave u aplikaciji.`;
   await page.getByLabel(/Tvoja dojava/).fill(note);
@@ -130,8 +133,11 @@ try {
   ).toBeChecked({ checked: !wasChecked });
   await page.screenshot({ path: resolve(directory, 'admin.png'), fullPage: true });
   await page.goto(base);
-  await page.getByRole('textbox', { name: 'Pretraži događaje' }).fill(`QA događaj ${runId}`);
-  await expect(page.locator('.event-card')).toHaveCount(1);
+  await expect(
+    page.locator('.event-card').filter({
+      has: page.getByRole('heading', { name: `QA događaj ${runId}`, exact: true }),
+    }),
+  ).toHaveCount(1);
   const mobile = await browser.newContext({
     viewport: { width: 390, height: 844 },
     isMobile: true,
@@ -153,7 +159,7 @@ try {
   await expect(phone.getByRole('button', { name: 'Pošalji dojavu' })).toBeVisible();
   if (failures.length) throw new Error(`Browser errors: ${failures.join('; ')}`);
   console.log(
-    `Browser checks passed: ${realCount} real events, detail dialog, search, tip, spam restore, admin auth, approval, persistent publish toggle, mobile layout. Screenshots: ${directory}`,
+    `Browser checks passed: ${realCount} real events, detail dialog, audience choices retain every event, tip, spam restore, admin auth, approval, persistent publish toggle, mobile layout. Screenshots: ${directory}`,
   );
 } finally {
   await browser?.close();

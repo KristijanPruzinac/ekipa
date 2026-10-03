@@ -33,11 +33,11 @@ Never supply the admin key, OpenRouter key, or any other secret in a Dart define
 
 ## Behavior
 
-- `GET /api/events` powers the feed, details, date/category/search filters, refresh, cancellation notices, and source links. Unknown times and prices stay unknown.
+- `GET /api/events` powers illustrated event cards, the chronological timeline, details, refresh, cancellation notices, and source links. Unknown times and prices stay unknown.
 - `POST /api/tips` sends only a note, optional URL and an empty honeypot field. A success message appears after the server acknowledges the save. Failed submissions retain the entered text and never retry automatically.
 - Dates and times use `Europe/Zagreb`, including daylight-saving transitions, independent of the device timezone. The full IANA database is bundled because the smaller timezone package database omits the Zagreb alias.
-- An optional audience preference and category interests are saved only on this device. Preferences never exclude events or get sent to the server. Category/date/search are separate explicit filters.
-- Chronological sorting is the default. “Za tebe” sorts by the same explainable score as `shared/discovery.ts`: explicit matching audience evidence +4, selected category +2, festival/city-event prominence +1. Cancelled/postponed events receive no boost. A festival alone is never labelled a personal match. Ties use date, then title. Cards and details explain why an event is highlighted and link to the source evidence.
+- The only discovery control is **Svi · Studenti · Odrasli · Stariji**, saved only on this device. Svi is chronological. Other choices move scheduled events with explicit matching audience evidence first and retain every other event in chronological order. Cancelled/postponed events receive no boost; legacy category interests are ignored. Ties preserve feed order, matching `shared/discovery.ts`.
+- Pastel illustrations distinguish event categories without adding controls. A three-rail timeline previews three events with one expand/collapse action, always chronological. Stations and cards open the same details. Festival and audience badges explain their source evidence.
 - Metadata in `event.discovery` is optional for compatibility with older public feeds. No ages, genres or popularity are inferred on the phone.
 
 The interface, bundled DM Sans / Space Grotesk fonts, and cream/ink/lime colors match WagZ. Font licenses live in `assets/fonts/`. The geometric launcher mark is in `assets/icon.svg`; `tool/generate-icons.ps1` regenerates native PNG sizes on Windows.
@@ -53,7 +53,7 @@ flutter test
 
 For an optional local Android build, use `flutter build apk --debug --dart-define=WAGZ_API_BASE_URL=http://10.0.2.2:3000`. The debug APK is written to `build/app/outputs/flutter-apk/app-debug.apk`. The generated release signing configuration is also for local development only.
 
-Tests cover HTTP contracts and errors, Zagreb midnight/DST boundaries, multi-day date filtering, safe source links, evidence-based scoring, retained unmatched events, local preferences, narrow phone layouts, event details and successful/failed tips.
+Tests cover HTTP contracts and errors, Zagreb midnight/DST boundaries, safe source links, evidence-based audience ordering, retained unmatched events, ignored legacy interests, local preferences, narrow phone layouts, chronological timeline, event details and successful/failed tips.
 
 An optional native smoke test starts its own loopback HTTP fixture server inside the test process. It exercises real sockets without touching your WagZ database or submitting a live tip:
 
