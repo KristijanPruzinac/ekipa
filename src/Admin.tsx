@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   categories,
   type AdminDashboard,
@@ -27,8 +27,9 @@ type Action = (
   path: string,
   method: 'POST' | 'PATCH',
   body: unknown,
-  message: string,
+  message: string | ((result: unknown) => string),
 ) => Promise<boolean>;
+type ActionState = { path: string; progress: string; result?: string; error?: boolean };
 const tipStatus: Record<Tip['status'], string> = {
   inbox: 'Za pregled',
   draft: 'Prijedlog',
@@ -52,13 +53,20 @@ export function Admin() {
     [message, setMessage] = useState('');
   const [editingTip, setEditingTip] = useState<Tip | null>(null),
     [editingEvent, setEditingEvent] = useState<WagzEvent | null>(null);
+  const [actionState, setActionState] = useState<ActionState | null>(null);
+  const session = useRef('');
+  const refreshVersion = useRef(0);
+  const acting = useRef(false);
   const logout = useCallback(() => {
+    session.current = '';
+    refreshVersion.current++;
     setKey('');
     setKeyInput('');
     setDashboard(null);
     setEditingTip(null);
     setEditingEvent(null);
     setMessage('');
+    setActionState(null);
   }, []);
   const handleError = useCallback(
     (err: unknown) => {
@@ -69,17 +77,29 @@ export function Admin() {
   );
   const refresh = useCallback(async () => {
     if (!key) return;
+    const version = ++refreshVersion.current;
     try {
-      setDashboard(await api<AdminDashboard>('/api/admin/dashboard', {}, key));
+      const next = await api<AdminDashboard>('/api/admin/dashboard', {}, key);
+      if (session.current === key && version === refreshVersion.current) setDashboard(next);
     } catch (err) {
-      handleError(err);
+      if (session.current === key && version === refreshVersion.current) handleError(err);
     }
   }, [key, handleError]);
+  const processing = Boolean(dashboard?.collecting || dashboard?.preparingTipIds?.length);
   useEffect(() => {
-    if (!dashboard?.collecting || !key) return;
-    const timer = window.setInterval(() => void refresh(), 2500);
-    return () => window.clearInterval(timer);
-  }, [dashboard?.collecting, key, refresh]);
+    if (!key) return;
+    const update = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    const timer = window.setInterval(update, processing ? 2500 : 15000);
+    window.addEventListener('focus', update);
+    document.addEventListener('visibilitychange', update);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', update);
+      document.removeEventListener('visibilitychange', update);
+    };
+  }, [processing, key, refresh]);
   async function login(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -87,6 +107,7 @@ export function Admin() {
     try {
       const candidate = keyInput.trim();
       const data = await api<AdminDashboard>('/api/admin/dashboard', {}, candidate);
+      session.current = candidate;
       setKey(candidate);
       setKeyInput('');
       setDashboard(data);
@@ -97,22 +118,35 @@ export function Admin() {
     }
   }
   const act: Action = async (path, method, body, success) => {
+    if (acting.current) return false;
+    acting.current = true;
     setBusy(true);
     setError('');
     setMessage('');
+    const progress = path.endsWith('/prepare')
+      ? 'Provjeravam izvore i pripremam prijedlog… To može potrajati do dvije minute.'
+      : 'Spremam promjene…';
+    setActionState({ path, progress });
     try {
-      await api(
+      const result = await api(
         path,
         { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) },
         key,
       );
-      setMessage(success);
+      if (session.current !== key) return false;
+      const feedback = typeof success === 'function' ? success(result) : success;
+      setMessage(feedback);
+      setActionState({ path, progress: '', result: feedback });
       await refresh();
       return true;
     } catch (err) {
+      if (session.current !== key) return false;
       handleError(err);
+      setActionState({ path, progress: '', result: errorText(err), error: true });
+      if (err instanceof ApiError && err.status === 409) await refresh();
       return false;
     } finally {
+      acting.current = false;
       setBusy(false);
     }
   };
@@ -194,10 +228,15 @@ export function Admin() {
           </nav>
           {!editingTip && !editingEvent && error && <Message error>{error}</Message>}
           {message && <Message>{message}</Message>}
+          {busy && actionState && !editingTip && !editingEvent && (
+            <Spinner label={actionState.progress} />
+          )}
           {tab === 'inbox' && (
             <Inbox
               tips={dashboard.tips}
               busy={busy}
+              actionState={actionState}
+              preparingTipIds={dashboard.preparingTipIds ?? []}
               act={act}
               onEdit={(tip) => {
                 setError('');
@@ -221,18 +260,31 @@ export function Admin() {
       )}
       {editingTip && (
         <DraftEditor
+          key={`${editingTip.id}:${editingTip.revision ?? 0}`}
           title="Pregled dojave"
           initial={editingTip.draft ?? { ...blankDraft(), sourceUrl: safeLink(editingTip.url) }}
           busy={busy}
           error={error}
           tip={editingTip}
+          stale={
+            (dashboard?.tips.find((tip) => tip.id === editingTip.id)?.revision ?? 0) !==
+            (editingTip.revision ?? 0)
+          }
+          onReload={() => {
+            const latest = dashboard?.tips.find((tip) => tip.id === editingTip.id);
+            if (latest) {
+              setError('');
+              if (['inbox', 'draft'].includes(latest.status)) setEditingTip(latest);
+              else setEditingTip(null);
+            }
+          }}
           onClose={() => setEditingTip(null)}
           onSubmit={async (draft, publish) => {
             if (
               await act(
                 `/api/admin/tips/${encodeURIComponent(editingTip.id)}`,
                 'PATCH',
-                { action: publish ? 'accept' : 'save', draft },
+                { action: publish ? 'accept' : 'save', draft, revision: editingTip.revision ?? 0 },
                 publish
                   ? 'Dojava je prihvaćena i događaj je objavljen.'
                   : 'Prijedlog je spremljen.',
@@ -269,11 +321,15 @@ export function Admin() {
 function Inbox({
   tips,
   busy,
+  actionState,
+  preparingTipIds,
   act,
   onEdit,
 }: {
   tips: Tip[];
   busy: boolean;
+  actionState: ActionState | null;
+  preparingTipIds: string[];
   act: Action;
   onEdit: (tip: Tip) => void;
 }) {
@@ -296,6 +352,7 @@ function Inbox({
         <div>
           <h2 id="inbox-title">Od ekipe, za grad.</h2>
           <p>Dojave ostaju sačuvane. Pregledaj podatke prije objave.</p>
+          <p className="fine-print">Nove dojave i rezultati provjere osvježavaju se automatski.</p>
         </div>
       </div>
       <div className="category-filters admin-filters" role="group" aria-label="Status dojave">
@@ -350,9 +407,28 @@ function Inbox({
               {tip.draft && (
                 <p className="draft-preview">
                   <span>Prijedlog</span>
-                  {tip.draft.title} · {dateFormat(tip.draft.startsAt)}
+                  {tip.draft.title || 'Naziv još nije naveden'} ·{' '}
+                  {tip.draft.startsAt ? dateFormat(tip.draft.startsAt) : 'Datum još nije poznat'}
                 </p>
               )}
+              {(preparingTipIds.includes(tip.id) ||
+                (actionState?.path.includes(`/tips/${encodeURIComponent(tip.id)}`) &&
+                  actionState.progress)) && (
+                <div className="tip-progress">
+                  <Spinner
+                    label={
+                      actionState?.path.includes(`/tips/${encodeURIComponent(tip.id)}`) &&
+                      actionState.progress
+                        ? actionState.progress
+                        : 'Provjera dojave je u tijeku. Rezultat će se prikazati ovdje.'
+                    }
+                  />
+                </div>
+              )}
+              {actionState?.path.includes(`/tips/${encodeURIComponent(tip.id)}`) &&
+                actionState.result && (
+                  <Message error={actionState.error}>{actionState.result}</Message>
+                )}
               <div className="admin-actions">
                 {['inbox', 'draft'].includes(tip.status) && (
                   <>
@@ -366,17 +442,22 @@ function Inbox({
                     </button>
                     <button
                       className="button button-outline button-small"
-                      disabled={busy}
+                      disabled={busy || preparingTipIds.includes(tip.id)}
                       onClick={() =>
                         void act(
                           `/api/admin/tips/${encodeURIComponent(tip.id)}/prepare`,
                           'POST',
                           undefined,
-                          'Provjera je završena. Pregledaj obrazloženje uz dojavu.',
+                          (result) => {
+                            const prepared = result as Tip;
+                            return prepared.reason || 'Provjera je završena. Pregledaj prijedlog.';
+                          },
                         )
                       }
                     >
-                      Pripremi / provjeri izvore
+                      {preparingTipIds.includes(tip.id)
+                        ? 'Provjera u tijeku…'
+                        : 'Pripremi / provjeri izvore'}
                     </button>
                     <button
                       className="text-button danger"
@@ -385,7 +466,7 @@ function Inbox({
                         void act(
                           `/api/admin/tips/${encodeURIComponent(tip.id)}`,
                           'PATCH',
-                          { action: 'reject' },
+                          { action: 'reject', revision: tip.revision ?? 0 },
                           'Dojava je odbijena.',
                         )
                       }
@@ -402,7 +483,7 @@ function Inbox({
                       void act(
                         `/api/admin/tips/${encodeURIComponent(tip.id)}`,
                         'PATCH',
-                        { action: 'restore' },
+                        { action: 'restore', revision: tip.revision ?? 0 },
                         'Dojava je vraćena na pregled.',
                       )
                     }
@@ -418,7 +499,7 @@ function Inbox({
                       void act(
                         `/api/admin/tips/${encodeURIComponent(tip.id)}`,
                         'PATCH',
-                        { action: 'archive' },
+                        { action: 'archive', revision: tip.revision ?? 0 },
                         'Dojava je arhivirana i može se vratiti.',
                       )
                     }
@@ -771,6 +852,8 @@ function DraftEditor({
   tip,
   busy,
   error,
+  stale = false,
+  onReload,
   onClose,
   onSubmit,
 }: {
@@ -779,6 +862,8 @@ function DraftEditor({
   tip?: Tip;
   busy: boolean;
   error: string;
+  stale?: boolean;
+  onReload?: () => void;
   onClose: () => void;
   onSubmit: (draft: EventDraft, publish: boolean) => Promise<void>;
 }) {
@@ -793,16 +878,19 @@ function DraftEditor({
     setDraft((old) => ({ ...old, [field]: value }));
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || stale) return;
     setLocalError('');
     try {
       const publish =
         (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value') === 'publish';
+      if ((!tip || publish) && !event.currentTarget.reportValidity()) return;
+      if (publish && !draft.venue?.trim())
+        throw new Error('Za objavu je potrebno potvrđeno mjesto održavanja.');
       await onSubmit(
         {
           ...draft,
           title: draft.title.trim(),
-          startsAt: zonedTimestamp(day, time),
+          startsAt: day ? zonedTimestamp(day, time) : '',
           endsAt: endDay ? zonedTimestamp(endDay, endTime) : null,
           city: 'Osijek',
         },
@@ -833,6 +921,17 @@ function DraftEditor({
               ? 'Moguće podudaranje s prikupljenim događajem. Provjeri prije prihvaćanja.'
               : 'Prijedlog nije potvrđen. Provjeri datum, lokaciju i najavu prije objave.'}
           </p>
+        </div>
+      )}
+      {stale && (
+        <div className="editor-conflict" role="alert">
+          <p>
+            Dojava je u međuvremenu promijenjena. Tvoj unos ostaje u obrascu. Prije spremanja učitaj
+            najnoviji prijedlog; to će zamijeniti ovaj unos.
+          </p>
+          <button type="button" className="button button-outline button-small" onClick={onReload}>
+            Učitaj najnoviji prijedlog
+          </button>
         </div>
       )}
       <form onSubmit={submit} className="draft-form">
@@ -871,6 +970,8 @@ function DraftEditor({
           </div>
           <p className="field-full fine-print">
             Svi datumi i vremena su za Osijek (Europe/Zagreb). Nepoznato vrijeme ostavi prazno.
+            {tip &&
+              ' Prijedlog možeš spremiti bez naziva ili datuma; objava traži potvrđene podatke.'}
           </p>
           <div className="field">
             <label htmlFor={`${id}-end-date`}>
@@ -979,14 +1080,20 @@ function DraftEditor({
           <button
             type="submit"
             value="save"
+            formNoValidate={Boolean(tip)}
             className={`button ${tip ? 'button-outline' : 'button-dark'}`}
-            disabled={busy}
+            disabled={busy || stale}
           >
             {busy ? 'Spremanje…' : tip ? 'Spremi prijedlog' : 'Spremi promjene'}
           </button>
           {tip && (
-            <button type="submit" value="publish" className="button button-dark" disabled={busy}>
-              Prihvati i objavi <Arrow diagonal />
+            <button
+              type="submit"
+              value="publish"
+              className="button button-dark"
+              disabled={busy || stale}
+            >
+              {busy ? 'Spremanje…' : 'Prihvati i objavi'} <Arrow diagonal />
             </button>
           )}
         </div>

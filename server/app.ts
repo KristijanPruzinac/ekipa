@@ -1,7 +1,7 @@
 import express, { type ErrorRequestHandler } from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import { WagzService } from './service.ts';
-import { TIMEZONE, ValidationError } from './validation.ts';
+import { ConflictError, TIMEZONE, ValidationError } from './validation.ts';
 
 export function createApp(
   service: WagzService,
@@ -123,10 +123,17 @@ export function createApp(
     res.status(202).json({ ok: true, collecting: service.collecting });
   });
   app.post('/api/admin/tips/:id/prepare', async (req, res) =>
-    res.json(await service.prepareTip(String(req.params.id))),
+    res.json(await service.prepareTip(String(req.params.id), true)),
   );
   app.patch('/api/admin/tips/:id', async (req, res) =>
-    res.json(await service.updateTip(String(req.params.id), req.body?.action, req.body?.draft)),
+    res.json(
+      await service.updateTip(
+        String(req.params.id),
+        req.body?.action,
+        req.body?.draft,
+        req.body?.revision,
+      ),
+    ),
   );
   app.patch('/api/admin/events/:id', async (req, res) =>
     res.json(
@@ -137,7 +144,7 @@ export function createApp(
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
     if (error instanceof ValidationError || error instanceof SyntaxError)
       res
-        .status(400)
+        .status(error instanceof ConflictError ? 409 : 400)
         .json({ error: error instanceof ValidationError ? error.message : 'Neispravan zahtjev.' });
     else if (error?.type === 'entity.too.large')
       res.status(413).json({ error: 'Zahtjev je prevelik.' });

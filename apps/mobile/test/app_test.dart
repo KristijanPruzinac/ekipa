@@ -42,6 +42,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('timeline-toggle')),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(
+      find.byKey(const ValueKey('timeline-event-student-concert')),
+      findsNothing,
+    );
+    await tester.ensureVisible(find.byKey(const ValueKey('timeline-toggle')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('timeline-toggle')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
       find.byKey(const ValueKey('timeline-event-student-concert')),
       250,
       scrollable: find.byType(Scrollable).first,
@@ -85,6 +98,79 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'foreground refresh moves real start/end boundaries, pauses in background and keeps last feed on failure',
+    (tester) async {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      var requests = 0;
+      var fail = false;
+      var current = <String, dynamic>{
+        ...feedJson(),
+        'events': [
+          {
+            ...eventJson,
+            'id': 'timed',
+            'title': 'Kratki program',
+            'startsAt': '2026-10-03T12:01:00Z',
+            'endsAt': '2026-10-03T12:02:00Z',
+          },
+        ],
+        'meta': {...(feedJson()['meta'] as Map), 'now': '2026-10-03T12:00:30Z'},
+      };
+      final api = WagzApi(
+        baseUrl: 'https://wagz.example',
+        client: MockClient((_) async {
+          requests++;
+          return fail
+              ? http.Response('{"error":"Test outage"}', 503)
+              : http.Response.bytes(utf8.encode(jsonEncode(current)), 200);
+        }),
+      );
+      addTearDown(api.close);
+      await tester.pumpWidget(WagzApp(api: api, preferences: preferences));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('event-card-timed')),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byKey(const ValueKey('ongoing-event-timed')), findsNothing);
+      current = {
+        ...current,
+        'meta': {...(current['meta'] as Map), 'now': '2026-10-03T12:01:30Z'},
+      };
+      await tester.pump(const Duration(seconds: 60));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('event-card-timed')), findsNothing);
+      expect(find.byKey(const ValueKey('ongoing-event-timed')), findsOneWidget);
+      fail = true;
+      await tester.pump(const Duration(seconds: 60));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('ongoing-event-timed')), findsOneWidget);
+      fail = false;
+      current = {
+        ...current,
+        'events': [],
+        'meta': {...(current['meta'] as Map), 'now': '2026-10-03T12:02:00Z'},
+      };
+      await tester.pump(const Duration(seconds: 60));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('ongoing-event-timed')), findsNothing);
+      final beforePause = requests;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump(const Duration(seconds: 120));
+      await tester.pumpAndSettle();
+      expect(requests, beforePause);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(requests, beforePause + 1);
+      await tester.pumpWidget(const SizedBox());
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('preferences do not hide other events and save locally', (
     tester,
   ) async {
@@ -123,7 +209,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    expect(find.text('ZA TVOJ RADAR'), findsOneWidget);
+    expect(find.text('PUBLIKA IZ NAJAVE'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('event-card-student-concert')));
     await tester.pumpAndSettle();
     expect(find.text('Detalji događaja'), findsOneWidget);
@@ -148,7 +234,7 @@ void main() {
         jsonDecode(preferences.getString('wagz.discovery.v1')!)['audience'],
         audience,
       );
-      expect(find.text('ZA TVOJ RADAR'), findsNothing);
+      expect(find.text('PUBLIKA IZ NAJAVE'), findsNothing);
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('all-events-count')),
         220,

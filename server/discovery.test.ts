@@ -25,7 +25,7 @@ const event = (discovery?: WagzEvent['discovery']): WagzEvent => ({
   discovery,
 });
 
-test('age choices never imply a genre, student eligibility, affordability or popularity', () => {
+test('recommendation presets never create source eligibility, affordability or popularity claims', () => {
   const discovery = inferDiscovery(
     'Koncert mladih glazbenika',
     'Na pozornici nastupaju studenti akademije.',
@@ -33,15 +33,15 @@ test('age choices never imply a genre, student eligibility, affordability or pop
   );
   assert.deepEqual(discovery.audiences, []);
   assert.equal(discovery.free, false);
-  for (const audience of ['students', 'adults', 'seniors'] as const)
-    assert.deepEqual(recommendationFor(event(discovery), { audience, interests: [] }), {
-      score: 0,
-      reasons: [],
-      personal: false,
-    });
+  for (const audience of ['students', 'adults', 'seniors'] as const) {
+    const result = recommendationFor(event(discovery), { audience, interests: [] });
+    assert.equal(result.kind, 'suggestion');
+    assert.equal(result.personal, false);
+    assert.deepEqual(result.reasons, ['Vrsta programa: glazba.']);
+  }
 });
 
-test('explicit audiences retain source reasons and independent chosen interests affect recommendations', () => {
+test('explicit audiences retain source reasons, outrank suggestions and ignore legacy interests', () => {
   const discovery = inferDiscovery(
     'Radionica',
     'Radionica za studente. Besplatno za umirovljenike.',
@@ -52,10 +52,18 @@ test('explicit audiences retain source reasons and independent chosen interests 
   assert.equal(discovery.free, true);
   assert.ok(discovery.audienceEvidence.every((item) => item.sourceUrl === url));
   const match = recommendationFor(event(discovery), { audience: 'students', interests: ['music'] });
-  assert.equal(match.score, 6);
+  assert.equal(match.score, 105);
+  assert.equal(match.kind, 'source');
   assert.equal(match.personal, true);
-  assert.equal(match.reasons.length, 2);
-  assert.equal(recommendationFor(event(discovery), { audience: 'adults', interests: [] }).score, 0);
+  assert.equal(match.reasons.length, 3);
+  assert.deepEqual(
+    match,
+    recommendationFor(event(discovery), { audience: 'students', interests: [] }),
+  );
+  assert.equal(
+    recommendationFor(event(discovery), { audience: 'adults', interests: [] }).kind,
+    'suggestion',
+  );
 });
 
 test('student audiences require student evidence, not a general youth or pupil programme', () => {

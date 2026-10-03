@@ -455,6 +455,15 @@ export class Repository {
       return Boolean(row && JSON.parse(String(row.value)).until > Date.now());
     });
   }
+  async activeLeaseIds(prefix: string): Promise<string[]> {
+    return this.operation(async () => {
+      const stem = `lease:${prefix}`;
+      return (await this.database.query('SELECT key,value FROM settings'))
+        .filter((row) => String(row.key).startsWith(stem))
+        .filter((row) => JSON.parse(String(row.value)).until > Date.now())
+        .map((row) => String(row.key).slice(stem.length));
+    });
+  }
 }
 
 export async function createRepository(

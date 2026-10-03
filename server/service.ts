@@ -9,14 +9,22 @@ import type {
 import { Repository } from './repository.ts';
 import {
   classifyTip,
+  ConflictError,
   normalize,
   safeUrl,
   tipDates,
+  upcoming,
   validateDraft,
   ValidationError,
 } from './validation.ts';
 import { fetchSource } from './ingestion/index.ts';
-import { prepareTip as aiPrepareTip, extractEvents, EXTRACTION_VERSION } from './ai/openrouter.ts';
+import {
+  prepareTip as aiPrepareTip,
+  extractEvents,
+  EXTRACTION_VERSION,
+  TIP_PREPARATION_VERSION,
+} from './ai/openrouter.ts';
+import { readTipSource } from './ai/tip-source.ts';
 import type { Config } from './config.ts';
 import { inferDiscovery, isFree } from './discovery.ts';
 
@@ -192,24 +200,28 @@ export class WagzService {
     public repo: Repository,
     public config: Config,
     private fetcher = fetchSource,
+    private tipReader = readTipSource,
   ) {}
   ledger = {
     reserve: (ceiling: number) => this.repo.reserveAi(ceiling, this.config.ai.monthlyBudgetUsd),
     settle: (id: string, actual: number | null) => this.repo.settleAi(id, actual),
   };
   async dashboard(): Promise<AdminDashboard> {
-    const [events, tips, sources, runs, autoPublish, aiSpent, collectionLease] = await Promise.all([
-      this.repo.events(),
-      this.repo.tips(),
-      this.repo.sourceHealth(),
-      this.repo.runs(),
-      this.repo.autoPublish(),
-      this.repo.aiSpent(),
-      this.repo.isLeaseActive('collection'),
-    ]);
+    const [events, tips, sources, runs, autoPublish, aiSpent, collectionLease, preparingTipIds] =
+      await Promise.all([
+        this.repo.events(),
+        this.repo.tips(),
+        this.repo.sourceHealth(),
+        this.repo.runs(),
+        this.repo.autoPublish(),
+        this.repo.aiSpent(),
+        this.repo.isLeaseActive('collection'),
+        this.repo.activeLeaseIds('tip:'),
+      ]);
     return {
       events,
       tips,
+      preparingTipIds,
       sources,
       runs,
       collecting: this.collecting || collectionLease,
@@ -386,7 +398,7 @@ export class WagzService {
       return this.repo.saveTip({ ...latest, ...changes, updatedAt: new Date().toISOString() });
     });
   }
-  async prepareTip(id: string): Promise<Tip> {
+  async prepareTip(id: string, force = false): Promise<Tip> {
     const existing = await this.repo.tip(id);
     if (!existing) throw new ValidationError('Dojava ne postoji.');
     if (['archived', 'accepted', 'rejected'].includes(existing.status) || this.preparing.has(id))
@@ -407,8 +419,10 @@ export class WagzService {
         return title.length >= 12 && normalize(tip.note).includes(title);
       });
       const dates = tipDates(tip.note);
+      const years: string[] = tip.note.match(/\b20\d{2}\b/g) ?? [];
       const compatibleDate = (event: (typeof all)[number]) =>
         !dates.invalid &&
+        (!years.length || years.includes(event.startsAt.slice(0, 4))) &&
         dates.dates.every((date) =>
           date.startsWith('--')
             ? event.startsAt.slice(5, 10) === date.slice(2)
@@ -447,9 +461,16 @@ export class WagzService {
           matchedEventId: matched.id,
           verification: 'source_match',
           reason:
-            'Pronađen je mogući isti događaj u prikupljenim izvorima. Prihvaćanje povezuje dojavu bez stvaranja duplikata.',
+            'Pronađen je mogući isti događaj u prikupljenim izvorima. Prihvaćanje povezuje dojavu bez stvaranja duplikata.' +
+            (!upcoming(matched)
+              ? ' Događaj je već završio i nije za objavu među nadolazećim događajima.'
+              : ''),
         });
       }
+      const source =
+        tip.url && this.config.ai.apiKey && this.config.ai.monthlyBudgetUsd > 0
+          ? await this.tipReader(tip.url, { force, deadlineMs: Date.now() + 20_000 })
+          : {};
       const key = createHash('sha256')
         .update(
           JSON.stringify({
@@ -457,19 +478,22 @@ export class WagzService {
             url: tip.url,
             model: this.config.ai.model,
             searchEnabled: this.config.ai.searchEnabled,
+            lookupModel: this.config.ai.lookupModel,
+            version: TIP_PREPARATION_VERSION,
+            sourceText: source.text ?? null,
             day: new Date().toISOString().slice(0, 10),
           }),
         )
         .digest('hex');
       type Result = Awaited<ReturnType<typeof aiPrepareTip>>;
-      let result = await this.repo.cached<Result>(`tip:${key}`);
-      if (!result) {
+      let result = force ? null : await this.repo.cached<Result>(`tip:${key}`);
+      if (!result?.complete) {
         result = await aiPrepareTip(
-          { note: tip.note, url: tip.url, now: new Date().toISOString() },
-          this.config.ai,
+          { note: tip.note, url: tip.url, now: new Date().toISOString(), sourceText: source.text },
+          { ...this.config.ai, searchEnabled: this.config.ai.searchEnabled && !source.reason },
           this.ledger,
         );
-        if (result.attempted && result.costUsd !== null)
+        if (result.complete && result.costUsd !== null && !source.reason)
           await this.repo.cache(`tip:${key}`, result);
       }
       // Uncertain classifications remain in the inbox. Spam stays recoverable.
@@ -485,7 +509,7 @@ export class WagzService {
         draft: draft ?? tip.draft,
         status:
           result.classification === 'spam' && !draft ? 'archived' : draft ? 'draft' : tip.status,
-        reason: result.reason,
+        reason: [source.reason, result.reason].filter(Boolean).join(' '),
         matchedEventId: null,
         verification: 'unverified',
       });
@@ -494,42 +518,64 @@ export class WagzService {
       if (lease) await this.repo.releaseLease(`tip:${id}`, lease);
     }
   }
-  async updateTip(id: string, action: string, rawDraft?: unknown): Promise<Tip> {
+  async updateTip(
+    id: string,
+    action: string,
+    rawDraft?: unknown,
+    expectedRevision?: unknown,
+  ): Promise<Tip> {
     return this.repo.transaction(async () => {
       const tip = await this.repo.tip(id);
       if (!tip) throw new ValidationError('Dojava ne postoji.');
+      if (expectedRevision !== undefined && expectedRevision !== (tip.revision ?? 0))
+        throw new ConflictError(
+          'Dojava je u međuvremenu promijenjena. Otvori najnoviji prijedlog prije spremanja.',
+        );
       const stamp = new Date().toISOString();
+      // Keep the assessment with the tip; action confirmations belong in the UI.
       if (action === 'archive')
         return this.repo.saveTip({
           ...tip,
           status: 'archived',
-          reason: 'Ručno arhivirano. Dojava se može vratiti.',
           updatedAt: stamp,
         });
       if (action === 'restore')
         return this.repo.saveTip({
           ...tip,
           status: tip.draft ? 'draft' : 'inbox',
-          reason: 'Dojava je vraćena na pregled.',
           updatedAt: stamp,
         });
       if (action === 'reject')
         return this.repo.saveTip({
           ...tip,
           status: 'rejected',
-          reason: 'Odbijeno nakon pregleda.',
           updatedAt: stamp,
         });
       if (!['save', 'accept'].includes(action)) throw new ValidationError('Nepoznata radnja.');
-      const draft = validateDraft(rawDraft ?? tip.draft);
+      if (action === 'accept' && tip.status === 'accepted') return tip;
+      const draft = validateDraft(rawDraft ?? tip.draft, { allowIncomplete: action === 'save' });
       if (action === 'save')
         return this.repo.saveTip({ ...tip, draft, status: 'draft', updatedAt: stamp });
-      if (tip.status === 'accepted') return tip;
+      if (!upcoming(draft))
+        throw new ValidationError(
+          'Događaj je već završio i ne može se objaviti među nadolazećim događajima. Nacrt možeš spremiti za evidenciju.',
+        );
       if (!draft.venue)
         throw new ValidationError('Za objavu je potrebno potvrđeno mjesto održavanja.');
       let eventId = tip.matchedEventId;
-      if (eventId) await this.repo.editEvent(eventId, 'published', draft);
-      else {
+      if (eventId) {
+        const matched = await this.repo.event(eventId);
+        const unchanged =
+          matched &&
+          Object.entries(draft).every(([key, value]) =>
+            key === 'sourceUrl'
+              ? matched.sources.some((source) => source.url === value)
+              : matched[key as keyof typeof matched] === value,
+          );
+        if (!unchanged) await this.repo.editEvent(eventId, 'published', draft);
+        else if (matched.publication !== 'published')
+          await this.repo.editEvent(eventId, 'published');
+      } else {
         eventId = (await this.repo.publishTip(tip.id, draft)).id;
       }
       return this.repo.saveTip({

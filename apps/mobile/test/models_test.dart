@@ -46,31 +46,32 @@ void main() {
   });
 
   test(
-    'preference ranking uses evidence and interests, never age stereotypes',
+    'source evidence outranks transparent recommendations and ignores legacy interests',
     () {
       final student = WagzEvent.fromJson(eventJson);
       const students = DiscoveryProfile(audience: 'students');
-      expect(recommendation(student, students).score, 4);
+      expect(recommendation(student, students).score, 102);
+      expect(recommendation(student, students).kind, 'source');
       expect(
         recommendation(
           student,
           const DiscoveryProfile(audience: 'seniors'),
         ).score,
-        0,
+        1,
       );
       expect(
         recommendation(
           student,
           const DiscoveryProfile(interests: ['music']),
         ).score,
-        2,
+        0,
       );
       expect(
         recommendation(
           student,
           const DiscoveryProfile(audience: 'students', interests: ['music']),
         ).score,
-        6,
+        102,
       );
       final unverified = WagzEvent.fromJson({
         ...eventJson,
@@ -78,7 +79,9 @@ void main() {
           'audiences': ['students'],
         },
       });
-      expect(recommendation(unverified, students).score, 0);
+      expect(recommendation(unverified, students).score, 2);
+      expect(recommendation(unverified, students).kind, 'suggestion');
+      expect(recommendation(unverified, students).personal, isFalse);
       final cancelled = WagzEvent.fromJson({
         ...eventJson,
         'status': 'cancelled',
@@ -95,7 +98,7 @@ void main() {
           },
         },
       });
-      expect(recommendation(festival, students).score, 1);
+      expect(recommendation(festival, students).score, 2);
       expect(recommendation(festival, students).personal, isFalse);
     },
   );

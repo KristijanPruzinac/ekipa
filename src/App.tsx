@@ -1,5 +1,9 @@
-import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
+  audienceDescriptions,
+  durationLabel,
+  eventDurationText,
+  isOngoing,
   rankForAudience,
   recommendationFor,
   themeForCategory,
@@ -22,38 +26,60 @@ function PublicApp() {
     [error, setError] = useState(''),
     [loading, setLoading] = useState(true);
   const [preferences, setPreferences] = useState<DiscoveryProfile>(readPreferences);
+  const refreshing = useRef(false);
   const [selected, setSelected] = useState<WagzEvent | null>(null),
     [tipOpen, setTipOpen] = useState(false);
   function changePreferences(value: DiscoveryProfile) {
     setPreferences(value);
     savePreferences(value);
   }
-  async function refresh() {
-    setLoading(true);
-    setError('');
+  async function refresh(background = false) {
+    if (refreshing.current) return;
+    refreshing.current = true;
+    if (!background) {
+      setLoading(true);
+      setError('');
+    }
     try {
       setFeed(await api<PublicFeed>('/api/events'));
+      setError('');
     } catch (err) {
-      setError(errorText(err));
+      if (!background) setError(errorText(err));
     } finally {
-      setLoading(false);
+      refreshing.current = false;
+      if (!background) setLoading(false);
     }
   }
   useEffect(() => {
     void refresh();
+    const foregroundRefresh = () => {
+      if (document.visibilityState === 'visible') void refresh(true);
+    };
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const schedule = () => {
+      clearInterval(timer);
+      if (document.visibilityState === 'visible') timer = setInterval(foregroundRefresh, 60000);
+    };
+    const visibility = () => {
+      schedule();
+      foregroundRefresh();
+    };
+    schedule();
+    window.addEventListener('focus', foregroundRefresh);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', foregroundRefresh);
+      document.removeEventListener('visibilitychange', visibility);
+    };
   }, []);
   const events = useMemo(
     () => rankForAudience(feed?.events ?? [], preferences.audience),
     [feed, preferences.audience],
   );
-  const noAudienceEvidence =
-    preferences.audience !== 'all' &&
-    feed &&
-    !feed.events.some(
-      (event) =>
-        event.status === 'scheduled' &&
-        event.discovery?.audienceEvidence.some((item) => item.audience === preferences.audience),
-    );
+  const hasRecommendations = events.some((row) => row.recommendation.score > 0);
+  const ongoing = events.filter(({ event }) => isOngoing(event, feed!.meta.now));
+  const upcoming = events.filter(({ event }) => !isOngoing(event, feed!.meta.now));
   return (
     <>
       <a className="skip-link" href="#dogadaji">
@@ -128,32 +154,48 @@ function PublicApp() {
             </div>
           ) : events.length ? (
             <>
-              {noAudienceEvidence && (
+              {preferences.audience !== 'all' && !hasRecommendations && (
                 <p className="discovery-feedback" role="status">
-                  Za ovu publiku zasad nemamo posebno označenih programa. Svi događaji ostaju ovdje,
-                  po datumu.
+                  Još nema preporuka za ovaj odabir. Svi događaji su ovdje, po datumu.
                 </p>
               )}
               <div className="discovery-layout">
-                <EventTimeline events={feed!.events} onSelect={setSelected} />
+                <EventTimeline events={feed!.events} now={feed!.meta.now} onSelect={setSelected} />
                 <div className="card-feed">
                   <div className="results-line" aria-live="polite">
                     <span>
                       {events.length} {events.length === 1 ? 'događaj' : 'događaja'} na tvom radaru
                     </span>
                     <span>
-                      {preferences.audience === 'all' || noAudienceEvidence
+                      {preferences.audience === 'all' || !hasRecommendations
                         ? 'PO DATUMU'
-                        : 'ZA TVOJ ODABIR PRVO'}
+                        : 'PREPORUKE PRVO'}
                     </span>
                   </div>
-                  {preferences.audience !== 'all' && !noAudienceEvidence && (
+                  {preferences.audience !== 'all' && hasRecommendations && (
                     <p className="audience-result-note">
-                      Označeni programi su na vrhu. Ispod njih su svi ostali događaji.
+                      {audienceDescriptions[preferences.audience]} Svi događaji ostaju u pregledu.
+                    </p>
+                  )}
+                  {ongoing.length > 0 && (
+                    <OngoingEvents
+                      events={ongoing.map(({ event }) => event)}
+                      now={feed!.meta.now}
+                      onSelect={setSelected}
+                    />
+                  )}
+                  {ongoing.length > 0 && (
+                    <p className="upcoming-heading">
+                      Sljedeće u gradu <span>{upcoming.length}</span>
+                    </p>
+                  )}
+                  {upcoming.length === 0 && (
+                    <p className="audience-result-note">
+                      Nove najave stižu uskoro. Programi koji traju dostupni su iznad.
                     </p>
                   )}
                   <div className="event-grid">
-                    {events.map(({ event, recommendation }) => (
+                    {upcoming.map(({ event, recommendation }) => (
                       <EventCard
                         key={event.id}
                         event={event}
@@ -225,6 +267,62 @@ function PublicApp() {
   );
 }
 
+function OngoingEvents({
+  events,
+  now,
+  onSelect,
+}: {
+  events: WagzEvent[];
+  now: string;
+  onSelect: (event: WagzEvent) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? events : events.slice(0, 2);
+  return (
+    <section className="ongoing-events" aria-label={`U tijeku: ${events.length} događaja`}>
+      <div className="ongoing-heading">
+        <h3>
+          <span className="live-dot" /> U tijeku
+        </h3>
+        <span>
+          {events.length} {events.length === 1 ? 'događaj' : 'događaja'}
+        </span>
+      </div>
+      <p className="ongoing-note">Još stigneš. Točne termine provjeri u najavi.</p>
+      <div id="ongoing-list">
+        {shown.map((event) => (
+          <button
+            className={`ongoing-event theme-${themeForCategory(event.category) ?? 'other'}`}
+            key={event.id}
+            onClick={() => onSelect(event)}
+            aria-label={`U tijeku: ${event.title}`}
+          >
+            <span className="ongoing-dot" aria-hidden="true" />
+            <span>
+              <strong>{event.title}</strong>
+              <small>
+                {eventDurationText(event, now)}
+                {event.endsAt!.length === 10 ? ' · završni sat nije naveden' : ''}
+              </small>
+            </span>
+            <Arrow diagonal />
+          </button>
+        ))}
+      </div>
+      {events.length > 2 && (
+        <button
+          className="ongoing-expand"
+          aria-expanded={expanded}
+          aria-controls="ongoing-list"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'Sažmi događaje u tijeku' : `Prikaži sve u tijeku (${events.length})`}
+        </button>
+      )}
+    </section>
+  );
+}
+
 function EventCard({
   event,
   recommendation,
@@ -260,7 +358,9 @@ function EventCard({
           {(recommendation.personal || prominence) && (
             <div className="card-reasons">
               {recommendation.personal && (
-                <span className="card-reason card-reason-personal">✓ Za tebe</span>
+                <span className="card-reason card-reason-personal">
+                  {recommendation.kind === 'source' ? 'Publika iz najave' : 'Prijedlog za tebe'}
+                </span>
               )}
               {prominence && <span className="card-reason">{prominence.label}</span>}
             </div>
@@ -286,6 +386,7 @@ function EventCard({
             <Pin />
             <span>{event.venue || 'Lokacija još nije navedena'}</span>
           </div>
+          <p className="card-duration">{eventDurationText(event)}</p>
           <div className="card-footer">
             <span>{event.price || 'Cijena nije navedena'}</span>
             <span className="card-open">
@@ -342,6 +443,8 @@ function EventDetail({
                 {event.endsAt.length > 10 ? `, ${timeFormat(event.endsAt)}` : ''}
               </span>
             )}
+            {durationLabel(event) && <span>Trajanje: {durationLabel(event)}</span>}
+            {!event.endsAt && <span>Kraj nije naveden</span>}
           </dd>
         </div>
         <div>
@@ -363,10 +466,15 @@ function EventDetail({
         <section className="detail-discovery" aria-label="Razlozi oznaka">
           <h3>Dobro je znati</h3>
           <ul>
-            {preferences.interests.includes(event.category) && recommendation.personal && (
+            {recommendation.personal && (
               <li>
-                <strong>Prema tvom odabiru</strong>Odabrao/la si interes:{' '}
-                {categoryNames[event.category]}.
+                <strong>Zašto je među preporukama?</strong>
+                <p>{recommendation.reasons.join(' ')}</p>
+                <p>
+                  Prijedlog prema odabiru „
+                  {audienceLabels[preferences.audience as keyof typeof audienceLabels]}” i podacima
+                  iz najave. Nije dobno ograničenje ni potvrda pristupačnosti.
+                </p>
               </li>
             )}
             {discovery?.audienceEvidence.map((evidence) => (

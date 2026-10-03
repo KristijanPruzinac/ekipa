@@ -1736,6 +1736,28 @@ summary:focus-visible {
 .editor-modal {
   width: min(780px, calc(100% - 32px));
 }
+.tip-progress {
+  margin-block: 16px;
+}
+.tip-progress .loading-line {
+  align-items: flex-start;
+  line-height: 1.6;
+}
+.tip-progress .spinner {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.editor-conflict {
+  padding: 16px;
+  margin-bottom: 20px;
+  background: #fff2db;
+  border: 1px solid #cfb281;
+  line-height: 1.6;
+}
+.editor-conflict .button {
+  margin-top: 12px;
+  white-space: normal;
+}
 .original-tip {
   padding: 17px 19px;
   background: #e9eddd;

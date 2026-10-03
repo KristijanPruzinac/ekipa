@@ -1,90 +1,156 @@
-import { useState } from 'react';
-import { rankForAudience, themeForCategory } from '../shared/discovery';
+﻿import { useState, useSyncExternalStore, type CSSProperties } from 'react';
+import {
+  durationLabel,
+  isOngoing,
+  knownEnd,
+  rankForAudience,
+  themeForCategory,
+  timelineFor,
+} from '../shared/discovery';
 import type { WagzEvent } from '../shared/types';
-import { categoryNames, dateFormat, dayKey, timeFormat } from './lib';
+import { categoryNames, dateFormat, timeFormat } from './lib';
+
+const compactQuery = () => window.matchMedia('(max-width: 760px)');
+const subscribe = (callback: () => void) => {
+  const media = compactQuery();
+  media.addEventListener('change', callback);
+  return () => media.removeEventListener('change', callback);
+};
 
 export function EventTimeline({
   events,
+  now,
   onSelect,
 }: {
   events: WagzEvent[];
+  now: string;
   onSelect: (event: WagzEvent) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const compact = useSyncExternalStore(subscribe, () => compactQuery().matches);
+  const chartOpen = !compact || mobileOpen;
   const chronological = rankForAudience(events).map(({ event }) => event);
-  const preview = expanded ? chronological : chronological.slice(0, 6);
+  const limit = compact ? 3 : 6;
+  const preview = expanded ? chronological : chronological.slice(0, limit);
+  const { moments, ranges } = timelineFor(preview);
+  const lanes = Math.max(1, ...ranges.map((range) => range.lane + 1));
   return (
-    <section className="event-timeline" aria-labelledby="timeline-title">
+    <section
+      className={`event-timeline ${chartOpen ? '' : 'timeline-collapsed'}`}
+      aria-labelledby="timeline-title"
+    >
       <div className="timeline-heading">
         <div>
-          <p className="eyebrow">SLJEDEĆE STANICE</p>
-          <h3 id="timeline-title">Grad, po danima.</h3>
+          <p className="eyebrow">RITAM GRADA</p>
+          <h3 id="timeline-title">Sve ima svoj trenutak.</h3>
         </div>
         <span className="timeline-direction" aria-hidden="true">
-          ↓
+          ↘
         </span>
       </div>
-      <p className="timeline-description">Tvoj brzi pogled na ono što dolazi.</p>
-      <div className="timeline-legend" aria-label="Vrste događaja">
-        <span className="theme-go-out">Glazba i izlasci</span>
-        <span className="theme-culture">Pozornica i kultura</span>
-        <span className="theme-join-in">Pokret i druženje</span>
-      </div>
-      <ol className="timeline-stations" data-expanded={expanded}>
-        {preview.map((event, index) => {
-          const theme = themeForCategory(event.category) ?? 'other';
-          const newDay =
-            index === 0 || dayKey(event.startsAt) !== dayKey(preview[index - 1].startsAt);
-          return (
-            <li
-              key={event.id}
-              className={`timeline-station theme-${theme} ${event.status !== 'scheduled' ? 'station-inactive' : ''}`}
-            >
-              <div className="timeline-rails" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-                <span className="station-dot" />
-              </div>
-              <button
-                onClick={() => onSelect(event)}
-                aria-label={`Na vremenskoj crti: ${event.title}`}
-              >
-                {newDay && (
-                  <time dateTime={event.startsAt} className="station-day">
-                    {dateFormat(event.startsAt, {
-                      weekday: 'short',
-                      day: 'numeric',
-                      month: 'short',
-                    })}
-                  </time>
-                )}
-                <strong>{event.title}</strong>
-                <span className="station-meta">
-                  {categoryNames[event.category]} ·{' '}
-                  {event.startsAt.length === 10
-                    ? 'Vrijeme nije navedeno'
-                    : timeFormat(event.startsAt)}
-                </span>
-                {event.status !== 'scheduled' && (
-                  <span className="station-status">
-                    {event.status === 'cancelled' ? 'Otkazano' : 'Odgođeno'}
-                  </span>
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-      {chronological.length > 3 && (
+      <p className="timeline-description">Početak, kraj i sve između.</p>
+      {compact && (
         <button
-          className={`timeline-expand ${chronological.length <= 6 ? 'mobile-expand-only' : ''}`}
-          aria-expanded={expanded}
-          onClick={() => setExpanded(!expanded)}
+          className="timeline-mobile-toggle"
+          aria-expanded={mobileOpen}
+          aria-controls="timeline-chart"
+          onClick={() => {
+            setMobileOpen(!mobileOpen);
+            setExpanded(false);
+          }}
         >
-          {expanded ? 'Prikaži manje' : 'Cijela vremenska crta'}{' '}
-          <span aria-hidden="true">{expanded ? '−' : '+'}</span>
+          {mobileOpen ? 'Zatvori vremensku crtu' : 'Otvori vremensku crtu'}{' '}
+          <span aria-hidden="true">{mobileOpen ? '−' : '+'}</span>
         </button>
+      )}
+      {chartOpen && (
+        <div id="timeline-chart">
+          <div className="timeline-legend" aria-label="Vrste događaja">
+            <span className="theme-go-out">Izlasci</span>
+            <span className="theme-culture">Kultura</span>
+            <span className="theme-join-in">Druženje</span>
+          </div>
+          <div
+            className="timeline-track"
+            style={{ '--range-space': `${18 + lanes * 7}px` } as CSSProperties}
+          >
+            <div className="timeline-spine" aria-hidden="true" />
+            {ranges.map(({ event, start, end, lane }) => (
+              <div
+                key={event.id}
+                aria-hidden="true"
+                className={`timeline-range theme-${themeForCategory(event.category) ?? 'other'} ${event.status !== 'scheduled' ? 'range-inactive' : ''}`}
+                style={{ gridRow: `${start + 1} / ${end + 1}`, width: `${12 + lane * 7}px` }}
+              />
+            ))}
+            <ol className="timeline-stations">
+              {moments.map(({ event, value, ending }, index) => {
+                const end = knownEnd(event);
+                const duration = durationLabel(event);
+                return (
+                  <li
+                    key={`${event.id}-${ending ? 'end' : 'start'}`}
+                    style={{ gridRow: index + 1 }}
+                    className={`timeline-station theme-${themeForCategory(event.category) ?? 'other'} ${ending ? 'station-ending' : 'station-start'} ${event.status !== 'scheduled' ? 'station-inactive' : ''}`}
+                  >
+                    <time dateTime={value} className="station-time">
+                      <b>{dateFormat(value, { day: 'numeric', month: 'numeric' })}</b>
+                      <span>{value.length === 10 ? 'sat nije naveden' : timeFormat(value)}</span>
+                    </time>
+                    <span className="station-dot" aria-hidden="true" />
+                    <button
+                      onClick={() => onSelect(event)}
+                      aria-label={`${ending ? 'Završetak' : 'Na vremenskoj crti'}: ${event.title}`}
+                    >
+                      {ending ? (
+                        <>
+                          <span className="station-end-label">ZAVRŠETAK</span>
+                          <span className="station-end-title">{event.title}</span>
+                        </>
+                      ) : (
+                        <>
+                          {isOngoing(event, now) && <span className="station-live">U TIJEKU</span>}
+                          <strong>{event.title}</strong>
+                          <span className="station-category">{categoryNames[event.category]}</span>
+                          <span className={`station-duration ${end ? 'has-end' : ''}`}>
+                            {end ? (
+                              <>
+                                <span aria-hidden="true">↳ </span>
+                                {duration ??
+                                  `${dateFormat(event.startsAt, { day: 'numeric', month: 'numeric' })} – ${dateFormat(end, { day: 'numeric', month: 'numeric' })}`}
+                              </>
+                            ) : (
+                              'Kraj nije naveden'
+                            )}
+                          </span>
+                          {event.status !== 'scheduled' && (
+                            <span className="station-status">
+                              {event.status === 'cancelled' ? 'Otkazano' : 'Odgođeno'}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+          <p className="timeline-scale-note">
+            Luk spaja početak i kraj. Razmaci nisu mjerilo trajanja.
+          </p>
+          {chronological.length > limit && (
+            <button
+              className="timeline-expand"
+              aria-expanded={expanded}
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? 'Prikaži manje' : 'Cijela vremenska crta'}{' '}
+              <span aria-hidden="true">{expanded ? '−' : '+'}</span>
+            </button>
+          )}
+        </div>
       )}
     </section>
   );

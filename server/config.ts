@@ -19,11 +19,13 @@ export const config = {
   ai: {
     apiKey: process.env.OPENROUTER_API_KEY || '',
     model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite',
+    lookupModel: process.env.OPENROUTER_LOOKUP_MODEL || undefined,
     monthlyBudgetUsd: number('WAGZ_AI_MONTHLY_BUDGET_USD', 1),
     searchEnabled: process.env.WAGZ_AI_SEARCH_ENABLED !== 'false',
   },
 };
-export type Config = Omit<typeof config, 'databaseUrl' | 'hosted'> & {
+export type Config = Omit<typeof config, 'databaseUrl' | 'hosted' | 'ai'> & {
   databaseUrl?: string;
   hosted?: boolean;
+  ai: Omit<typeof config.ai, 'lookupModel'> & { lookupModel?: string };
 };

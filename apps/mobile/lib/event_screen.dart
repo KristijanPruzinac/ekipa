@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'design.dart';
+import 'discovery.dart';
 import 'models.dart';
 import 'preferences.dart';
 
@@ -55,14 +56,15 @@ class EventScreen extends StatelessWidget {
               ],
               if (match.reasons.isNotEmpty) ...[
                 Notice(
-                  '${match.personal ? 'Za tvoj radar' : event.discovery.prominenceLabel ?? 'U gradu'}\n${match.reasons.join('\n')}',
+                  '${match.kind == 'source' ? 'Publika iz najave' : 'Prijedlog za tebe'}\n${match.reasons.join('\n')}\n\nPrijedlog prema odabiru „${audienceNames[profile.audience]}” i podacima iz najave. Nije dobno ograničenje ni potvrda pristupačnosti.',
                 ),
                 const SizedBox(height: 24),
               ],
               _fact(
                 'KADA',
                 '${formatDate(event.startsAt, 'EEEE, d. MMMM y.')}\n${formatTime(event.startsAt)}'
-                    '${event.endsAt == null ? '' : '\nDo ${formatDate(event.endsAt!)}${event.endsAt!.length > 10 ? ', ${formatTime(event.endsAt!)}' : ''}'}',
+                    '${event.endsAt == null ? '\nKraj nije naveden' : '\nDo ${formatDate(event.endsAt!)}${event.endsAt!.length > 10 ? ', ${formatTime(event.endsAt!)}' : ''}'}'
+                    '${durationLabel(event) == null ? '' : '\nTrajanje: ${durationLabel(event)}'}',
               ),
               _fact(
                 'GDJE',

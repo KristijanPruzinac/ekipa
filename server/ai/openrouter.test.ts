@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { supportedDays, supportedTime } from './evidence.ts';
+import { supportedDays, supportedTime, supportedEndTime } from './evidence.ts';
 import {
   extractEvents,
   prepareTip,
@@ -13,7 +13,7 @@ import {
 const config: AiConfig = {
   apiKey: 'test-key-never-sent',
   monthlyBudgetUsd: 1,
-  searchEnabled: true,
+  searchEnabled: false,
 };
 const input = {
   note: 'Koncert: 5. listopada 2026., 20:00, Klub Osijek.',
@@ -90,6 +90,8 @@ test('disabled, exhausted and invalid configuration never send requests or settl
     { ...config, monthlyBudgetUsd: 0 },
     { ...config, monthlyBudgetUsd: NaN },
     { ...config, model: 'google/gemini:online' },
+    { ...config, lookupModel: 'google/gemini:online' },
+    { ...config, lookupModel: 'not a model' },
   ]) {
     const book = accounting();
     const result = await prepareTip(input, disabled, book.ledger, {
@@ -103,7 +105,7 @@ test('disabled, exhausted and invalid configuration never send requests or settl
     assert.deepEqual(book.settlements, []);
   }
   const book = accounting(false);
-  const result = await prepareTip(input, config, book.ledger, {
+  const result = await prepareTip(input, { ...config, searchEnabled: true }, book.ledger, {
     fetch: mock(() => {
       throw new Error('must not fetch');
     }),
@@ -116,17 +118,27 @@ test('disabled, exhausted and invalid configuration never send requests or settl
 test('tip reserves before sending and limits the current server search tool', async () => {
   const book = accounting();
   let calls = 0;
-  const result = await prepareTip(input, config, book.ledger, {
+  const result = await prepareTip(input, { ...config, searchEnabled: true }, book.ledger, {
     fetch: mock((request, init) => {
       calls++;
       assert.equal(request, 'https://openrouter.ai/api/v1/chat/completions');
-      assert.deepEqual(book.reservations, [0.03]);
+      assert.deepEqual(book.reservations, calls === 1 ? [0.03] : [0.03, 0.03]);
       assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer test-key-never-sent');
       assert.equal(init?.redirect, 'error');
       assert.ok(init?.signal instanceof AbortSignal);
       const body = JSON.parse(String(init?.body));
-      assert.equal(body.model, 'google/gemini-2.5-flash-lite');
-      assert.equal(body.max_tokens, 1200);
+      assert.equal(
+        body.model,
+        calls === 1 ? 'google/gemini-3.1-flash-lite' : 'google/gemini-2.5-flash-lite',
+      );
+      if (calls === 2) {
+        assert.equal(body.max_tokens, 1200);
+        assert.deepEqual(body.tools, []);
+        assert.equal(body.response_format.type, 'json_schema');
+        return response(tip(), 0.0002);
+      }
+      assert.equal(body.max_tokens, 600);
+      assert.equal(body.response_format, undefined);
       assert.equal(body.max_tool_calls, 1);
       assert.deepEqual(body.tools, [
         {
@@ -146,11 +158,14 @@ test('tip reserves before sending and limits the current server search tool', as
       return response(tip(), 0.0062);
     }),
   });
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
   assert.equal(result.classification, 'plausible');
   assert.equal(result.draft?.startsAt, candidate.startsAt);
   assert.match(result.reason, /nije potvrda/);
-  assert.deepEqual(book.settlements, [['reservation-1', 0.0062]]);
+  assert.deepEqual(book.settlements, [
+    ['reservation-1', 0.0062],
+    ['reservation-1', 0.0002],
+  ]);
 });
 
 test('evidence URLs only come from valid provider citation annotations', async () => {
@@ -235,12 +250,292 @@ test('malformed JSON, provider errors and network failure are explicit and never
     });
     assert.equal(calls, 1);
     assert.equal(result.attempted, true);
+    assert.equal(result.complete, false);
     assert.equal(result.draft, null);
     assert.equal(result.classification, 'uncertain');
     assert.ok(result.reason.length > 20);
     assert.doesNotMatch(result.reason, /test-key-never-sent/);
     assert.equal(book.settlements.length, 1);
     assert.equal(book.settlements[0][1], result.costUsd);
+  }
+});
+
+test('a single JSON fence is an envelope, while ambiguous or malformed output remains a failure', async () => {
+  const valid = JSON.stringify(tip());
+  for (const content of [
+    valid,
+    `\n\`\`\`json\n${valid}\n\`\`\`\n`,
+    `The provided note supports a draft.\n\n\`\`\`json\n${valid}\n\`\`\`\nReview required.`,
+    `\`\`\`\n${valid}\n\`\`\``,
+    `\`\`\`\`JSON\r\n${valid}\r\n\`\`\`\``,
+  ]) {
+    const result = await prepareTip(input, config, accounting().ledger, {
+      fetch: mock(() => response(content)),
+    });
+    assert.equal(result.complete, true, content);
+    assert.equal(result.draft?.startsAt, candidate.startsAt);
+  }
+  for (const content of [
+    `\`\`\`json\n${valid}\n\`\`\`\n\`\`\`json\n${valid}\n\`\`\``,
+    `\`\`\`json\n${valid}\n`,
+    `\`\`\`javascript\n${valid}\n\`\`\``,
+    `\`\`\`json\n{"classification":"uncertain",}\n\`\`\``,
+    `${valid}\n\`\`\`json\n${valid}\n\`\`\``,
+    `Here is an unwrapped object: ${valid}`,
+  ]) {
+    const result = await prepareTip(input, config, accounting().ledger, {
+      fetch: mock(() => response(content)),
+    });
+    assert.equal(result.complete, false, content);
+    assert.equal(result.draft, null);
+  }
+});
+
+test('fenced JSON preserves strict evidence checks and never treats surrounding prose as evidence', async () => {
+  const result = await prepareTip(
+    { ...input, note: 'Koncert u Osijeku' },
+    config,
+    accounting().ledger,
+    {
+      fetch: mock(() => response(`${input.note}\n\`\`\`json\n${JSON.stringify(tip())}\n\`\`\``)),
+    },
+  );
+  assert.equal(result.complete, false);
+  assert.equal(result.draft, null);
+});
+
+test('valid uncertain and spam classifications are completed outcomes without fabricated drafts', async () => {
+  for (const classification of ['uncertain', 'spam']) {
+    const result = await prepareTip(input, config, accounting().ledger, {
+      fetch: mock(() =>
+        response({ classification, draft: null, reason: 'Nema podataka za nacrt.' }),
+      ),
+    });
+    assert.equal(result.complete, true);
+    assert.equal(result.classification, classification);
+    assert.equal(result.draft, null);
+  }
+});
+
+test('fetched source text can ground a tip date, but a URL alone cannot', async () => {
+  for (const sourceText of [undefined, input.note]) {
+    const result = await prepareTip(
+      { ...input, note: 'Koncert u Osijeku', url: page.url, sourceText },
+      config,
+      accounting().ledger,
+      {
+        fetch: mock((_, init) => {
+          const payload = JSON.parse(JSON.parse(String(init?.body)).messages[1].content);
+          assert.equal(payload.sourceText, sourceText);
+          return response(tip());
+        }),
+      },
+    );
+    assert.equal(result.complete, Boolean(sourceText));
+    assert.equal(result.draft?.sourceUrl ?? null, sourceText ? page.url : null);
+  }
+  const book = accounting();
+  const oversized = await prepareTip(
+    { ...input, url: page.url, sourceText: 'x'.repeat(MAX_EXTRACTION_INPUT_CHARS + 1) },
+    config,
+    book.ledger,
+  );
+  assert.equal(oversized.complete, false);
+  assert.deepEqual(book.reservations, []);
+});
+
+test('historical source dates stay historical and explicitly explain why they are not upcoming', async () => {
+  const result = await prepareTip(
+    { ...input, now: '2026-10-06T10:00:00Z' },
+    config,
+    accounting().ledger,
+    {
+      fetch: mock(() => response(tip())),
+    },
+  );
+  assert.equal(result.complete, true);
+  assert.equal(result.classification, 'plausible');
+  assert.equal(result.draft?.startsAt, candidate.startsAt);
+  assert.match(result.reason, /već završio \(2026-10-05\)/);
+});
+
+test('search evidence is structured in one separately accounted tools-disabled stage, without using model prose', async () => {
+  const book = accounting();
+  let calls = 0;
+  const annotations = [
+    { type: 'url_citation', url_citation: { url: page.url, content: input.note } },
+  ];
+  const result = await prepareTip(
+    { ...input, note: 'Koncert u Osijeku' },
+    { ...config, searchEnabled: true },
+    book.ledger,
+    {
+      fetch: mock((_, init) => {
+        const payload = JSON.parse(String(init?.body));
+        calls++;
+        if (calls === 1) {
+          assert.equal(payload.response_format, undefined);
+          return response('Unusable prose with invented facts and no JSON.', 0.005, annotations);
+        }
+        assert.deepEqual(payload.tools, []);
+        assert.equal(payload.tool_choice, 'none');
+        const data = JSON.parse(payload.messages[1].content);
+        assert.deepEqual(data.searchEvidence, { urls: [page.url], excerpts: [input.note] });
+        assert.doesNotMatch(payload.messages[1].content, /invented facts/);
+        return response(tip(), 0.0002);
+      }),
+    },
+  );
+  assert.equal(calls, 2);
+  assert.equal(result.complete, true);
+  assert.equal(result.draft?.sourceUrl, page.url);
+  assert.equal(result.costUsd, 0.0052);
+  assert.deepEqual(book.reservations, [0.03, 0.03]);
+  assert.deepEqual(book.settlements, [
+    ['reservation-1', 0.005],
+    ['reservation-1', 0.0002],
+  ]);
+});
+
+test('a failed structuring stage is not retried or cached as complete and retains unknown-cost reservations', async () => {
+  const book = accounting();
+  let calls = 0;
+  const result = await prepareTip(
+    { ...input, note: 'Koncert' },
+    { ...config, searchEnabled: true },
+    book.ledger,
+    {
+      fetch: mock(() => {
+        calls++;
+        if (calls === 1)
+          return response(tip(), 0.005, [
+            { type: 'url_citation', url_citation: { url: page.url, content: input.note } },
+          ]);
+        return new Response(JSON.stringify({ error: { message: 'provider failed' } }), {
+          status: 500,
+        });
+      }),
+    },
+  );
+  assert.equal(calls, 2);
+  assert.equal(result.complete, false);
+  assert.equal(result.costUsd, null);
+  assert.deepEqual(result.evidenceUrls, [page.url]);
+  assert.deepEqual(book.settlements, [
+    ['reservation-1', 0.005],
+    ['reservation-1', null],
+  ]);
+});
+
+test('lookup model is separately configurable and unresolved provider tool calls are never executed by the app', async () => {
+  let calls = 0;
+  const result = await prepareTip(
+    input,
+    { ...config, searchEnabled: true, lookupModel: 'google/custom-lookup' },
+    accounting().ledger,
+    {
+      fetch: mock((_, init) => {
+        calls++;
+        assert.equal(JSON.parse(String(init?.body)).model, 'google/custom-lookup');
+        return response(null, 0.0001, undefined, 'tool_calls');
+      }),
+    },
+  );
+  assert.equal(calls, 1);
+  assert.equal(result.complete, false);
+  assert.match(result.reason, /neizvršen poziv alata/);
+});
+
+test('a draft without a submitted URL links to its exact date-evidence citation', async () => {
+  const annotations = [
+    {
+      type: 'url_citation',
+      url_citation: { url: 'https://social.test/profile', content: 'Koncert u Osijeku.' },
+    },
+    { type: 'url_citation', url_citation: { url: page.url, content: input.note } },
+  ];
+  for (const submittedUrl of [null, 'https://submitted.test/event']) {
+    const result = await prepareTip({ ...input, url: submittedUrl }, config, accounting().ledger, {
+      fetch: mock(() => response(tip(), 0.0001, annotations)),
+    });
+    assert.equal(result.complete, true);
+    assert.equal(result.draft?.sourceUrl, submittedUrl ?? page.url);
+  }
+});
+
+test('lookup without citations still classifies the original note and never accepts dates from lookup prose', async () => {
+  for (const classification of ['spam', 'uncertain']) {
+    let calls = 0;
+    const result = await prepareTip(
+      { ...input, note: 'Samo nepotpuna dojava' },
+      { ...config, searchEnabled: true },
+      accounting().ledger,
+      {
+        fetch: mock((_, init) => {
+          calls++;
+          if (calls === 1) return response('Uncited imagined concert on 2026-10-05.', 0.0001);
+          const data = JSON.parse(JSON.parse(String(init?.body)).messages[1].content);
+          assert.deepEqual(data.searchEvidence, { urls: [], excerpts: [] });
+          assert.doesNotMatch(JSON.stringify(data), /imagined concert/);
+          return response(
+            { classification, draft: null, reason: 'Nema podataka za događaj.' },
+            0.0001,
+          );
+        }),
+      },
+    );
+    assert.equal(result.complete, true);
+    assert.equal(result.classification, classification);
+    assert.equal(calls, 2);
+  }
+});
+
+test('the second stage needs its own reservation and a denied reservation does not send or invent a charge', async () => {
+  const book = accounting();
+  let reservations = 0,
+    calls = 0;
+  const result = await prepareTip(
+    input,
+    { ...config, searchEnabled: true },
+    {
+      reserve: async (amount) => (++reservations === 1 ? await book.ledger.reserve(amount) : null),
+      settle: book.ledger.settle,
+    },
+    {
+      fetch: mock(() => {
+        calls++;
+        return response('No matching source found.', 0.0001);
+      }),
+    },
+  );
+  assert.equal(result.complete, false);
+  assert.equal(result.attempted, true);
+  assert.equal(result.costUsd, 0.0001);
+  assert.equal(calls, 1);
+  assert.equal(reservations, 2);
+  assert.deepEqual(book.settlements, [['reservation-1', 0.0001]]);
+});
+
+test('an AI draft cannot replace an explicitly requested date or old edition with a different one', async () => {
+  for (const note of ['Koncert 2025', 'Koncert 2026-10-06', 'Koncert 6. listopada 2026.']) {
+    const result = await prepareTip(
+      { ...input, note, url: page.url, sourceText: input.note },
+      config,
+      accounting().ledger,
+      {
+        fetch: mock((_, init) => {
+          assert.deepEqual(
+            JSON.parse(String(init?.body)).tools,
+            [],
+            'fetched page needs no new search',
+          );
+          return response(tip());
+        }),
+      },
+    );
+    assert.equal(result.complete, false);
+    assert.equal(result.draft, null);
+    assert.match(result.reason, /ne odgovara dojavi/);
   }
 });
 
@@ -593,4 +888,51 @@ test('ISO support still requires an exact source quote and an explicit year', as
     assert.equal(result.events.length, 0);
     assert.equal(result.rejectedCount, 1);
   }
+});
+
+test('real Geek Gathering source start clock never becomes an invented final-day closing time', async () => {
+  const quote =
+    '1. i 2. 10. THE GEEK GATHERING\n01/10/26\n- 02/10/26\n08:00\nČetvrtak, 1.10.2026./Kulturni centar Osijek\nPetak, 2.10.2026./Kulturni centar Osijek';
+  const proposed = {
+    ...candidate,
+    title: 'THE GEEK GATHERING',
+    startsAt: '2026-10-01T08:00:00+02:00',
+    endsAt: '2026-10-02T08:00:00+02:00',
+    dateEvidence: quote,
+  };
+  const result = await extractEvents({ ...page, text: quote }, config, accounting().ledger, {
+    fetch: mock(() => response(extraction([proposed]))),
+  });
+  assert.equal(result.complete, true);
+  assert.equal(result.events[0]?.startsAt, proposed.startsAt);
+  assert.equal(result.events[0]?.endsAt, '2026-10-02');
+});
+
+test('only explicit end labels and interval endpoints preserve closing times', () => {
+  for (const quote of [
+    '1. i 2.10.2026./08:00',
+    'Od 1. do 2.10.2026. u 08:00',
+    '1.10.2026. u 08:00; 2.10.2026. u 08:00',
+  ])
+    assert.equal(supportedEndTime('2026-10-02T08:00:00+02:00', quote), '2026-10-02');
+  for (const [value, quote] of [
+    ['2026-10-02T18:00:00+02:00', '2.10.2026. od 08:00 do 18:00'],
+    ['2026-10-02T18:00:00+02:00', '2.10.2026. 08:00–18:00'],
+    ['2026-10-02T14:00:00+02:00', '2.10.2026. od 9 do 14 sati'],
+    ['2026-10-02T18:00:00+02:00', '1. i 2.10.2026. Početak u 08:00. Završetak u 18:00.'],
+    ['2026-10-02T18:00:00+02:00', 'Od 1.10.2026. u 08:00 do 2.10.2026. u 18:00'],
+    ['2026-10-02T08:00:00+02:00', '2026-10-01T08:00:00+02:00/2026-10-02T08:00:00+02:00'],
+    [
+      '2026-10-02T18:00:00+02:00',
+      '{"startDate":"2026-10-01T08:00:00+02:00","endDate":"2026-10-02T18:00:00+02:00"}',
+    ],
+  ])
+    assert.equal(supportedEndTime(value, quote), value, quote);
+  assert.equal(
+    supportedEndTime(
+      '2026-10-02T08:00:00+02:00',
+      '{"endDate":"2026-10-02","startDate":"2026-10-01T08:00:00+02:00"}',
+    ),
+    '2026-10-02',
+  );
 });

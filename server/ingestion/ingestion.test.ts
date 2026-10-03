@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import {
@@ -83,6 +83,31 @@ test('KC ignores past events and subscriptions; detail uses source facts and sta
   assert.equal(changed.event.startsAt, '2026-10-27T20:00:00+01:00');
   assert.equal(changed.event.externalId, result.event.externalId);
   assert.equal(changed.warnings.length, 1);
+});
+
+test('actual KC Geek Gathering range keeps a single daily start clock off its final date', async () => {
+  const fixture = JSON.parse(
+    await readFile(new URL('./fixtures/kc-geek-gathering.json', import.meta.url), 'utf8'),
+  );
+  const listing = parseKcListing(fixture.listingHtml, new Date('2026-10-02T12:00:00Z'));
+  assert.equal(listing.entries.length, 1, 'An event range remains discoverable on its last date.');
+  const entry = listing.entries[0];
+  assert.equal(entry.url, fixture.url);
+  assert.equal(entry.startsAt, '2026-10-01T08:00:00+02:00');
+  assert.equal(entry.endsAt, '2026-10-02');
+  const detail = parseKcDetail(fixture.detailHtml, entry);
+  assert.equal(detail.event.startsAt, '2026-10-01T08:00:00+02:00');
+  assert.equal(
+    detail.event.endsAt,
+    '2026-10-02',
+    '08:00 is a start clock, not a stated closing time.',
+  );
+  assert.match(detail.extraction?.text ?? '', /Datum završetka iz popisa: 2026-10-02\n/);
+  assert.doesNotMatch(detail.extraction?.text ?? '', /2026-10-02T08:00/);
+  assert.equal(
+    parseKcListing(fixture.listingHtml, new Date('2026-10-02T22:00:00Z')).entries.length,
+    0,
+  );
 });
 
 test('changed HTML fails visibly rather than pretending the calendar is empty', () => {

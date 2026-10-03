@@ -17,7 +17,8 @@
     "collect": "tsx server/collect.ts",
     "admin-key": "tsx scripts/admin-key.ts",
     "test:browser": "node scripts/smoke.mjs",
-    "test:discovery": "node scripts/discovery-smoke.mjs"
+    "test:discovery": "node scripts/discovery-smoke.mjs",
+    "test:review": "node --import tsx scripts/review-smoke.mjs"
   },
   "dependencies": {
     "@vercel/functions": "^3.9.11",

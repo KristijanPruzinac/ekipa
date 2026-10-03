@@ -160,6 +160,91 @@ test('calendar dates, unknown times, Zagreb day boundaries and ongoing ranges st
     '2026-10-10T00:30:00+02:00',
   );
 });
+
+test('ongoing eligibility uses an exclusive known end and never invents an unknown duration', () => {
+  const timed = { startsAt: '2026-10-03T20:00:00+02:00', endsAt: '2026-10-03T22:00:00+02:00' };
+  assert.equal(upcoming(timed, new Date('2026-10-03T19:00:00Z')), true);
+  assert.equal(upcoming(timed, new Date('2026-10-03T19:59:59.999Z')), true);
+  assert.equal(upcoming(timed, new Date('2026-10-03T20:00:00Z')), false);
+  assert.equal(upcoming(timed, new Date('2026-10-03T20:00:00.001Z')), false);
+  const unknownEnd = { startsAt: timed.startsAt, endsAt: null };
+  assert.equal(upcoming(unknownEnd, new Date('2026-10-03T18:00:00Z')), true);
+  assert.equal(upcoming(unknownEnd, new Date('2026-10-03T18:00:00.001Z')), false);
+});
+
+test('date-only end days and repeated DST hours follow Zagreb boundaries', () => {
+  const autumn = { startsAt: '2026-10-24', endsAt: '2026-10-25' };
+  assert.equal(upcoming(autumn, new Date('2026-10-25T22:59:59.999Z')), true);
+  assert.equal(upcoming(autumn, new Date('2026-10-25T23:00:00Z')), false);
+  const spring = { startsAt: '2026-03-28', endsAt: '2026-03-29' };
+  assert.equal(upcoming(spring, new Date('2026-03-29T21:59:59.999Z')), true);
+  assert.equal(upcoming(spring, new Date('2026-03-29T22:00:00Z')), false);
+  const repeatedHour = {
+    startsAt: '2026-10-25T02:30:00+02:00',
+    endsAt: '2026-10-25T02:30:00+01:00',
+  };
+  assert.equal(upcoming(repeatedHour, new Date('2026-10-25T01:00:00Z')), true);
+  assert.equal(upcoming(repeatedHour, new Date('2026-10-25T01:30:00Z')), false);
+  const unknownTime = { startsAt: '2026-10-25', endsAt: null };
+  assert.equal(upcoming(unknownTime, new Date('2026-10-25T22:59:59.999Z')), true);
+  assert.equal(upcoming(unknownTime, new Date('2026-10-25T23:00:00Z')), false);
+});
+
+test('public feed retains known ongoing ranges and future starts but removes ended and unknown-duration past starts', async () => {
+  const repo = new Repository(':memory:', [source]);
+  try {
+    const ongoing = await repo.upsert(
+      candidate({
+        externalId: 'ongoing',
+        title: 'Ongoing concert',
+        startsAt: '2026-10-03T20:00:00+02:00',
+        endsAt: '2026-10-03T22:00:00+02:00',
+      }),
+    );
+    await repo.upsert(
+      candidate({
+        externalId: 'ended',
+        title: 'Ended concert',
+        startsAt: '2026-10-03T19:00:00+02:00',
+        endsAt: '2026-10-03T21:00:00+02:00',
+      }),
+    );
+    await repo.upsert(
+      candidate({
+        externalId: 'unknown',
+        title: 'Unknown duration concert',
+        startsAt: '2026-10-03T20:00:00+02:00',
+      }),
+    );
+    const future = await repo.upsert(
+      candidate({
+        externalId: 'future',
+        title: 'Future concert',
+        startsAt: '2026-10-03T23:00:00+02:00',
+      }),
+    );
+    const dateRange = await repo.upsert(
+      candidate({
+        externalId: 'range',
+        title: 'Multi-day festival',
+        startsAt: '2026-10-01',
+        endsAt: '2026-10-03',
+      }),
+    );
+    const feed = await repo.publicEvents(new Date('2026-10-03T19:00:00Z'));
+    assert.deepEqual(
+      new Set(feed.map((event) => event.id)),
+      new Set([ongoing.id, future.id, dateRange.id]),
+    );
+    assert.equal(
+      (await repo.events()).length,
+      5,
+      'Temporal filtering never deletes source records.',
+    );
+  } finally {
+    await repo.close();
+  }
+});
 test('only unmistakable automated junk archives; vague real tips stay for review', async () => {
   assert.equal(classifyTip('aaaaaaaaaaaaaaaaaaaaaaaa').archive, true);
   assert.equal(classifyTip('Čuo sam da uskoro ima svirka u Osijeku').archive, false);

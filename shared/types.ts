@@ -134,6 +134,7 @@ export interface AdminDashboard {
   sources: SourceHealth[];
   runs: SourceRun[];
   collecting: boolean;
+  preparingTipIds?: string[];
   autoPublish: boolean;
   ai: { enabled: boolean; description: string };
 }

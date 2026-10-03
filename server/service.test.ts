@@ -9,6 +9,7 @@ import type { Config } from './config.ts';
 import type { EventCandidate, EventDraft, FetchResult } from '../shared/types.ts';
 import { fetchSource, sources } from './ingestion/index.ts';
 import { readSourcePage, SourceDeadlineError } from './ingestion/reader.ts';
+import { createHash } from 'node:crypto';
 
 const source = {
   id: 'test',
@@ -289,6 +290,7 @@ test('tip matching requires consistent URL/title/date evidence and does not atta
       { note: 'Koncert na otvorenom 31. veljače 2099.', url: candidate.sourceUrl },
       { note: 'Koncert na otvorenom uskoro' },
       { note: 'Koncert na otvorenom 10. listopada' },
+      { note: 'Koncert na otvorenom 2098', url: candidate.sourceUrl },
     ]) {
       const tip = await service.submitTip(input);
       const prepared = await service.prepareTip(tip.id);
@@ -430,9 +432,204 @@ test('tip cache changes when web search is enabled', async (context) => {
     assert.equal(calls, 1);
     config.ai.searchEnabled = true;
     const refreshed = await service.prepareTip(tip.id);
+    assert.equal(calls, 3);
+    assert.deepEqual(searches, [false, true, false]);
+    assert.match(refreshed.reason, /Provjera 3/);
+    config.ai.lookupModel = 'google/custom-lookup';
+    await service.prepareTip(tip.id);
+    assert.equal(calls, 5, 'changing the lookup model invalidates the completed result');
+  } finally {
+    await repo.close();
+  }
+});
+
+test('paid preparation failures retry, completed uncertainty caches, and explicit refresh calls the provider again', async (context) => {
+  const repo = new Repository(':memory:', [source]);
+  const service = new WagzService(repo, settings(true));
+  let calls = 0;
+  context.mock.method(globalThis, 'fetch', async () => {
+    calls++;
+    return calls === 1
+      ? completion('malformed JSON payload')
+      : completion({ classification: 'uncertain', draft: null, reason: `Provjera ${calls}.` });
+  });
+  try {
+    const tip = await service.submitTip({ note: 'Čuo sam za neki novi koncert.' });
+    assert.match((await service.prepareTip(tip.id)).reason, /nije prošao provjeru/);
+    assert.match((await service.prepareTip(tip.id)).reason, /Provjera 2/);
     assert.equal(calls, 2);
-    assert.deepEqual(searches, [false, true]);
-    assert.match(refreshed.reason, /Provjera 2/);
+    assert.match((await service.prepareTip(tip.id)).reason, /Provjera 2/);
+    assert.equal(calls, 2);
+    assert.match((await service.prepareTip(tip.id, true)).reason, /Provjera 3/);
+    assert.equal(calls, 3);
+    assert.equal(await repo.aiSpent(), 0.003);
+  } finally {
+    await repo.close();
+  }
+});
+
+test('old paid failure cache entries are invalidated and irrelevant tips archive recoverably', async (context) => {
+  const repo = new Repository(':memory:', [source]);
+  const config = settings(true);
+  const service = new WagzService(repo, config);
+  let calls = 0;
+  context.mock.method(globalThis, 'fetch', async () => {
+    calls++;
+    return completion({
+      classification: 'spam',
+      draft: null,
+      reason: 'Sadržaj nema vezu s događajem.',
+    });
+  });
+  try {
+    const tip = await service.submitTip({ note: 'kinder jajae' });
+    const oldKey = createHash('sha256')
+      .update(
+        JSON.stringify({
+          note: tip.note,
+          url: tip.url,
+          model: config.ai.model,
+          searchEnabled: config.ai.searchEnabled,
+          day: new Date().toISOString().slice(0, 10),
+        }),
+      )
+      .digest('hex');
+    await repo.cache(`tip:${oldKey}`, {
+      attempted: true,
+      costUsd: 0.001,
+      classification: 'uncertain',
+      draft: null,
+      evidenceUrls: [],
+      reason: 'Old broken JSON failure.',
+    });
+    const prepared = await service.prepareTip(tip.id);
+    assert.equal(calls, 1);
+    assert.equal(prepared.status, 'archived');
+    assert.equal(prepared.note, tip.note);
+    assert.equal((await service.updateTip(tip.id, 'restore')).status, 'inbox');
+  } finally {
+    await repo.close();
+  }
+});
+
+test('accepting an unchanged source match preserves source facts, discovery and automatic updates', async () => {
+  const repo = new Repository(':memory:', [source]);
+  const service = new WagzService(repo, settings());
+  try {
+    const original = await repo.upsert({
+      ...candidate,
+      discovery: {
+        audiences: ['students'],
+        audienceEvidence: [
+          { audience: 'students', reason: 'Poziv studentima.', sourceUrl: candidate.sourceUrl },
+        ],
+        prominence: null,
+        free: true,
+      },
+      price: 'Besplatno',
+    });
+    const tip = await service.submitTip({ note: 'Koncert na otvorenom 2099-10-10' });
+    const prepared = await service.prepareTip(tip.id);
+    const accepted = await service.updateTip(tip.id, 'accept', prepared.draft);
+    assert.equal(accepted.matchedEventId, original.id);
+    assert.deepEqual(await repo.event(original.id), original);
+    assert.equal((await repo.events()).length, 1);
+    const refreshed = await repo.upsert({ ...candidate, venue: 'Ispravljena dvorana' });
+    assert.equal(refreshed.venue, 'Ispravljena dvorana');
+    assert.equal(refreshed.manuallyEdited, false);
+  } finally {
+    await repo.close();
+  }
+});
+
+test('a historical draft can be saved but cannot be accepted as an upcoming published event', async () => {
+  const repo = new Repository(':memory:', [source]);
+  const service = new WagzService(repo, settings());
+  try {
+    const tip = await service.submitTip({ note: 'Koncert iz prošle godine.' });
+    const { sourceId: _sourceId, externalId: _externalId, ...draft } = candidate;
+    const historical = { ...draft, startsAt: '2020-10-10T20:00:00+02:00' };
+    const saved = await service.updateTip(tip.id, 'save', historical);
+    assert.equal(saved.draft?.startsAt, historical.startsAt);
+    await assert.rejects(service.updateTip(tip.id, 'accept'), /već završio/);
+    assert.equal((await repo.tip(tip.id))?.status, 'draft');
+    assert.deepEqual(await repo.events(), []);
+  } finally {
+    await repo.close();
+  }
+});
+
+test('known source tip text reaches strict AI preparation, changed content invalidates cache, and refresh bypasses it', async (context) => {
+  const repo = new Repository(':memory:', [source]);
+  const config = settings(true);
+  config.ai.searchEnabled = true;
+  let calls = 0,
+    text = 'Koncert na otvorenom 2099-10-10, 20:00, Dvorana u Osijeku.';
+  const forced: boolean[] = [];
+  context.mock.method(globalThis, 'fetch', async (_request: unknown, init: RequestInit) => {
+    calls++;
+    const payload = JSON.parse(String(init.body));
+    assert.deepEqual(payload.tools, []);
+    assert.equal(JSON.parse(payload.messages[1].content).sourceText, text);
+    const {
+      sourceId: _sourceId,
+      externalId: _externalId,
+      sourceUrl: _sourceUrl,
+      ...fields
+    } = candidate;
+    return completion({
+      classification: 'plausible',
+      draft: { ...fields, dateEvidence: '2099-10-10, 20:00' },
+      reason: 'Nacrt iz izvora.',
+    });
+  });
+  const service = new WagzService(repo, config, undefined, async (_url, options) => {
+    forced.push(options?.force ?? false);
+    return { text };
+  });
+  try {
+    const tip = await service.submitTip({
+      note: 'Koncert na otvorenom',
+      url: 'https://kulturni-centar.hr/novi-koncert',
+    });
+    assert.equal((await service.prepareTip(tip.id)).draft?.startsAt, candidate.startsAt);
+    await service.prepareTip(tip.id);
+    assert.equal(calls, 1);
+    text += ' Dopuna iz izvora.';
+    await service.prepareTip(tip.id);
+    assert.equal(calls, 2);
+    await service.prepareTip(tip.id, true);
+    assert.equal(calls, 3);
+    assert.deepEqual(forced, [false, false, false, true]);
+  } finally {
+    await repo.close();
+  }
+});
+
+test('a failed submitted source read does not search for a replacement event or cache the failed lookup', async (context) => {
+  const repo = new Repository(':memory:', [source]);
+  const config = settings(true);
+  config.ai.searchEnabled = true;
+  let calls = 0;
+  context.mock.method(globalThis, 'fetch', async (_request: unknown, init: RequestInit) => {
+    calls++;
+    const payload = JSON.parse(String(init.body));
+    assert.deepEqual(payload.tools, []);
+    return completion({ classification: 'uncertain', draft: null, reason: 'Nedostaje izvor.' });
+  });
+  const service = new WagzService(repo, config, undefined, async () => ({
+    reason: 'Sadržaj poveznice nije dohvaćen.',
+  }));
+  try {
+    const tip = await service.submitTip({
+      note: 'Koncert na otvorenom',
+      url: 'https://kulturni-centar.hr/ne-dostupno',
+    });
+    const prepared = await service.prepareTip(tip.id);
+    assert.equal(prepared.draft, null);
+    assert.match(prepared.reason, /nije dohvaćen/);
+    await service.prepareTip(tip.id);
+    assert.equal(calls, 2);
   } finally {
     await repo.close();
   }

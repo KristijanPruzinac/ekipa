@@ -188,3 +188,105 @@ test('the administrator refresh endpoint forces a fresh reader request', async (
     await repo.close();
   }
 });
+
+test('review API saves incomplete drafts, rejects stale edits and exposes active preparation', async () => {
+  const repo = new Repository(':memory:', [source]);
+  const service = new WagzService(repo, testConfig);
+  const server = createApp(service).listen(0, '127.0.0.1');
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const headers = { 'content-type': 'application/json', authorization: 'Bearer test-only-key' };
+  try {
+    const tip = await service.submitTip({ note: 'Sajam antikviteta' });
+    const patch = (body: unknown) =>
+      fetch(`${base}/api/admin/tips/${tip.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(body),
+      });
+    const partial = { ...event, title: '', startsAt: '', venue: null, sourceUrl: null };
+    const saved = await patch({ action: 'save', draft: partial, revision: tip.revision });
+    assert.equal(saved.status, 200);
+    const draft = await saved.json();
+    assert.equal(draft.status, 'draft');
+    assert.equal(draft.draft.startsAt, '');
+    assert.equal(draft.draft.title, '');
+    assert.equal((await repo.publicEvents()).length, 0);
+    const stale = await patch({ action: 'reject', revision: tip.revision });
+    assert.equal(stale.status, 409);
+    assert.match((await stale.json()).error, /promijenjena/);
+    assert.equal((await repo.tip(tip.id))!.status, 'draft');
+    assert.equal((await patch({ action: 'accept', revision: draft.revision })).status, 400);
+    assert.equal(
+      (await patch({ action: 'save', draft: { ...partial, sourceUrl: 'javascript:alert(1)' } }))
+        .status,
+      400,
+    );
+    assert.equal(
+      (await patch({ action: 'save', draft: { ...partial, startsAt: '2026-02-30' } })).status,
+      400,
+    );
+    const lease = await repo.acquireLease(`tip:${tip.id}`, 10000);
+    const dashboard = await (await fetch(`${base}/api/admin/dashboard`, { headers })).json();
+    assert.deepEqual(dashboard.preparingTipIds, [tip.id]);
+    await repo.releaseLease(`tip:${tip.id}`, lease!);
+    assert.deepEqual((await service.dashboard()).preparingTipIds, []);
+    const flags: boolean[] = [];
+    const prepare = service.prepareTip.bind(service);
+    service.prepareTip = async (id, force = false) => {
+      flags.push(force);
+      return prepare(id, force);
+    };
+    assert.equal(
+      (await fetch(`${base}/api/admin/tips/${tip.id}/prepare`, { method: 'POST', headers })).status,
+      200,
+    );
+    assert.deepEqual(flags, [true]);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+    await repo.close();
+  }
+});
+
+test('reject, archive and restore retain a historical event assessment and source facts', async () => {
+  const repo = new Repository(':memory:', [source]);
+  const service = new WagzService(repo, testConfig);
+  try {
+    const tip = await service.submitTip({
+      note: 'Marko Kutlić, Moram dalje tour, 12.9.2026. u 20 sati, Dvorana Franjo Krežma.',
+      url: 'https://kulturni-centar.hr/dogadjanja/129-marko-kutli-moram-dalje-tour',
+    });
+    const assessment =
+      'Izvor potvrđuje najavu za 12.9.2026. Događaj je već završio; nije nadolazeći događaj.';
+    const saved = await repo.saveTip({
+      ...tip,
+      status: 'draft',
+      reason: assessment,
+      draft: {
+        ...event,
+        title: 'Marko Kutlić – Moram dalje tour',
+        startsAt: '2026-09-12T20:00:00+02:00',
+        venue: 'Dvorana Franjo Krežma',
+        sourceUrl: tip.url,
+      },
+    });
+    let current = saved;
+    for (const [action, status] of [
+      ['reject', 'rejected'],
+      ['restore', 'draft'],
+      ['archive', 'archived'],
+      ['restore', 'draft'],
+    ]) {
+      current = await service.updateTip(tip.id, action, undefined, current.revision);
+      assert.equal(current.status, status);
+      assert.equal(current.reason, assessment);
+      assert.equal(current.note, tip.note);
+      assert.equal(current.url, tip.url);
+      assert.deepEqual(current.draft, saved.draft);
+    }
+  } finally {
+    await repo.close();
+  }
+});

@@ -91,3 +91,45 @@ export function supportedTime(value: string, quote: string): string {
       ).test(text));
   return wholeHour ? `${value.slice(0, 17)}00${value.slice(19)}` : value.slice(0, 10);
 }
+
+/** A listed start/show time cannot establish an event's closing time. */
+export function supportedEndTime(value: string, quote: string): string {
+  const normalized = supportedTime(value, quote);
+  if (normalized.length === 10) return normalized;
+  const text = quote
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+  const supports = (span: string) => {
+    const days = supportedDays(span);
+    return (!days.size || days.has(value.slice(0, 10))) && supportedTime(value, span).length > 10;
+  };
+  for (const match of text.matchAll(/"(?:endsat|enddate)"\s*:\s*"([^"]+)"/g))
+    if (supports(match[1])) return normalized;
+  // Explicit closing labels can include the end date before the clock.
+  for (const match of text.matchAll(
+    /\b(?:zavrsetak|zavrsetka|zavrsava|kraj|endsat|enddate|end(?:s)?|finish(?:es)?)\b(?!["'])\s*[:=]?\s*([^\n;]{1,100})/g,
+  )) {
+    if (!/\b(?:nije|nepoznat|unknown|not)\b/.test(match[1]) && supports(match[1]))
+      return normalized;
+  }
+  const clock = '(?:[01]?\\d|2[0-3])(?:[:.][0-5]\\d(?::[0-5]\\d)?)?';
+  // Keep the second clock of an explicit interval, including whole-hour ranges.
+  const interval = new RegExp(
+    `(?<![\\d:.])${clock}\\s*(?:h|sati)?\\s*(?:[-–—]|do|to|until)\\s*(${clock}\\s*(?:h\\b|sati\\b)?)(?![\\d:])`,
+    'g',
+  );
+  for (const match of text.matchAll(interval)) if (supports(match[1])) return normalized;
+  // "do 18:00" is an explicit end; "1. do 2.10.2026./08:00" is only a
+  // date range followed by a shared start clock and must not pass this branch.
+  const until = new RegExp(`\\b(?:do|until)\\s+(${clock}\\s*(?:h\\b|sati\\b)?)(?![\\d:])`, 'g');
+  for (const match of text.matchAll(until)) if (supports(match[1])) return normalized;
+  // A cross-date interval needs a clock before its separator and an explicitly
+  // dated end endpoint. Separate dated show starts do not describe a duration.
+  const datedInterval =
+    /(?:\d{1,2}:\d{2}(?::\d{2})?(?:[+-]\d{2}:\d{2})?)\s*(?:[-–—]|do|to|until|\/)\s*([^\n;]{1,100})/g;
+  for (const match of text.matchAll(datedInterval)) {
+    if (supportedDays(match[1]).has(value.slice(0, 10)) && supports(match[1])) return normalized;
+  }
+  return value.slice(0, 10);
+}

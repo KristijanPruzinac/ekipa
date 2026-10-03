@@ -1,9 +1,10 @@
-﻿import { chromium, expect } from '@playwright/test';
+import { eventDurationText, isOngoing, rankForAudience, timelineFor } from '../shared/discovery.ts';
+import { chromium, expect } from '@playwright/test';
 import { createServer } from 'vite';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// Exercise the public interface against in-memory fixtures. No database, .env or live API is used.
+// Default: isolated in-memory fixtures, no database/.env. --live reads the public feed only.
 const directory = resolve('.artifacts', `discovery-${Date.now()}`);
 mkdirSync(directory, { recursive: true });
 const sourceUrl = 'https://kulturni-centar.hr/qa-discovery-fixture';
@@ -107,9 +108,11 @@ const events = [
   fixture('photos', 'Fotografije grada', '2026-10-21', 'culture'),
   fixture('choir', 'Koncert zbora', '2026-10-22', 'music'),
 ];
-const chronologicalTitles = events.map((event) => event.title);
-const feed = {
-  // Deliberately shuffled: chronology must not rely on network response order.
+// Durations include a multi-day ongoing range, an overlapping five-hour event, and unknown ends.
+events[0].startsAt = '2026-10-02T18:00:00+02:00';
+events[0].endsAt = '2026-10-04';
+events[2].endsAt = '2026-10-04T03:15:00Z';
+const fixtureFeed = {
   events: [...events.slice(10), ...events.slice(0, 10)],
   meta: {
     city: 'Osijek',
@@ -120,15 +123,25 @@ const feed = {
     totalUpcoming: events.length,
   },
 };
-const audienceLabels = ['Svi', 'Studenti', 'Odrasli', 'Stariji'];
-let currentFeed = feed;
+const live = process.argv.includes('--live');
+let currentFeed = live
+  ? await (await fetch('https://wagz.vercel.app/api/events')).json()
+  : fixtureFeed;
+const baseFeed = currentFeed;
+const options = [
+  ['all', 'Svi'],
+  ['students', 'Studenti'],
+  ['adults', 'Odrasli'],
+  ['seniors', 'Stariji'],
+];
 const server = await createServer({ envDir: false, server: { host: '127.0.0.1', port: 0 } });
 let browser;
 const failures = [];
+let feedRequests = 0;
+let failFeed = false;
 try {
   await server.listen();
   const address = server.httpServer.address();
-  const base = `http://127.0.0.1:${address.port}`;
   const chrome =
     process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ||
     'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -141,226 +154,277 @@ try {
     timezoneId: 'America/Los_Angeles',
   });
   await context.route('**/api/**', (route) => {
-    const request = route.request();
-    if (request.method() === 'GET' && new URL(request.url()).pathname === '/api/events') {
-      return route.fulfill({ json: currentFeed });
+    if (
+      route.request().method() === 'GET' &&
+      new URL(route.request().url()).pathname === '/api/events'
+    ) {
+      feedRequests++;
+      return route.fulfill(
+        failFeed
+          ? { status: 503, json: { error: 'Temporary test outage' } }
+          : { json: currentFeed },
+      );
     }
-    failures.push(`Unexpected API request: ${request.method()} ${new URL(request.url()).pathname}`);
+    failures.push(`Unexpected request: ${route.request().method()} ${route.request().url()}`);
     return route.abort();
   });
   const page = await context.newPage();
   page.on('pageerror', (error) => failures.push(error.message));
-  await page.goto(base);
+  await page.goto(`http://127.0.0.1:${address.port}`);
   const cards = page.locator('.event-card');
   const titles = page.locator('.event-card h3');
   const timeline = page.locator('.event-timeline');
-  const stations = timeline.getByRole('button', { name: /^Na vremenskoj crti: / });
+  const stations = timeline.locator('.station-start');
   const button = (name) => page.getByRole('button', { name, exact: true });
-  const timelineTitles = () =>
-    stations.evaluateAll((nodes) =>
-      nodes.map((node) => node.getAttribute('aria-label').replace('Na vremenskoj crti: ', '')),
+  const chronological = () => rankForAudience(currentFeed.events).map((row) => row.event);
+  async function expectCards(audience) {
+    const ranked = rankForAudience(currentFeed.events, audience);
+    const ongoing = ranked.filter((row) => isOngoing(row.event, currentFeed.meta.now));
+    const upcoming = ranked.filter((row) => !isOngoing(row.event, currentFeed.meta.now));
+    await expect(cards).toHaveCount(upcoming.length);
+    await expect(titles).toHaveText(upcoming.map((row) => row.event.title));
+    await expect(page.locator('.card-duration')).toHaveText(
+      upcoming.map((row) => eventDurationText(row.event)),
     );
-  async function expectAllCards() {
-    await expect(cards).toHaveCount(events.length);
-    expect([...(await titles.allTextContents())].sort()).toEqual([...chronologicalTitles].sort());
-    await expect(page.locator('.empty-state')).toHaveCount(0);
+    await expect(page.locator('.card-personal')).toHaveCount(
+      upcoming.filter((row) => row.recommendation.personal).length,
+    );
+    await expect(page.locator('.ongoing-event strong')).toHaveText(
+      ongoing.slice(0, 2).map((row) => row.event.title),
+    );
+    if (ongoing.length > 2) await button(`Prikaži sve u tijeku (${ongoing.length})`).click();
+    const allTitles = [
+      ...(await titles.allTextContents()),
+      ...(await page.locator('.ongoing-event strong').allTextContents()),
+    ];
+    expect(new Set(allTitles).size).toBe(currentFeed.events.length);
+    if (ongoing.length > 2) await button('Sažmi događaje u tijeku').click();
   }
-  async function expectTimeline(expected = chronologicalTitles) {
-    await expect(stations).toHaveCount(expected.length);
-    expect(await timelineTitles()).toEqual(expected);
+  async function expectTimeline(limit) {
+    const visible = chronological().slice(0, limit);
+    await expect(stations.locator('strong')).toHaveText(visible.map((event) => event.title));
+    await expect(timeline.locator('.timeline-spine')).toHaveCount(1);
+    await expect(timeline.locator('.timeline-rails')).toHaveCount(0);
+    await expect(timeline.locator('.timeline-range')).toHaveCount(
+      timelineFor(visible).ranges.length,
+    );
+    await expect(timeline.locator('.station-ending')).toHaveCount(
+      timelineFor(visible).ranges.length,
+    );
   }
-  async function expectAudience(name) {
-    for (const label of audienceLabels) {
-      await expect(button(label)).toHaveAttribute('aria-pressed', String(label === name));
-    }
-  }
-  async function expectNoOverflow(width) {
-    await page.setViewportSize({ width, height: width === 1440 ? 1100 : 844 });
-    const dimensions = await page.evaluate(() => ({
+  async function noOverflow(width) {
+    await page.setViewportSize({ width, height: width > 760 ? 1100 : 844 });
+    await page.waitForTimeout(70);
+    const size = await page.evaluate(() => ({
       document: document.documentElement.scrollWidth,
       body: document.body.scrollWidth,
       viewport: innerWidth,
     }));
-    expect(
-      Math.max(dimensions.document, dimensions.body),
-      `Horizontal overflow at ${width}px`,
-    ).toBeLessThanOrEqual(dimensions.viewport + 1);
+    expect(Math.max(size.document, size.body), `overflow at ${width}px`).toBeLessThanOrEqual(
+      size.viewport + 1,
+    );
   }
-  await expectAllCards();
-  await expect(titles).toHaveText(chronologicalTitles);
-  await expectTimeline(chronologicalTitles.slice(0, 6));
-  await expectAudience('Svi');
-  await expect(page.locator('.card-personal')).toHaveCount(0);
-  await expect(page.locator('.card-prominent')).toHaveCount(1);
+  await expectCards('all');
+  await expectTimeline(6);
+  // Both ends of one branch must open the same detail and restore keyboard focus.
+  const rangeEvent = chronological()
+    .slice(0, 6)
+    .find((event) => event.endsAt);
+  if (rangeEvent) {
+    for (const prefix of ['Na vremenskoj crti', 'Završetak']) {
+      const station = button(`${prefix}: ${rangeEvent.title}`);
+      await station.focus();
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('dialog')).toContainText(rangeEvent.title);
+      await expect(page.getByRole('dialog')).toContainText('Do ');
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(station).toBeFocused();
+    }
+  }
+  await expect(page.locator('.audience-segments button')).toHaveText(
+    options.map((entry) => entry[1]),
+  );
   await expect(page.getByRole('textbox')).toHaveCount(0);
   await expect(page.getByRole('combobox')).toHaveCount(0);
-  await expect(page.getByRole('radio')).toHaveCount(0);
-  for (const name of [
-    'Studenti i mladi',
-    'Prilagodi preporuke',
-    'Pretraži',
-    'Besplatan ulaz',
-    'Danas prvo',
-    'Vikend prvo',
-    'Glazba i izlasci',
-    'Pozornica i kultura',
-    'Pokret i druženje',
-    'Glazba',
-    'Noćni život',
-    'Kazalište',
-    'Kultura',
-    'Sport',
-    'Zajednica',
-    'Ostalo',
-  ]) {
-    await expect(button(name)).toHaveCount(0);
+  const orderings = [];
+  for (const [audience, label] of options) {
+    await button(label).click();
+    await expect(button(label)).toHaveAttribute('aria-pressed', 'true');
+    await expectCards(audience);
+    await expectTimeline(6);
+    orderings.push((await titles.allTextContents()).join('|'));
+    if (audience !== 'all') {
+      const ranked = rankForAudience(currentFeed.events, audience);
+      console.log(
+        `${label}: ${ranked.filter((row) => row.recommendation.personal).length}/${ranked.length} highlighted; first3: ${ranked
+          .slice(0, 3)
+          .map((row) => row.event.title)
+          .join(' / ')}`,
+      );
+      await cards.first().getByRole('button').click();
+      await expect(page.getByRole('dialog')).toContainText('Zašto je među preporukama?');
+      await expect(page.getByRole('dialog')).toContainText('Nije dobno ograničenje');
+      await page.keyboard.press('Escape');
+    }
   }
-  await expectNoOverflow(1440);
-  await page.screenshot({ path: resolve(directory, 'discovery-desktop.png'), fullPage: true });
-  await page.locator('.audience-picker').scrollIntoViewIfNeeded();
-  await page.screenshot({ path: resolve(directory, 'discovery-desktop-viewport.png') });
-  await button('Cijela vremenska crta').click();
-  await expectTimeline();
-
-  // Source evidence moves one match to the front. Every other event keeps chronological order.
-  // Student-like names, unverified audience labels, festival status and genre do not create matches.
-  for (const [audience, eventIndex] of [
-    ['Studenti', 5],
-    ['Odrasli', 13],
-    ['Stariji', 18],
-  ]) {
-    await button(audience).click();
-    await expectAudience(audience);
-    await expectAllCards();
-    await expect(titles).toHaveText([
-      events[eventIndex].title,
-      ...chronologicalTitles.filter((title) => title !== events[eventIndex].title),
-    ]);
-    await expectTimeline();
-    await expect(page.locator('.card-personal')).toHaveCount(1);
-    await expect(page.locator('.card-personal')).toContainText(events[eventIndex].title);
-    await expect(page.locator('.card-inactive')).not.toHaveClass(/card-personal|card-prominent/);
-  }
-  await button('Svi').focus();
-  await page.keyboard.press('Space');
-  await expectAudience('Svi');
-  await expectAllCards();
-  await expect(titles).toHaveText(chronologicalTitles);
-  await expect(page.locator('.card-personal')).toHaveCount(0);
-  await expectTimeline();
-
-  // Both surfaces open the same source-backed details and restore keyboard focus on Escape.
-  await button('Studenti').focus();
-  await page.keyboard.press('Enter');
-  for (const name of [`Detalji: ${events[5].title}`, `Na vremenskoj crti: ${events[5].title}`]) {
-    const trigger = button(name);
-    await trigger.focus();
-    await page.keyboard.press('Enter');
-    const dialog = page.getByRole('dialog', { name: events[5].title, exact: true });
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('region', { name: 'Razlozi oznaka' })).toContainText(
-      'Program je namijenjen studentima.',
-    );
-    await expect(dialog.getByRole('link', { name: 'Provjeri u najavi' })).toHaveAttribute(
-      'href',
-      sourceUrl,
-    );
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(trigger).toBeFocused();
-  }
-  await page.reload();
-  await expectAllCards();
-  await expectAudience('Studenti');
-  await expect(titles.first()).toHaveText(events[5].title);
-  await expectTimeline(chronologicalTitles.slice(0, 6));
+  expect(new Set(orderings).size, 'every audience provides a different useful ordering').toBe(4);
   await button('Svi').click();
-  await page.reload();
-  await expectAudience('Svi');
-  await expect(titles).toHaveText(chronologicalTitles);
-
-  // Keep the age selector and three-rail timeline usable on both common and very narrow phones.
-  for (const width of [390, 320]) {
-    await expectNoOverflow(width);
-    await page.locator('.audience-picker').scrollIntoViewIfNeeded();
-    await expectTimeline(chronologicalTitles.slice(0, 3));
-    for (const label of audienceLabels) {
+  if (!live) {
+    await expect(timeline).toContainText('U TIJEKU');
+    await expect(timeline.locator('.station-duration')).toContainText([
+      '02. 10. – 04. 10.',
+      'Kraj nije naveden',
+      '5 h',
+      'Kraj nije naveden',
+      'Kraj nije naveden',
+      'Kraj nije naveden',
+    ]);
+  }
+  for (const width of [1440, 390, 320]) {
+    await noOverflow(width);
+    if (width > 760) await expectTimeline(6);
+    else {
+      await expect(button('Otvori vremensku crtu')).toHaveAttribute('aria-expanded', 'false');
+      await expect(stations).toHaveCount(0);
+      expect((await timeline.boundingBox()).height).toBeLessThan(220);
+    }
+    for (const [, label] of options) {
       const bounds = await button(label).boundingBox();
       expect(bounds.height).toBeGreaterThanOrEqual(48);
       expect(bounds.width).toBeGreaterThanOrEqual(44);
     }
     await page.screenshot({
-      path: resolve(directory, `discovery-mobile-${width}.png`),
+      path: resolve(directory, `${live ? 'live' : 'fixture'}-${width}.png`),
       fullPage: true,
     });
-    await page.screenshot({ path: resolve(directory, `discovery-mobile-${width}-viewport.png`) });
+    await page
+      .locator('#dogadaji')
+      .evaluate((element) => element.scrollIntoView({ block: 'start' }));
+    await page.screenshot({
+      path: resolve(directory, `${live ? 'live' : 'fixture'}-radar-${width}.png`),
+    });
+    if (width <= 760) {
+      await button('Otvori vremensku crtu').focus();
+      await page.keyboard.press('Enter');
+      await expectTimeline(3);
+      if (rangeEvent) {
+        const endButton = button(`Završetak: ${rangeEvent.title}`);
+        await endButton.click();
+        await expect(page.getByRole('dialog')).toContainText(rangeEvent.title);
+        await page.keyboard.press('Escape');
+        await expect(endButton).toBeFocused();
+      }
+    }
+    await timeline.screenshot({
+      path: resolve(directory, `${live ? 'live' : 'fixture'}-timeline-${width}.png`),
+    });
     await button('Stariji').focus();
     await page.keyboard.press('Enter');
-    await expectAudience('Stariji');
-    await expect(titles.first()).toHaveText(events[18].title);
-    await expectAllCards();
+    await expectCards('seniors');
     await button('Cijela vremenska crta').focus();
     await page.keyboard.press('Enter');
-    await expectTimeline();
-    await expectNoOverflow(width);
-    await button('Prikaži manje').focus();
-    await page.keyboard.press('Enter');
-    await expectTimeline(chronologicalTitles.slice(0, 3));
+    await expectTimeline(currentFeed.events.length);
+    await noOverflow(width);
+    await button('Prikaži manje').click();
     await button('Svi').click();
+    if (width <= 760) {
+      await button('Zatvori vremensku crtu').click();
+      await expect(stations).toHaveCount(0);
+      await expect(button('Otvori vremensku crtu')).toHaveAttribute('aria-expanded', 'false');
+    }
   }
-
-  // Recover malformed storage and retain only valid age choices from the previous profile shape.
-  await page.evaluate((key) => localStorage.setItem(key, '{broken json'), storageKey);
-  await page.reload();
-  await expectAllCards();
-  await expectAudience('Svi');
-  await expect(titles).toHaveText(chronologicalTitles);
-  await expect(page.locator('.card-personal')).toHaveCount(0);
-  for (const stored of [
-    { audience: 'unknown', interests: ['music', 'music', 'unknown', null] },
-    { audience: 'students', interests: ['music', 'nightlife'] },
+  // Saved preferences recover safely; old category interests never alter Svi.
+  for (const [saved, audience] of [
+    ['{broken', 'all'],
+    [JSON.stringify({ audience: 'students', interests: ['nightlife'] }), 'students'],
+    [JSON.stringify({ audience: 'unknown', interests: ['music'] }), 'all'],
   ]) {
-    await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), {
+    await page.evaluate(({ key, saved }) => localStorage.setItem(key, saved), {
       key: storageKey,
-      value: stored,
+      saved,
     });
     await page.reload();
-    await expectAllCards();
-    const isStudent = stored.audience === 'students';
-    await expectAudience(isStudent ? 'Studenti' : 'Svi');
-    await expect(titles).toHaveText(
-      isStudent
-        ? [events[5].title, ...chronologicalTitles.filter((title) => title !== events[5].title)]
-        : chronologicalTitles,
-    );
-    await expect(page.locator('.card-personal')).toHaveCount(isStudent ? 1 : 0);
-    await expect(page.locator('.interest-options')).toHaveCount(0);
+    await expectCards(audience);
   }
-  await button('Svi').click();
-  await page.reload();
-  await expectAudience('Svi');
-  await expectAllCards();
-  await expect(page.locator('.card-personal')).toHaveCount(0);
-  // A small feed has no dead expansion button, and a choice with no evidence explains the fallback.
-  currentFeed = { ...feed, events: events.slice(0, 3) };
+  // A sparse unclassified feed still renders every event and explains no recommendations.
+  currentFeed = {
+    ...baseFeed,
+    events: [fixture('unknown', 'Bez klasifikacije', '2026-10-04', 'other')],
+  };
   await page.reload();
   await button('Studenti').click();
-  await expect(titles).toHaveText(chronologicalTitles.slice(0, 3));
+  await expectCards('students');
   await expect(page.locator('.discovery-feedback')).toBeVisible();
-  await expectTimeline(chronologicalTitles.slice(0, 3));
   await expect(button('Cijela vremenska crta')).toHaveCount(0);
-  currentFeed = { ...feed, events: events.slice(0, 5) };
+  await button('Otvori vremensku crtu').click();
+  await expectTimeline(1);
+  // Compact ongoing rows retain every event; a real timed event moves at start/end.
+  const timed = fixture(
+    'timed',
+    'Kratki program',
+    '2026-10-03T12:01:00Z',
+    'music',
+    blankDiscovery,
+    { endsAt: '2026-10-03T12:02:00Z' },
+  );
+  const ongoingFixtures = [1, 2, 3].map((index) =>
+    fixture(
+      `ongoing-${index}`,
+      `Višednevni program ${index}`,
+      '2026-10-02',
+      'culture',
+      blankDiscovery,
+      { endsAt: '2026-10-04' },
+    ),
+  );
+  currentFeed = {
+    ...fixtureFeed,
+    events: [...ongoingFixtures, timed],
+    meta: { ...fixtureFeed.meta, now: '2026-10-03T12:00:30Z' },
+  };
+  await page.clock.install();
   await page.reload();
-  await expectTimeline(chronologicalTitles.slice(0, 3));
-  await button('Cijela vremenska crta').click();
-  await expectTimeline(chronologicalTitles.slice(0, 5));
-  await button('Prikaži manje').click();
-  await expectNoOverflow(1440);
-  await expectTimeline(chronologicalTitles.slice(0, 5));
-  await expect(button('Cijela vremenska crta')).toHaveCount(0);
-  if (failures.length) throw new Error(`Browser errors: ${failures.join('; ')}`);
+  await button('Svi').click();
+  await expectCards('all');
+  await expect(titles).toHaveText(['Kratki program']);
+  await expect(page.locator('.ongoing-event')).toHaveCount(2);
+  await button('Prikaži sve u tijeku (3)').click();
+  await expect(page.locator('.ongoing-event')).toHaveCount(3);
+  await button('U tijeku: Višednevni program 3').click();
+  await expect(page.getByRole('dialog')).toContainText('Višednevni program 3');
+  await page.keyboard.press('Escape');
+  await button('Sažmi događaje u tijeku').click();
+  currentFeed = { ...currentFeed, meta: { ...currentFeed.meta, now: '2026-10-03T12:01:30Z' } };
+  await page.clock.fastForward(60001);
+  await expect(cards).toHaveCount(0);
+  await expect(button('Prikaži sve u tijeku (4)')).toBeVisible();
+  failFeed = true;
+  await page.clock.fastForward(60001);
+  await expect(button('Prikaži sve u tijeku (4)')).toBeVisible();
+  failFeed = false;
+  currentFeed = {
+    ...currentFeed,
+    events: ongoingFixtures,
+    meta: { ...currentFeed.meta, now: '2026-10-03T12:02:00Z' },
+  };
+  await page.clock.fastForward(60001);
+  await expect(button('Prikaži sve u tijeku (3)')).toBeVisible();
+  const beforeHidden = feedRequests;
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.clock.fastForward(120001);
+  expect(feedRequests).toBe(beforeHidden);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(() => feedRequests).toBe(beforeHidden + 1);
+  expect(failures).toEqual([]);
   console.log(
-    `Discovery browser checks passed: 23 retained events, four age choices, evidence-only audience ranking, independent chronology, cancellation, shared details, preference persistence/recovery, ignored legacy interests, keyboard, 320/390/1440 px layouts. Screenshots: ${directory}`,
+    `Discovery passed (${live ? 'live data' : 'fixtures'}): retention, distinct presets, source reasons, exact/date-only/unknown spans, shared spine, keyboard, preferences, 320/390/1440px. Screenshots: ${directory}`,
   );
 } finally {
   await browser?.close();

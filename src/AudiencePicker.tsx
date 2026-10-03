@@ -41,7 +41,7 @@ export function AudiencePicker({
         <span className="eyebrow" id="audience-heading">
           ZA KOGA JE PLAN?
         </span>
-        <span>Jedan odabir. Cijeli grad ostaje tu.</span>
+        <span>Promijeni preporuke. Svi događaji ostaju tu.</span>
       </div>
       <div className="audience-segments" role="group" aria-labelledby="audience-heading">
         {audiences.map((option) => (

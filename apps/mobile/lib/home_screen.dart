@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
@@ -21,6 +22,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   PublicFeed? feed;
   String? error;
   bool loading = false;
+  bool refreshing = false;
+  Timer? refreshTimer;
   late DiscoveryProfile savedProfile = DiscoveryProfile.load(
     widget.preferences,
   );
@@ -31,23 +34,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     refresh();
+    scheduleRefresh();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    refreshTimer?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) refresh();
+    refreshTimer?.cancel();
+    if (state == AppLifecycleState.resumed) {
+      refresh(background: true);
+      scheduleRefresh();
+    }
   }
 
-  Future<void> refresh() async {
-    if (loading) return;
+  void scheduleRefresh() {
+    refreshTimer?.cancel();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle == null || lifecycle == AppLifecycleState.resumed) {
+      refreshTimer = Timer.periodic(
+        const Duration(seconds: 60),
+        (_) => refresh(background: true),
+      );
+    }
+  }
+
+  Future<void> refresh({bool background = false}) async {
+    if (refreshing) return;
+    refreshing = true;
     setState(() {
-      loading = true;
+      if (!background) loading = true;
       error = null;
     });
     try {
@@ -56,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } catch (err) {
       if (mounted) setState(() => error = err.toString());
     } finally {
+      refreshing = false;
       if (mounted) setState(() => loading = false);
     }
   }
@@ -97,7 +119,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       feed?.events ?? [],
       audience: profile.audience,
     );
-    final matches = events.where((row) => row.audienceMatch).length;
+    final matches = events.where((row) => row.recommendation.score > 0).length;
+    final ongoing = events
+        .where((row) => isOngoing(row.event, feed!.now))
+        .toList();
+    final upcoming = events
+        .where((row) => !isOngoing(row.event, feed!.now))
+        .toList();
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 76,
@@ -197,8 +225,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           profile.audience == 'all'
                               ? 'Svi događaji, po datumu. Odabir se pamti samo na ovom uređaju.'
                               : matches > 0
-                              ? '$matches ${matches == 1 ? 'događaj odgovara' : 'događaja odgovaraju'} odabiru i ${matches == 1 ? 'dolazi prvi' : 'dolaze prvi'}. Svi ostaju u pregledu.'
-                              : 'Zasad nema potvrđenih događaja za ovaj odabir. Svi ostaju u pregledu.',
+                              ? '${audienceDescriptions[profile.audience]} Svi događaji ostaju u pregledu.'
+                              : 'Još nema preporuka za ovaj odabir. Svi događaji su ovdje, po datumu.',
                           style: const TextStyle(
                             fontSize: 12,
                             height: 1.5,
@@ -228,7 +256,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                       if (events.isNotEmpty) ...[
                         const SizedBox(height: 26),
-                        EventTimeline(events: feed!.events, onOpen: openEvent),
+                        EventTimeline(
+                          events: feed!.events,
+                          now: feed!.now,
+                          onOpen: openEvent,
+                        ),
                       ],
                       const SizedBox(height: 28),
                       Row(
@@ -269,7 +301,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           child: Text(
                             profile.audience == 'all'
                                 ? 'Svi planovi, od najbližeg datuma.'
-                                : 'Prvo potvrđeni odabir, zatim ostali planovi po datumu.',
+                                : 'Preporuke prema vrsti programa i podacima iz najave.',
                             style: const TextStyle(
                               fontSize: 12,
                               height: 1.5,
@@ -309,18 +341,54 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
+              if (ongoing.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        OngoingEvents(
+                          now: feed!.now,
+                          events: ongoing.map((row) => row.event).toList(),
+                          onOpen: openEvent,
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Sljedeće u gradu · ${upcoming.length}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (upcoming.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Nove najave stižu uskoro. Programi koji traju dostupni su iznad.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: muted,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 sliver: SliverList.builder(
-                  itemCount: events.length,
+                  itemCount: upcoming.length,
                   itemBuilder: (context, index) => Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: _EventCard(
-                      key: ValueKey('event-card-${events[index].event.id}'),
-                      event: events[index].event,
+                      key: ValueKey('event-card-${upcoming[index].event.id}'),
+                      event: upcoming[index].event,
                       profile: profile,
                       index: index,
-                      onTap: () => openEvent(events[index].event),
+                      onTap: () => openEvent(upcoming[index].event),
                     ),
                   ),
                 ),
@@ -454,7 +522,8 @@ class _EventCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (match.reasons.isNotEmpty) ...[
+              if (match.personal ||
+                  event.discovery.prominenceLabel != null) ...[
                 Container(
                   color: lime,
                   padding: const EdgeInsets.symmetric(
@@ -463,7 +532,9 @@ class _EventCard extends StatelessWidget {
                   ),
                   child: Text(
                     match.personal
-                        ? 'ZA TVOJ RADAR'
+                        ? match.kind == 'source'
+                              ? 'PUBLIKA IZ NAJAVE'
+                              : 'PRIJEDLOG ZA TEBE'
                         : (event.discovery.prominenceLabel ?? 'U GRADU')
                               .toUpperCase(),
                     style: const TextStyle(
@@ -544,6 +615,17 @@ class _EventCard extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Divider(height: 1, color: Color(0x44171a17)),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Text(
+                  eventDurationText(event),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
+                ),
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [

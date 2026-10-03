@@ -130,6 +130,31 @@ test('county decodes source JSON-LD entities and leaves placeholder times unknow
   assert.equal(unknownTime.event?.endsAt, '2026-11-27');
 });
 
+test('county preserves a separately stated same-day closing clock and never copies a missing end', () => {
+  const event = parseCountyDetail(
+    detail({
+      ...schema,
+      startDate: '2026-10-03 18:00:00',
+      endDate: '2026-10-03 22:00:00',
+    }),
+    entry,
+    now,
+  ).event;
+  assert.equal(event?.startsAt, '2026-10-03T18:00:00+02:00');
+  assert.equal(event?.endsAt, '2026-10-03T22:00:00+02:00');
+  const unknownEnd = parseCountyDetail(
+    detail({
+      ...schema,
+      startDate: '2026-10-03 18:00:00',
+      endDate: undefined,
+    }),
+    entry,
+    now,
+  ).event;
+  assert.equal(unknownEnd?.startsAt, '2026-10-03T18:00:00+02:00');
+  assert.equal(unknownEnd?.endsAt, null);
+});
+
 test('county structured cancellation and free admission survive graph wrappers', () => {
   const free = {
     ...schema,

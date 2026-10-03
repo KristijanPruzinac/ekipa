@@ -2,6 +2,7 @@ import { categories, type EventCandidate, type EventDraft } from '../shared/type
 import { inferDiscovery, isFree, validateDiscovery } from './discovery.ts';
 
 export class ValidationError extends Error {}
+export class ConflictError extends ValidationError {}
 export const TIMEZONE = 'Europe/Zagreb';
 export const normalize = (value: string) =>
   value
@@ -128,19 +129,25 @@ function text(value: unknown, max: number, required = false): string | null {
   return value.trim();
 }
 
-export function validateDraft(input: unknown): EventDraft {
+export function validateDraft(
+  input: unknown,
+  options: { allowIncomplete?: boolean } = {},
+): EventDraft {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new ValidationError('Neispravan događaj.');
   const row = input as Record<string, unknown>;
-  if (!validDate(row.startsAt))
+  const missingStart =
+    options.allowIncomplete &&
+    (row.startsAt === '' || row.startsAt === null || row.startsAt === undefined);
+  if (!missingStart && !validDate(row.startsAt))
     throw new ValidationError(
       'Potreban je valjan datum; vrijeme ostavi nepoznato ako nije navedeno.',
     );
   if (row.endsAt && !validDate(row.endsAt))
     throw new ValidationError('Neispravan datum završetka.');
-  const startsAt = canonicalDate(row.startsAt);
+  const startsAt = missingStart ? '' : canonicalDate(String(row.startsAt));
   const endsAt = row.endsAt ? canonicalDate(String(row.endsAt)) : null;
-  if (endsAt && endsAt.slice(0, 10) < startsAt.slice(0, 10))
+  if (startsAt && endsAt && endsAt.slice(0, 10) < startsAt.slice(0, 10))
     throw new ValidationError('Završetak ne može biti prije početka.');
   if (
     endsAt &&
@@ -155,7 +162,7 @@ export function validateDraft(input: unknown): EventDraft {
   if (normalize(String(row.city ?? 'Osijek')) !== 'osijek')
     throw new ValidationError('WagZ v1 prikuplja događaje u Osijeku.');
   return {
-    title: text(row.title, 300, true)!,
+    title: text(row.title, 300, !options.allowIncomplete) ?? '',
     description: text(row.description, 5000) ?? '',
     startsAt,
     endsAt,
@@ -191,7 +198,10 @@ export function upcoming(
   now = new Date(),
 ): boolean {
   const until = event.endsAt ?? event.startsAt;
-  return until.length === 10 ? until >= localDay(now) : Date.parse(until) >= now.getTime();
+  if (until.length === 10) return until >= localDay(now);
+  // A stated end is exclusive. With no end, retain only the announced start;
+  // inventing a duration would falsely claim that the event is still happening.
+  return event.endsAt ? Date.parse(until) > now.getTime() : Date.parse(until) >= now.getTime();
 }
 
 export function classifyTip(note: string, honeypot = ''): { archive: boolean; reason: string } {

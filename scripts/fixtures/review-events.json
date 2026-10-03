@@ -1,0 +1,195 @@
+{
+  "capturedAt": "2026-10-03",
+  "origin": "https://wagz.vercel.app/api/admin/dashboard",
+  "description": "Real source records captured for isolated review regression; dates and source links are preserved.",
+  "sources": [
+    {
+      "id": "tz-osijek",
+      "name": "Turistička zajednica Osijeka",
+      "url": "https://www.tzosijek.hr/stranica.php?id=1485",
+      "description": "Službeni kalendar manifestacija za 2026. Datum bez satnice ostaje bez izmišljenog vremena.",
+      "enabled": true
+    },
+    {
+      "id": "kc-osijek",
+      "name": "Kulturni centar Osijek",
+      "url": "https://kulturni-centar.hr/dogadjanja/sva-dogadjanja",
+      "description": "Službeni događaji Kulturnog centra i Dvorane Franjo Krežma, s poveznicama na najave.",
+      "enabled": true
+    },
+    {
+      "id": "tz-obz",
+      "name": "Turistička zajednica Osječko-baranjske županije",
+      "url": "https://visitslavoniabaranja.com/dogadaji/",
+      "description": "Službene pojedinačne najave županijskog kalendara; uvoze se samo događaji s potvrđenim gradom Osijekom.",
+      "enabled": true
+    }
+  ],
+  "events": [
+    {
+      "title": "HeadOnEast festival, Osijek",
+      "description": "Glazbeni događaj. Mjesto održavanja: Trg sv. Trojstva. Program i ostali detalji dostupni su u službenoj najavi.",
+      "startsAt": "2026-10-02T18:00:00+02:00",
+      "endsAt": "2026-10-04",
+      "venue": "Trg sv. Trojstva",
+      "address": "Trg sv. Trojstva",
+      "city": "Osijek",
+      "category": "music",
+      "price": null,
+      "status": "scheduled",
+      "discovery": {
+        "audiences": [],
+        "audienceEvidence": [],
+        "prominence": {
+          "kind": "festival",
+          "label": "Festival",
+          "reason": "Službena najava opisuje događaj kao festival.",
+          "sourceUrl": "https://visitslavoniabaranja.com/event/headoneast-festival-osijek/"
+        },
+        "free": false
+      },
+      "id": "ae8fadd4-9604-4c48-8e68-893f529d2b01",
+      "publication": "published",
+      "sources": [
+        {
+          "sourceId": "tz-obz",
+          "sourceName": "Turistička zajednica Osječko-baranjske županije",
+          "url": "https://visitslavoniabaranja.com/event/headoneast-festival-osijek/",
+          "lastSeenAt": "2026-10-03T02:08:13.930Z"
+        }
+      ],
+      "firstSeenAt": "2026-10-03T01:25:30.928Z",
+      "updatedAt": "2026-10-03T02:08:13.930Z",
+      "manuallyEdited": false,
+      "autoPublishEligible": true
+    },
+    {
+      "title": "Sajam antikviteta",
+      "description": "Događaj zajednice. Program i ostali detalji dostupni su u službenoj najavi.",
+      "startsAt": "2026-10-03",
+      "endsAt": null,
+      "venue": null,
+      "address": null,
+      "city": "Osijek",
+      "category": "community",
+      "price": null,
+      "status": "scheduled",
+      "id": "b8ebd047-b2c9-4c67-8658-15da9295c021",
+      "publication": "draft",
+      "sources": [
+        {
+          "sourceId": "tz-osijek",
+          "sourceName": "Turistička zajednica Osijeka",
+          "url": "https://www.tzosijek.hr/stranica.php?id=1485",
+          "lastSeenAt": "2026-10-03T02:05:32.410Z"
+        }
+      ],
+      "firstSeenAt": "2026-10-03T00:44:51.711Z",
+      "updatedAt": "2026-10-03T02:05:32.410Z",
+      "manuallyEdited": false,
+      "autoPublishEligible": true,
+      "discovery": {
+        "audiences": [],
+        "audienceEvidence": [],
+        "prominence": null,
+        "free": false
+      }
+    },
+    {
+      "title": "7. i 8.10. DOVIK 2026: DAN OTVORENIH VRATA I DAN KARIJERA",
+      "description": "Događaj u Osijeku. Mjesto održavanja: Foaje KC-a, Predvorje 1. kat, Mala dvorana. Ulaz je besplatan. Program i ostali detalji dostupni su u službenoj najavi.",
+      "startsAt": "2026-10-07T09:00:00+02:00",
+      "endsAt": "2026-10-08",
+      "venue": "Foaje KC-a, Predvorje 1. kat, Mala dvorana",
+      "address": null,
+      "city": "Osijek",
+      "category": "other",
+      "price": "Besplatno",
+      "status": "scheduled",
+      "id": "0a931468-2e64-4fbe-8909-9481793156bd",
+      "publication": "published",
+      "sources": [
+        {
+          "sourceId": "kc-osijek",
+          "sourceName": "Kulturni centar Osijek",
+          "url": "https://kulturni-centar.hr/dogadjanja/7-i-810-dovik-2026-dan-otvorenih-vrata-i-dan-karijera",
+          "lastSeenAt": "2026-10-03T02:07:09.348Z"
+        }
+      ],
+      "firstSeenAt": "2026-10-03T00:44:52.034Z",
+      "updatedAt": "2026-10-03T02:07:09.348Z",
+      "manuallyEdited": false,
+      "autoPublishEligible": true,
+      "discovery": {
+        "audiences": [],
+        "audienceEvidence": [],
+        "prominence": null,
+        "free": true
+      }
+    },
+    {
+      "title": "Sajam antikviteta u Osijeku",
+      "description": "Događaj zajednice. Mjesto održavanja: Trg Vatroslava Lisinskog. Program i ostali detalji dostupni su u službenoj najavi.",
+      "startsAt": "2026-10-10T09:00:00+02:00",
+      "endsAt": "2026-10-10T14:00:00+02:00",
+      "venue": "Trg Vatroslava Lisinskog",
+      "address": "Trg Vatroslava Lisinskog",
+      "city": "Osijek",
+      "category": "community",
+      "price": null,
+      "status": "scheduled",
+      "discovery": {
+        "audiences": [],
+        "audienceEvidence": [],
+        "prominence": null,
+        "free": false
+      },
+      "id": "5b6bc12c-8c4a-4711-a941-54c9dbe6f674",
+      "publication": "published",
+      "sources": [
+        {
+          "sourceId": "tz-obz",
+          "sourceName": "Turistička zajednica Osječko-baranjske županije",
+          "url": "https://visitslavoniabaranja.com/event/sajam-antikviteta-u-osijeku/",
+          "lastSeenAt": "2026-10-03T02:08:17.163Z"
+        }
+      ],
+      "firstSeenAt": "2026-10-03T01:25:30.943Z",
+      "updatedAt": "2026-10-03T02:08:17.163Z",
+      "manuallyEdited": false,
+      "autoPublishEligible": true
+    },
+    {
+      "title": "Sajam antikviteta",
+      "description": "Događaj zajednice. Program i ostali detalji dostupni su u službenoj najavi.",
+      "startsAt": "2026-11-07",
+      "endsAt": null,
+      "venue": null,
+      "address": null,
+      "city": "Osijek",
+      "category": "community",
+      "price": null,
+      "status": "scheduled",
+      "id": "8aa8a4e4-c615-4eb1-9f48-98e3e668a2ad",
+      "publication": "draft",
+      "sources": [
+        {
+          "sourceId": "tz-osijek",
+          "sourceName": "Turistička zajednica Osijeka",
+          "url": "https://www.tzosijek.hr/stranica.php?id=1485",
+          "lastSeenAt": "2026-10-03T02:05:39.301Z"
+        }
+      ],
+      "firstSeenAt": "2026-10-03T00:44:51.717Z",
+      "updatedAt": "2026-10-03T02:05:39.301Z",
+      "manuallyEdited": false,
+      "autoPublishEligible": true,
+      "discovery": {
+        "audiences": [],
+        "audienceEvidence": [],
+        "prominence": null,
+        "free": false
+      }
+    }
+  ]
+}
