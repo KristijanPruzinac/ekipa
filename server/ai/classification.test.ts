@@ -429,3 +429,35 @@ test('criteria decide by attendee activity, never by art form, venue, organiser 
     assert.match(line, /attendees|presentations|nights|fairs|exhibitions|evidence/, line);
   assert.match(SEMANTIC_CRITERIA, /There is no "other" category: always choose/);
 });
+
+test('a screening claim with an empty reason still survives persistence validation', async () => {
+  const { validateCandidate } = await import('../validation.ts');
+  const film = candidate({ title: 'Kino na otvorenom: Film', externalId: 'film-1' });
+  const text = `${film.classificationText ?? ''} Projekcija na otvorenom u dvorištu.`;
+  const result = await classifyCandidates(
+    [{ ...film, classificationText: text }],
+    config,
+    ledger().value,
+    memoryCache(),
+    {
+      fetch: async (_url, init) => {
+        const records = JSON.parse(JSON.parse(String(init?.body)).messages[1].content).records;
+        return envelope({
+          classifications: [
+            {
+              ...decision(records[0]),
+              category: 'film',
+              evidence: ['Projekcija na otvorenom'],
+              screening: 'special',
+              screeningReason: '',
+              screeningEvidence: ['Projekcija na otvorenom u dvorištu'],
+            },
+          ],
+        });
+      },
+    },
+  );
+  const stored = validateCandidate(result.events[0]);
+  assert.equal(stored.discovery?.screening?.kind, 'special');
+  assert.match(stored.discovery!.screening!.reason, /Projekcija na otvorenom/);
+});

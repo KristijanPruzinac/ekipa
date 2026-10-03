@@ -32,7 +32,6 @@ import type { Config } from './config.ts';
 import { inferDiscovery, isFree } from './discovery.ts';
 import { supportedTime } from './ai/evidence.ts';
 import { classifyCandidates } from './ai/classification.ts';
-import { isInstagramSource } from './ingestion/instagram.ts';
 
 function submittedTimeMatches(note: string, startsAt: string): boolean {
   const explicitTime =
@@ -376,9 +375,7 @@ export class WagzService {
               await this.repo.upsert(
                 candidate,
                 new Date(),
-                // Instagram-derived events always wait for review while that source is a pilot.
-                isInstagramSource(source.id) ||
-                  (result.reviewExternalIds?.includes(candidate.externalId) ?? false),
+                result.reviewExternalIds?.includes(candidate.externalId) ?? false,
               );
               run.imported++;
               savedIds.add(candidate.externalId);
@@ -464,8 +461,7 @@ export class WagzService {
               await this.repo.upsert(
                 candidate,
                 new Date(),
-                isInstagramSource(job.sourceId) ||
-                  job.reviewExternalIds.includes(candidate.externalId),
+                job.reviewExternalIds.includes(candidate.externalId),
               );
               if (!job.savedIds.has(candidate.externalId)) {
                 run.imported++;
@@ -486,11 +482,29 @@ export class WagzService {
         run.finishedAt = new Date().toISOString();
         await this.repo.saveRun(run);
       }
+      await this.archiveEndedTipDrafts();
       await this.processQueuedTips(deadlineMs);
       return true;
     } finally {
       this.collecting = false;
       if (lease) await this.repo.releaseLease('collection', lease);
+    }
+  }
+  /** A tip draft whose event has already ended never stays in the review inbox. */
+  private async archiveEndedTipDrafts(): Promise<void> {
+    for (const tip of await this.repo.tips()) {
+      if (tip.status !== 'draft' || !tip.draft || upcoming(tip.draft)) continue;
+      try {
+        await this.savePreparedTip(tip, {
+          status: 'archived',
+          draft: null,
+          matchedEventId: null,
+          verification: 'unverified',
+          reason: `Automatski arhivirano: događaj je već završio (${(tip.draft.endsAt ?? tip.draft.startsAt).slice(0, 10)}).`,
+        });
+      } catch {
+        /* A concurrently edited tip is left for the operator. */
+      }
     }
   }
   private isQueuedTip(tip: Tip): boolean {

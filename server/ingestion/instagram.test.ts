@@ -601,7 +601,7 @@ async function collectWithAi(context: TestContext, source: SourceDefinition) {
   }
 }
 
-test('service: AI-extracted Instagram events are stored as drafts even with autoPublish on', async (context) => {
+test('service: AI-extracted Instagram events publish automatically like any other source', async (context) => {
   const source: SourceDefinition = { ...instagramSources[0], enabled: true };
   assert.equal(source.id, ID);
   const { events, runs, extractionCalls, apifyCalls } = await collectWithAi(context, source);
@@ -617,8 +617,7 @@ test('service: AI-extracted Instagram events are stored as drafts even with auto
   assert.equal(event.startsAt, '2099-10-10T20:00:00+02:00');
   assert.equal(event.venue, 'Dvorana Gradski vrt');
   assert.equal(event.city, 'Osijek');
-  assert.equal(event.publication, 'draft');
-  assert.equal(event.autoPublishEligible, false);
+  assert.equal(event.publication, 'published');
   assert.equal(event.sources[0].sourceId, ID);
   assert.equal(event.sources[0].url, 'https://www.instagram.com/p/EVENT/');
 });

@@ -844,10 +844,14 @@ export function validateSemanticClassification(
     reason: typeof value.reason === 'string' ? value.reason.slice(0, 300) : '',
     evidence: supported(value.evidence),
     screening,
+    // Persistence requires a non-empty reason; fall back to the supported source quote.
     screeningReason:
-      screening === 'unknown' || typeof value.screeningReason !== 'string'
+      screening === 'unknown'
         ? ''
-        : value.screeningReason.slice(0, 300),
+        : (typeof value.screeningReason === 'string' && value.screeningReason.trim()
+            ? value.screeningReason.trim()
+            : `Izvor: „${screeningEvidence[0]}”`
+          ).slice(0, 300),
     screeningEvidence: screening === 'unknown' ? [] : screeningEvidence,
   };
 }

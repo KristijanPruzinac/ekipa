@@ -9,6 +9,7 @@ import { classifyCandidates } from '../server/ai/classification.ts';
 import { categoryFor } from '../server/ingestion/parsers.ts';
 import { fetchSource, sources } from '../server/ingestion/index.ts';
 import { isInstagramSource } from '../server/ingestion/instagram.ts';
+import { validateCandidate } from '../server/validation.ts';
 import type { EventCandidate } from '../shared/types.ts';
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -24,7 +25,9 @@ const ledger = {
   settle: (_id: string, cost: number | null) => void (spent += cost ?? 0.03),
 };
 const rows: string[] = [];
-let other = 0,
+let routine = 0,
+  special = 0,
+  other = 0,
   total = 0,
   agree = 0;
 const warnings: string[] = [];
@@ -47,11 +50,20 @@ for (const source of sources.filter((item) => !isInstagramSource(item.id))) {
     cache,
   );
   warnings.push(...classified.warnings.map((item) => `${source.name}: ${item}`));
-  classified.events.forEach((event, index) => {
+  classified.events.forEach((raw, index) => {
+    // Mirror persistence: only what survives validation reaches the public feed.
+    let event = raw;
+    try {
+      event = validateCandidate(raw);
+    } catch {
+      warnings.push(`${source.name}: ${raw.title} failed validation`);
+    }
     total++;
     if (event.category === 'other') other++;
     if (event.category === keyword[index]) agree++;
     const screening = event.discovery?.screening?.kind ?? '';
+    if (screening === 'routine') routine++;
+    if (screening === 'special') special++;
     rows.push(
       `| ${source.name} | ${event.title.replace(/\|/g, '/').slice(0, 70)} | ${keyword[index]} | **${event.category}**${screening ? ` (${screening})` : ''} |`,
     );
@@ -59,7 +71,7 @@ for (const source of sources.filter((item) => !isInstagramSource(item.id))) {
 }
 const report = [
   `## Classification comparison`,
-  `${total} events · AI \`other\`: ${other} · agrees with keyword rules: ${agree}/${total} · cost ≈ $${spent.toFixed(4)}`,
+  `${total} events · AI \`other\`: ${other} · agrees with keyword rules: ${agree}/${total} · persisted screenings: ${routine} routine, ${special} special · cost ≈ $${spent.toFixed(4)}`,
   '',
   '| Source | Title | Keyword (before) | AI (now) |',
   '| - | - | - | - |',
