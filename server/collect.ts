@@ -15,6 +15,9 @@ try {
     console.log(
       `${source.name}: ${source.latestRun?.status} · ${source.latestRun?.imported ?? 0} imports`,
     );
+  for (const source of await repo.sourceHealth())
+    for (const warning of source.latestRun?.warnings ?? [])
+      console.log(`  ⚠ ${source.name}: ${warning.slice(0, 300)}`);
   if (service.lastTipBatch) {
     const batch = service.lastTipBatch;
     console.log(

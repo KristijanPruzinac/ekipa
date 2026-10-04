@@ -355,7 +355,10 @@ export class WagzService {
             this.ledger,
             this.repo,
             {
-              deadlineMs: sourceDeadlineMs - 5000,
+              // A source that finished fetching on time may classify within the whole remaining
+              // budget (its fetch share alone can be nearly spent); an overrun starts no paid work.
+              deadlineMs:
+                Date.now() > fetchDeadlineMs ? sourceDeadlineMs - 5000 : sourceBudgetEnd - 5000,
               attemptedKeys: classificationAttempts,
             },
           );
