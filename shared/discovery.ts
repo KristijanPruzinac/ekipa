@@ -287,14 +287,27 @@ export function timelineFor(events: readonly PublicEvent[]) {
       return position(a) - position(b) || Number(a.ending) - Number(b.ending);
     });
   const ranges: TimelineRange[] = [];
-  const occupied: number[] = [];
   moments.forEach((moment, start) => {
     if (moment.ending || !knownEnd(moment.event)) return;
     const end = moments.findIndex((item) => item.event.id === moment.event.id && item.ending);
-    let lane = occupied.findIndex((until) => until < start);
-    if (lane === -1) lane = occupied.length;
-    occupied[lane] = end;
-    ranges.push({ event: moment.event, start, end, lane });
+    ranges.push({ event: moment.event, start, end, lane: 0 });
   });
+  // Shorter ranges take inner lanes and longer ones wrap around everything they overlap, so a
+  // nested range never has to cross its container's line; only partial overlaps cross (drawn
+  // as a bridge in CSS).
+  const assigned: TimelineRange[] = [];
+  for (const range of [...ranges].sort(
+    (a, b) => a.end - a.start - (b.end - b.start) || a.start - b.start,
+  )) {
+    range.lane =
+      1 +
+      Math.max(
+        -1,
+        ...assigned
+          .filter((other) => other.start <= range.end && range.start <= other.end)
+          .map((other) => other.lane),
+      );
+    assigned.push(range);
+  }
   return { moments, ranges };
 }

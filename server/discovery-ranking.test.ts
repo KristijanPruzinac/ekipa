@@ -144,8 +144,9 @@ test('timeline ranges use real endpoints, chronological overlap lanes and no inv
   assert.deepEqual(
     data.ranges.map(({ start, end, lane }) => ({ start, end, lane })),
     [
-      { start: 0, end: 4, lane: 0 },
-      { start: 1, end: 2, lane: 1 },
+      // The nested range is inside; the long festival wraps around it, so nothing crosses.
+      { start: 0, end: 4, lane: 1 },
+      { start: 1, end: 2, lane: 0 },
     ],
   );
   assert.equal(durationLabel(festival), null);
