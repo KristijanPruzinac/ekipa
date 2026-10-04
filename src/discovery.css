@@ -768,7 +768,7 @@
 .stub-notch {
   position: absolute;
   top: 50%;
-  left: -1.25px;
+  left: 1.5px;
   width: 7px;
   height: 12px;
   margin-top: -6px;
