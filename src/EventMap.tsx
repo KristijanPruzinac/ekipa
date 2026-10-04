@@ -1,5 +1,8 @@
 import type { PublicEvent } from '../shared/types';
 
+/** Public CARTO basemaps key: it ships in tile URLs by design (free tier, 5M tiles/month). */
+const CARTO_KEY = 'cb1_492f_1_cd5193653de49fdecc16a91a';
+
 const ZOOM = 16;
 const TILE = 256;
 
@@ -33,7 +36,7 @@ export function EventMap({ event }: { event: PublicEvent }) {
             alt=""
             loading="lazy"
             draggable={false}
-            src={`https://${'abcd'[(tileX + dx + tileY + dy + 4) % 4]}.basemaps.cartocdn.com/light_all/${ZOOM}/${tileX + dx}/${tileY + dy}.png`}
+            src={`https://${'abcd'[(tileX + dx + tileY + dy + 4) % 4]}.basemaps.cartocdn.com/light_all/${ZOOM}/${tileX + dx}/${tileY + dy}.png?key=${CARTO_KEY}`}
             style={{
               left: `calc(50% - ${offsetX}px + ${dx * TILE}px)`,
               top: `calc(50% - ${offsetY}px + ${dy * TILE}px)`,

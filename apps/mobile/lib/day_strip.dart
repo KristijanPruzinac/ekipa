@@ -316,6 +316,9 @@ class _StubPainter extends CustomPainter {
       old.first != first || old.last != last || old.tone != tone;
 }
 
+/// Public CARTO basemaps key: it ships in tile URLs by design (free tier).
+const cartoKey = 'cb1_492f_1_cd5193653de49fdecc16a91a';
+
 /// Minimal static map: light CARTO tiles with the lime pin; tapping opens the maps app.
 class EventMapView extends StatelessWidget {
   const EventMapView({super.key, required this.event});
@@ -367,7 +370,7 @@ class EventMapView extends StatelessWidget {
                             width: tile,
                             height: tile,
                             child: Image.network(
-                              'https://${'abcd'[(tileX + dx + tileY + dy + 4) % 4]}.basemaps.cartocdn.com/light_all/$zoom/${tileX + dx}/${tileY + dy}.png',
+                              'https://${'abcd'[(tileX + dx + tileY + dy + 4) % 4]}.basemaps.cartocdn.com/light_all/$zoom/${tileX + dx}/${tileY + dy}.png?key=$cartoKey',
                               errorBuilder: (context, error, stack) => const SizedBox.shrink(),
                             ),
                           ),
