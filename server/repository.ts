@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { PostgresDatabase, SqliteDatabase, type Database, type Row } from './database.ts';
 import { isFree, mergeDiscovery } from './discovery.ts';
-import { geocodeKey, type GeoCacheEntry, type GeoPoint } from './geocode.ts';
+import { GEO_PREFIX, geocodeKey, type GeoCacheEntry, type GeoPoint } from './geocode.ts';
 import { DEFAULT_TIP_DAILY_LIMIT, QUOTA_DAY_MS, QUOTA_HOUR_MS } from './request-security.ts';
 import type {
   EventCandidate,
@@ -570,7 +570,7 @@ export class Repository {
   async places(): Promise<Map<string, GeoPoint>> {
     return this.operation(async () => {
       const rows = await this.database.query(
-        "SELECT key, payload FROM ai_cache WHERE key LIKE 'geo:v1:%'",
+        `SELECT key, payload FROM ai_cache WHERE key LIKE '${GEO_PREFIX}%'`,
         [],
       );
       const places = new Map<string, GeoPoint>();

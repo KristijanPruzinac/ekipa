@@ -24,6 +24,7 @@ import {
   prepareTip as aiPrepareTip,
   extractEvents,
   transcribePoster,
+  placeQueries,
   EXTRACTION_VERSION,
   TIP_PREPARATION_VERSION,
   REQUEST_RESERVATION_USD,
@@ -521,9 +522,15 @@ export class WagzService {
           });
       const centres = new Map<string, GeoPoint | null>();
       let requests = 0;
-      const pause = () => new Promise((resolve) => setTimeout(resolve, 1100));
+      let lastRequest = 0;
+      const pace = async () => {
+        const wait = lastRequest + 1100 - Date.now();
+        if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+        lastRequest = Date.now();
+        requests++;
+      };
       for (const [key, item] of venues) {
-        if (requests >= 40 || deadlineMs - Date.now() < 30_000) break;
+        if (requests >= 80 || deadlineMs - Date.now() < 30_000) break;
         const cached = await this.repo.cached<GeoCacheEntry>(key);
         if (
           cached &&
@@ -533,8 +540,7 @@ export class WagzService {
         if (!centres.has(item.city)) {
           let centre = await this.repo.cached<GeoCacheEntry>(cityKey(item.city));
           if (!centre) {
-            await pause();
-            requests++;
+            await pace();
             const hit = await nominatim(item.city, fetchImpl);
             centre = hit
               ? { lat: hit.lat, lon: hit.lon, at: new Date().toISOString() }
@@ -545,9 +551,29 @@ export class WagzService {
         }
         const centre = centres.get(item.city);
         if (!centre) continue;
-        await pause();
-        requests++;
-        const point = await geocodeVenue(item.venue, item.address, item.city, centre, fetchImpl);
+        // The venue as printed, then the printed address.
+        let point = await geocodeVenue(
+          [item.venue, ...(item.address ? [item.address] : [])],
+          item.city,
+          centre,
+          fetchImpl,
+          pace,
+        );
+        // Otherwise ask the model which building or square the venue text names
+        // (a hall inside a building, an abbreviation, an inflected name). Every
+        // suggestion still has to match an OpenStreetMap place by name.
+        if (!point && this.config.ai.apiKey && deadlineMs - Date.now() > 60_000) {
+          const suggested = await placeQueries(
+            item.venue,
+            item.address,
+            item.city,
+            this.config.ai,
+            this.ledger,
+            { deadlineMs },
+          );
+          if (suggested.queries.length)
+            point = await geocodeVenue(suggested.queries, item.city, centre, fetchImpl, pace);
+        }
         await this.repo.cache(
           key,
           point

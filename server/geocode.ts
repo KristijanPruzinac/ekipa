@@ -39,9 +39,10 @@ const AREA_TYPES = new Set([
 export const MAX_DISTANCE_KM = 15;
 export const NEGATIVE_RETRY_DAYS = 14;
 
+export const GEO_PREFIX = 'geo:v2:';
 export const geocodeKey = (venue: string, city: string) =>
-  `geo:v1:${normalize(venue)}|${normalize(city)}`;
-export const cityKey = (city: string) => `geo:v1:city|${normalize(city)}`;
+  `${GEO_PREFIX}${normalize(venue)}|${normalize(city)}`;
+export const cityKey = (city: string) => `${GEO_PREFIX}city|${normalize(city)}`;
 
 export function distanceKm(a: GeoPoint, b: GeoPoint): number {
   const rad = Math.PI / 180;
@@ -56,7 +57,7 @@ export function distanceKm(a: GeoPoint, b: GeoPoint): number {
 export async function nominatim(
   query: string,
   fetchImpl: typeof fetch = globalThis.fetch,
-): Promise<(GeoPoint & { type: string }) | null> {
+): Promise<(GeoPoint & { type: string; name: string }) | null> {
   const url = new URL(ENDPOINT);
   url.searchParams.set('q', query);
   url.searchParams.set('format', 'jsonv2');
@@ -73,18 +74,60 @@ export async function nominatim(
   const lat = Number(row.lat),
     lon = Number(row.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  return { lat, lon, type: String(row.addresstype ?? row.type ?? '') };
+  return {
+    lat,
+    lon,
+    type: String(row.addresstype ?? row.type ?? ''),
+    name: `${String(row.name ?? '')} ${String(row.display_name ?? '')}`,
+  };
 }
 
-/** Returns a point only for a specific place inside the city; area-level hits are rejected. */
+const words = (text: string) =>
+  normalize(text)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+/** Inflected forms share a stem: compare the first five letters (or the whole short word). */
+const stem = (word: string) => word.slice(0, 5);
+
+/**
+ * Nominatim matches loosely ("Gospodarska zona 10" can return "Gospodarski centar").
+ * A hit counts only when every distinctive word of the query appears in the hit's name or
+ * address, so a fuzzy neighbour never becomes a pin.
+ */
+export function namesMatch(query: string, hitName: string, city: string): boolean {
+  const skip = new Set(words(city));
+  const wanted = words(query).filter((w) => !skip.has(w) && (w.length >= 3 || /\d/.test(w)));
+  if (!wanted.length) return false;
+  const have = new Set(words(hitName).map(stem));
+  return wanted.every((w) => have.has(stem(w)));
+}
+
+/**
+ * Tries each query in order and returns the first specific place inside the city whose name
+ * matches the query. Area-level, far-away and loosely matched hits are rejected.
+ * `beforeRequest` paces requests (Nominatim allows one per second).
+ */
 export async function geocodeVenue(
-  venue: string,
-  address: string | null,
+  queries: string[],
   city: string,
   centre: GeoPoint,
   fetchImpl: typeof fetch = globalThis.fetch,
+  beforeRequest: () => Promise<void> = async () => {},
 ): Promise<GeoPoint | null> {
-  const hit = await nominatim([venue, address, city].filter(Boolean).join(', '), fetchImpl);
-  if (!hit || AREA_TYPES.has(hit.type) || distanceKm(hit, centre) > MAX_DISTANCE_KM) return null;
-  return { lat: Number(hit.lat.toFixed(6)), lon: Number(hit.lon.toFixed(6)) };
+  const seen = new Set<string>();
+  for (const query of queries) {
+    const key = normalize(query).trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    await beforeRequest();
+    const hit = await nominatim(`${query}, ${city}`, fetchImpl);
+    if (
+      hit &&
+      !AREA_TYPES.has(hit.type) &&
+      distanceKm(hit, centre) <= MAX_DISTANCE_KM &&
+      namesMatch(query, hit.name, city)
+    )
+      return { lat: Number(hit.lat.toFixed(6)), lon: Number(hit.lon.toFixed(6)) };
+  }
+  return null;
 }
