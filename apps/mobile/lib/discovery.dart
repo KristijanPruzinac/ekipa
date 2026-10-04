@@ -142,10 +142,20 @@ bool isOngoing(WagzEvent event, String now) {
   final started = event.startsAt.length == 10
       ? dayOnly(event.startsAt).isBefore(dayOnly(now))
       : !DateTime.parse(event.startsAt).isAfter(DateTime.parse(now));
-  return started &&
+  final inRange =
+      started &&
       (end.length == 10
           ? !dayOnly(now).isAfter(dayOnly(end))
           : DateTime.parse(now).isBefore(DateTime.parse(end)));
+  final hours = event.dailyHours;
+  if (!inRange || hours == null) return inRange;
+  // A multi-day event with daily hours is only in progress during those hours.
+  final clock = formatDate(now, 'HH:mm');
+  final close = hours.end;
+  if (close == null) return clock.compareTo(hours.start) >= 0;
+  return close.compareTo(hours.start) > 0
+      ? clock.compareTo(hours.start) >= 0 && clock.compareTo(close) < 0
+      : clock.compareTo(hours.start) >= 0 || clock.compareTo(close) < 0;
 }
 
 String eventDurationText(WagzEvent event, [String? now]) {

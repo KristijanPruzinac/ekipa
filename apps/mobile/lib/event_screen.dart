@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'day_strip.dart';
 import 'design.dart';
 import 'discovery.dart';
 import 'models.dart';
@@ -82,16 +83,24 @@ class EventScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
               ],
-              _fact(
-                'KADA',
-                '${formatDate(event.startsAt, 'EEEE, d. MMMM y.')}\n${formatTime(event.startsAt)}'
-                    '${event.endsAt == null ? '\nKraj nije naveden' : '\nDo ${formatDate(event.endsAt!)}${event.endsAt!.length > 10 ? ', ${formatTime(event.endsAt!)}' : ''}'}'
-                    '${durationLabel(event) == null ? '' : '\nTrajanje: ${durationLabel(event)}'}',
-              ),
+              Eyebrow('KADA'),
+              const SizedBox(height: 8),
+              DayStripView(event: event),
+              if (durationLabel(event) != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Trajanje: ${durationLabel(event)}',
+                  style: const TextStyle(fontSize: 15, height: 1.5),
+                ),
+              ],
+              const SizedBox(height: 16),
+              const Divider(color: line, height: 1),
+              const SizedBox(height: 24),
               _fact(
                 'GDJE',
                 '${event.venue ?? 'Lokacija još nije navedena'}\n${event.address ?? event.city}',
               ),
+              EventMapView(event: event),
               _fact('ULAZ', event.price ?? 'Cijena nije navedena'),
               if (event.description.isNotEmpty) ...[
                 const SizedBox(height: 8),

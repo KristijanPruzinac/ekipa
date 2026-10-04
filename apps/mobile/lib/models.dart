@@ -95,6 +95,31 @@ class EventDiscovery {
   }
 }
 
+class DailyHours {
+  const DailyHours(this.start, this.end);
+  final String start;
+  final String? end;
+  static DailyHours? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final start = json['start'], end = json['end'];
+    if (start is! String) return null;
+    return DailyHours(start, end is String ? end : null);
+  }
+
+  String get text => end == null ? 'od $start' : '$start–$end';
+}
+
+class GeoLocation {
+  const GeoLocation(this.lat, this.lon);
+  final double lat, lon;
+  static GeoLocation? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final lat = json['lat'], lon = json['lon'];
+    if (lat is! num || lon is! num) return null;
+    return GeoLocation(lat.toDouble(), lon.toDouble());
+  }
+}
+
 class WagzEvent {
   const WagzEvent({
     required this.id,
@@ -110,11 +135,15 @@ class WagzEvent {
     this.status = 'scheduled',
     this.sources = const [],
     this.discovery = const EventDiscovery(),
+    this.dailyHours,
+    this.location,
   });
   final String id, title, description, startsAt, city, category, status;
   final String? endsAt, venue, address, price;
   final List<EventEvidence> sources;
   final EventDiscovery discovery;
+  final DailyHours? dailyHours;
+  final GeoLocation? location;
 
   factory WagzEvent.fromJson(Map<String, dynamic> json) => WagzEvent(
     id: json['id'] as String,
@@ -134,6 +163,8 @@ class WagzEvent {
     discovery: EventDiscovery.fromJson(
       json['discovery'] as Map<String, dynamic>?,
     ),
+    dailyHours: DailyHours.fromJson(json['dailyHours']),
+    location: GeoLocation.fromJson(json['location']),
   );
 }
 
