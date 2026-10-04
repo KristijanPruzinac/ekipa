@@ -305,8 +305,8 @@ class _StubPainter extends CustomPainter {
 
   void _dashed(Canvas canvas, Path path, Paint pen) {
     for (final metric in path.computeMetrics()) {
-      for (var d = 0.0; d < metric.length; d += 6) {
-        canvas.drawPath(metric.extractPath(d, math.min(d + 3, metric.length)), pen);
+      for (var d = 0.0; d < metric.length; d += 8) {
+        canvas.drawPath(metric.extractPath(d, math.min(d + 5, metric.length)), pen);
       }
     }
   }

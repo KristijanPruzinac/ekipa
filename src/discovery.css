@@ -713,7 +713,13 @@
   white-space: nowrap;
 }
 .stub + .stub {
-  border-left-style: dashed;
+  /* Perforation: 1px line, 5px dashes with 3px gaps (longer than the browser's dashed border). */
+  border-left-color: transparent;
+  background-image: linear-gradient(var(--ink) 5px, transparent 5px);
+  background-size: 1px 8px;
+  background-repeat: repeat-y;
+  background-origin: border-box;
+  background-position: 0 -1px;
 }
 .stub:first-child {
   border-radius: 7px 0 0 7px;
