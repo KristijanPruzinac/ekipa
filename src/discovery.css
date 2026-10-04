@@ -768,14 +768,30 @@
 .stub-notch {
   position: absolute;
   top: 50%;
-  left: 1.5px;
-  width: 7px;
-  height: 12px;
-  margin-top: -6px;
+  left: -1px;
+  width: 9px;
+  height: 13px;
+  margin-top: -6.5px;
   background: var(--hole);
   border: 1.25px solid var(--ink);
   border-left: 0;
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 6.5px 6.5px 0;
+}
+/* Short breaks in the perforation just above and below the notch. */
+.stub-notch::before,
+.stub-notch::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 3px;
+  background: var(--hole);
+}
+.stub-notch::before {
+  top: -4px;
+}
+.stub-notch::after {
+  bottom: -4px;
 }
 .ticket-daily {
   display: flex;

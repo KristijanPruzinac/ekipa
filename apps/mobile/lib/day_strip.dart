@@ -216,7 +216,7 @@ class _StubPainter extends CustomPainter {
   _StubPainter({required this.first, required this.last, required this.tone});
   final bool first, last;
   final String tone;
-  static const radius = 7.0, stroke = 1.25, notch = 6.0;
+  static const radius = 7.0, stroke = 1.25, notch = 6.5;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -264,11 +264,15 @@ class _StubPainter extends CustomPainter {
     }
     if (!first) {
       final cy = h / 2;
-      _dashed(canvas, Path()..moveTo(0, top)..lineTo(0, cy - notch), pen);
-      _dashed(canvas, Path()..moveTo(0, cy + notch)..lineTo(0, bottom), pen);
+      // The perforation breaks just above and below the notch.
+      _dashed(canvas, Path()..moveTo(0, top)..lineTo(0, cy - notch - 3), pen);
+      _dashed(canvas, Path()..moveTo(0, cy + notch + 3)..lineTo(0, bottom), pen);
       final bite = Path()
         ..moveTo(0, cy - notch)
-        ..arcToPoint(Offset(0, cy + notch), radius: const Radius.circular(notch));
+        ..arcToPoint(
+          Offset(0, cy + notch),
+          radius: const Radius.elliptical(8, notch),
+        );
       canvas.drawPath(bite, Paint()..color = paper);
       canvas.drawPath(bite, pen);
     }
