@@ -369,9 +369,18 @@ class EventMapView extends StatelessWidget {
                             top: box.maxHeight / 2 - offsetY + dy * tile,
                             width: tile,
                             height: tile,
-                            child: Image.network(
+                            // Same as the web: brightness(0.9) contrast(1.15).
+                            child: ColorFiltered(
+                              colorFilter: const ColorFilter.matrix([
+                                1.035, 0, 0, 0, -19.125,
+                                0, 1.035, 0, 0, -19.125,
+                                0, 0, 1.035, 0, -19.125,
+                                0, 0, 0, 1, 0,
+                              ]),
+                              child: Image.network(
                               'https://${'abcd'[(tileX + dx + tileY + dy + 4) % 4]}.basemaps.cartocdn.com/light_all/$zoom/${tileX + dx}/${tileY + dy}.png?key=$cartoKey',
                               errorBuilder: (context, error, stack) => const SizedBox.shrink(),
+                            ),
                             ),
                           ),
                       Positioned(

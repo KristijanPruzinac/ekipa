@@ -823,6 +823,8 @@
   background: #ececea;
 }
 .event-map-frame img {
+  /* CARTO light is very pale; darken the greys a little so streets read. */
+  filter: brightness(0.9) contrast(1.15);
   position: absolute;
   width: 256px;
   height: 256px;
