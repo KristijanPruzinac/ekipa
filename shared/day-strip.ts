@@ -104,6 +104,8 @@ export interface Stub {
   tone: 'main' | 'mid' | 'open';
   big: string | null;
   small: string;
+  /** The big line is a placeholder ("?"), shown quieter than real times. */
+  unknown?: boolean;
 }
 
 /** Ticket stubs plus daily hours, printed once under the ticket for multi-day runs. */
@@ -112,6 +114,8 @@ export function ticket(
 ): { stubs: Stub[]; daily: string | null } {
   const cells = dayStrip(event);
   const daily = cells.length > 1 ? dailyHoursText(event.dailyHours ?? null) : null;
+  // When any stub shows a time, a stub without one shows "?" so both sides read the same way.
+  const timed = !daily && cells.some((cell) => cell.kind !== 'mid' && cell.time);
   const stubs = cells.map((cell): Stub => {
     if (cell.kind === 'gap') return { tone: 'mid', big: `+${cell.hidden}`, small: 'dana' };
     if (cell.kind === 'open') return { tone: 'open', big: '?', small: 'kraj' };
@@ -121,8 +125,9 @@ export function ticket(
         big: daily ? `${cell.date.split('.')[0]}.` : null,
         small: cell.weekday,
       };
-    return cell.time
-      ? { tone: 'main', big: cell.time, small: `${cell.weekday} ${cell.date}` }
+    if (cell.time) return { tone: 'main', big: cell.time, small: `${cell.weekday} ${cell.date}` };
+    return timed
+      ? { tone: 'main', big: '?', small: `${cell.weekday} ${cell.date}`, unknown: true }
       : { tone: 'main', big: cell.date, small: cell.weekday };
   });
   return { stubs, daily };

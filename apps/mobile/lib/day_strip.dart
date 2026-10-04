@@ -72,15 +72,18 @@ List<DayCell> dayStrip(WagzEvent event) {
 
 /// One ticket stub: a big line and a small line. Mirrors shared/day-strip.ts `ticket`.
 class Stub {
-  const Stub(this.tone, this.big, this.small);
+  const Stub(this.tone, this.big, this.small, {this.unknown = false});
   final String tone; // main | mid | open
   final String? big;
   final String small;
+  final bool unknown; // big line is a "?" placeholder, shown quieter
 }
 
 ({List<Stub> stubs, String? daily}) ticket(WagzEvent event) {
   final cells = dayStrip(event);
   final daily = cells.length > 1 ? event.dailyHours?.text : null;
+  // When any stub shows a time, a stub without one shows "?" so both sides read alike.
+  final timed = daily == null && cells.any((c) => c.kind != 'mid' && c.time != null);
   final stubs = [
     for (final cell in cells)
       if (cell.kind == 'gap')
@@ -91,6 +94,8 @@ class Stub {
         Stub('mid', daily != null ? '${cell.date.split('.').first}.' : null, cell.weekday)
       else if (cell.time != null)
         Stub('main', cell.time, '${cell.weekday} ${cell.date}')
+      else if (timed)
+        Stub('main', '?', '${cell.weekday} ${cell.date}', unknown: true)
       else
         Stub('main', cell.date, cell.weekday),
   ];
@@ -212,7 +217,7 @@ class _StubBox extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                       height: 1,
                       letterSpacing: -0.3,
-                      color: tint,
+                      color: stub.unknown ? muted : tint,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),

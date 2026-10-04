@@ -60,6 +60,17 @@ void main() {
     );
     expect(result.daily, '18:00–21:00');
     expect(
+      ticket(
+        const WagzEvent(
+          id: 'q',
+          title: 'Q',
+          startsAt: '2026-10-07T09:00:00+02:00',
+          endsAt: '2026-10-08',
+        ),
+      ).stubs.map((s) => '${s.big} ${s.small}'),
+      ['09:00 sri 7.10.', '? čet 8.10.'],
+    );
+    expect(
       ticketLabel(
         const WagzEvent(
           id: 'n',

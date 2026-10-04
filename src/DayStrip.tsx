@@ -11,7 +11,9 @@ export function DayStrip({ event }: { event: PublicEvent }) {
         {stubs.map((stub, index) => (
           <li key={index} className={`stub stub-${stub.tone}`}>
             {index > 0 && <i className="stub-notch" aria-hidden="true" />}
-            {stub.big && <strong>{stub.big}</strong>}
+            {stub.big && (
+              <strong className={stub.unknown ? 'stub-unknown' : undefined}>{stub.big}</strong>
+            )}
             <small>{stub.small}</small>
           </li>
         ))}

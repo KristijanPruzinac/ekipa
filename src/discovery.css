@@ -769,6 +769,7 @@
   background: none;
   border-style: dashed;
 }
+.event-facts dd .stub strong.stub-unknown,
 .event-facts dd .stub-open strong,
 .event-facts dd .stub-open small {
   color: var(--muted);

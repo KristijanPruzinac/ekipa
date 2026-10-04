@@ -73,10 +73,15 @@ test('ticket stubs: times big, dates small; mid days, gaps and open ends', () =>
   assert.deepEqual(show('2026-10-02T10:00:00+02:00', '2026-11-15'), [
     'main 10:00 pet 2.10.',
     'mid +43 dana',
-    'main 15.11. ned',
+    'main ? ned 15.11.',
   ]);
   assert.deepEqual(show('2026-10-09T19:00:00+02:00'), ['main 19:00 pet 9.10.', 'open ? kraj']);
   assert.deepEqual(show('2026-10-10'), ['main 10.10. subota']);
+  assert.deepEqual(show('2026-10-07T09:00:00+02:00', '2026-10-08'), [
+    'main 09:00 sri 7.10.',
+    'main ? čet 8.10.',
+  ]);
+  assert.deepEqual(show('2026-10-07', '2026-10-08'), ['main 7.10. sri', 'main 8.10. čet']);
 });
 
 test('in progress only during the daily hours', async () => {
