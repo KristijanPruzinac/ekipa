@@ -85,7 +85,7 @@ export function EventTimeline({
         </p>
         <div
           className="timeline-track"
-          style={{ '--range-space': `${18 + lanes * 7}px` } as CSSProperties}
+          style={{ '--range-space': `${18 + lanes * 10}px` } as CSSProperties}
         >
           <div className="timeline-spine" aria-hidden="true" />
           {ranges.map(({ event, start, end, lane }) => (
@@ -93,7 +93,7 @@ export function EventTimeline({
               key={event.id}
               aria-hidden="true"
               className={`timeline-range theme-${themeForCategory(event.category) ?? 'other'} ${event.status !== 'scheduled' ? 'range-inactive' : ''}`}
-              style={{ gridRow: `${start + 1} / ${end + 1}`, width: `${12 + lane * 7}px` }}
+              style={{ gridRow: `${start + 1} / ${end + 1}`, width: `${12 + lane * 10}px` }}
             />
           ))}
           <ol className="timeline-stations">

@@ -362,12 +362,34 @@
 .timeline-range {
   grid-column: 1;
   margin-left: var(--spine);
-  transform: translateY(24px);
+  /* Relative offset (not a transform) so the bridge stubs below share one stacking context. */
+  position: relative;
+  top: 24px;
   border: 2px solid var(--theme-ink);
   border-left: 0;
   border-radius: 0 12px 12px 0;
-  z-index: 1;
   pointer-events: none;
+}
+/* Start/end stubs are redrawn above every vertical line with a background-coloured halo, so an
+   unavoidable crossing reads as a bridge (transit-map style) instead of a tangle. */
+.timeline-range::before,
+.timeline-range::after {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 12px;
+  height: 2px;
+  background: var(--theme-ink);
+  box-shadow:
+    0 -2px 0 #e9edde,
+    0 2px 0 #e9edde;
+}
+.timeline-range::before {
+  top: -2px;
+}
+.timeline-range::after {
+  bottom: -2px;
 }
 .range-inactive {
   opacity: 0.35;
@@ -398,7 +420,7 @@
 }
 .station-dot {
   position: absolute;
-  z-index: 2;
+  z-index: 4;
   top: 19px;
   left: calc(var(--spine) - 5px);
   height: 11px;
