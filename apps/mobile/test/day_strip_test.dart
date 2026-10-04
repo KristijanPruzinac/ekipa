@@ -128,7 +128,7 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.byKey(const ValueKey('day-strip')), findsOneWidget);
+    expect(find.byKey(const ValueKey('day-strip')), findsNWidgets(2));
     expect(find.byKey(const ValueKey('event-map')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
