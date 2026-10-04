@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { PostgresDatabase, SqliteDatabase, type Database, type Row } from './database.ts';
 import { isFree, mergeDiscovery } from './discovery.ts';
+import { geocodeKey, type GeoCacheEntry, type GeoPoint } from './geocode.ts';
 import { DEFAULT_TIP_DAILY_LIMIT, QUOTA_DAY_MS, QUOTA_HOUR_MS } from './request-security.ts';
 import type {
   EventCandidate,
@@ -25,8 +26,10 @@ import {
 const decode = <T>(row: Row): T => JSON.parse(String(row.payload)) as T;
 
 /** Only these fields may cross the public API/HTML boundary. */
-function publicEventRecord(event: WagzEvent): PublicEvent {
+function publicEventRecord(event: WagzEvent, places?: Map<string, GeoPoint>): PublicEvent {
+  const location = event.venue ? places?.get(geocodeKey(event.venue, event.city)) : undefined;
   return {
+    ...(location ? { location } : {}),
     id: event.id,
     title: event.title,
     description: event.description,
@@ -130,9 +133,10 @@ export class Repository {
     return (await this.events()).find((event) => event.id === id);
   }
   async publicEvents(now = new Date()): Promise<PublicEvent[]> {
+    const places = await this.places();
     return (await this.events())
       .filter((event) => event.publication === 'published' && upcoming(event, now))
-      .map(publicEventRecord);
+      .map((event) => publicEventRecord(event, places));
   }
   /** Published past events retain their stable public link after leaving the feed. */
   async publicEvent(id: string): Promise<PublicEvent | undefined> {
@@ -152,7 +156,7 @@ export class Repository {
         url: String(item.url),
         lastSeenAt: String(item.last_seen),
       }));
-      return publicEventRecord(event);
+      return publicEventRecord(event, await this.places());
     });
   }
 
@@ -560,6 +564,22 @@ export class Repository {
           )?.finishedAt ?? null,
         eventCount: Number(counts.find((row) => row.source_id === source.id)?.n ?? 0),
       }));
+    });
+  }
+  /** Cached venue coordinates (positive geocodes only), keyed by geocodeKey. */
+  async places(): Promise<Map<string, GeoPoint>> {
+    return this.operation(async () => {
+      const rows = await this.database.query(
+        "SELECT key, payload FROM ai_cache WHERE key LIKE 'geo:v1:%'",
+        [],
+      );
+      const places = new Map<string, GeoPoint>();
+      for (const row of rows) {
+        const entry = decode<GeoCacheEntry>(row);
+        if (Number.isFinite(entry?.lat) && Number.isFinite(entry?.lon))
+          places.set(String(row.key), { lat: entry.lat!, lon: entry.lon! });
+      }
+      return places;
     });
   }
   async cached<T>(key: string): Promise<T | null> {

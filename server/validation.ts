@@ -1,4 +1,9 @@
-import { categories, type EventCandidate, type EventDraft, type DailyHours } from '../shared/types.ts';
+import {
+  categories,
+  type EventCandidate,
+  type EventDraft,
+  type DailyHours,
+} from '../shared/types.ts';
 import { inferDiscovery, isFree, validateDiscovery } from './discovery.ts';
 
 export class ValidationError extends Error {}

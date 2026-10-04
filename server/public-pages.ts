@@ -8,7 +8,7 @@ import type { Repository } from './repository.ts';
 // Keep the production host's matching header in vercel.json aligned with this policy.
 // Timeline geometry uses inline styles; application scripts remain same-origin only.
 export const PRODUCTION_CSP =
-  "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'";
+  "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://*.basemaps.cartocdn.com; object-src 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'";
 
 /** Serve only the public app's real routes; missing pages must not become homepage duplicates. */
 export function mountPublicPages(app: Express, directory: string, repository: Repository) {

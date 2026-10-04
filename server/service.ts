@@ -33,6 +33,15 @@ import type { Config } from './config.ts';
 import { inferDiscovery, isFree } from './discovery.ts';
 import { supportedTime } from './ai/evidence.ts';
 import { classifyCandidates } from './ai/classification.ts';
+import {
+  cityKey,
+  geocodeKey,
+  geocodeVenue,
+  NEGATIVE_RETRY_DAYS,
+  nominatim,
+  type GeoCacheEntry,
+  type GeoPoint,
+} from './geocode.ts';
 import { annotateYears, YEAR_NOTE } from './ingestion/instagram.ts';
 
 function submittedTimeMatches(note: string, startsAt: string): boolean {
@@ -486,12 +495,68 @@ export class WagzService {
         run.finishedAt = new Date().toISOString();
         await this.repo.saveRun(run);
       }
+      await this.geocodeVenues(deadlineMs);
       await this.archiveEndedTipDrafts();
       await this.processQueuedTips(deadlineMs);
       return true;
     } finally {
       this.collecting = false;
       if (lease) await this.repo.releaseLease('collection', lease);
+    }
+  }
+  /**
+   * Places public venues on the map (opt-in with WAGZ_GEOCODE=on, as in the collector workflow).
+   * Nominatim policy: identified agent, at most one request per second, cached results.
+   */
+  private async geocodeVenues(deadlineMs: number, fetchImpl: typeof fetch = globalThis.fetch) {
+    if (process.env.WAGZ_GEOCODE !== 'on') return;
+    try {
+      const venues = new Map<string, { venue: string; address: string | null; city: string }>();
+      for (const event of await this.repo.publicEvents())
+        if (event.venue)
+          venues.set(geocodeKey(event.venue, event.city), {
+            venue: event.venue,
+            address: event.address,
+            city: event.city,
+          });
+      const centres = new Map<string, GeoPoint | null>();
+      let requests = 0;
+      const pause = () => new Promise((resolve) => setTimeout(resolve, 1100));
+      for (const [key, item] of venues) {
+        if (requests >= 40 || deadlineMs - Date.now() < 30_000) break;
+        const cached = await this.repo.cached<GeoCacheEntry>(key);
+        if (
+          cached &&
+          (!cached.none || Date.now() - Date.parse(cached.at) < NEGATIVE_RETRY_DAYS * 86_400_000)
+        )
+          continue;
+        if (!centres.has(item.city)) {
+          let centre = await this.repo.cached<GeoCacheEntry>(cityKey(item.city));
+          if (!centre) {
+            await pause();
+            requests++;
+            const hit = await nominatim(item.city, fetchImpl);
+            centre = hit
+              ? { lat: hit.lat, lon: hit.lon, at: new Date().toISOString() }
+              : { none: true, at: new Date().toISOString() };
+            await this.repo.cache(cityKey(item.city), centre);
+          }
+          centres.set(item.city, centre.none ? null : { lat: centre.lat!, lon: centre.lon! });
+        }
+        const centre = centres.get(item.city);
+        if (!centre) continue;
+        await pause();
+        requests++;
+        const point = await geocodeVenue(item.venue, item.address, item.city, centre, fetchImpl);
+        await this.repo.cache(
+          key,
+          point
+            ? { ...point, at: new Date().toISOString() }
+            : { none: true, at: new Date().toISOString() },
+        );
+      }
+    } catch {
+      /* Maps are optional; collection never fails because a geocode did. */
     }
   }
   /** A tip draft whose event has already ended never stays in the review inbox. */

@@ -19,6 +19,7 @@ import { Admin } from './Admin';
 import { EventArt } from './EventArt';
 import { EventTimeline } from './EventTimeline';
 import { DayStrip } from './DayStrip';
+import { EventMap } from './EventMap';
 import {
   api,
   ApiError,
@@ -693,6 +694,7 @@ export function EventFacts({ event, now }: { event: PublicEvent; now: string }) 
           <dd>{event.price || 'Cijena nije navedena'}</dd>
         </div>
       </dl>
+      <EventMap event={event} />
       {event.description && <div className="event-description">{event.description}</div>}
       {discovery?.prominence && (
         <section className="detail-discovery" aria-label="Razlozi oznaka">

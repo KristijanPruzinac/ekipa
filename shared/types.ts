@@ -66,6 +66,8 @@ export interface PublicEvent extends Omit<
   EventCandidate,
   'sourceId' | 'sourceUrl' | 'externalId' | 'classificationText'
 > {
+  /** Venue coordinates from a cached geocode; absent when the venue could not be placed. */
+  location?: { lat: number; lon: number };
   id: string;
   sources: EventEvidence[];
   firstSeenAt: string;

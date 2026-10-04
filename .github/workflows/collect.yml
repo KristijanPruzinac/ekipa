@@ -21,6 +21,7 @@ jobs:
       OPENROUTER_MODEL: google/gemini-2.5-flash-lite
       WAGZ_AI_MONTHLY_BUDGET_USD: '1'
       WAGZ_AUTO_PUBLISH: 'true'
+      WAGZ_GEOCODE: 'on'
       # Instagram pilot: with no APIFY_TOKEN secret the sources stay off and cost nothing.
       APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
       WAGZ_APIFY_MAX_COST_USD: '0.10'
