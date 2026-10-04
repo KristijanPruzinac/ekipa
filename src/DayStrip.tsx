@@ -1,4 +1,4 @@
-import { ticket } from '../shared/day-strip';
+import { ticket, ticketLabel } from '../shared/day-strip';
 import type { PublicEvent } from '../shared/types';
 
 /** Train-ticket strip: one stub per day, perforated joins, daily hours printed once below. */
@@ -6,7 +6,8 @@ export function DayStrip({ event }: { event: PublicEvent }) {
   const { stubs, daily } = ticket(event);
   return (
     <>
-      <ol className="ticket">
+      <span className="sr-only">{ticketLabel(event)}</span>
+      <ol className="ticket" aria-hidden="true">
         {stubs.map((stub, index) => (
           <li key={index} className={`stub stub-${stub.tone}`}>
             {index > 0 && <i className="stub-notch" aria-hidden="true" />}
@@ -16,7 +17,7 @@ export function DayStrip({ event }: { event: PublicEvent }) {
         ))}
       </ol>
       {daily && (
-        <p className="ticket-daily">
+        <p className="ticket-daily" aria-hidden="true">
           svaki dan <strong>{daily}</strong>
         </p>
       )}

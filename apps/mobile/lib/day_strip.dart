@@ -97,6 +97,26 @@ class Stub {
   return (stubs: stubs, daily: daily);
 }
 
+/// Plain-language reading of the ticket for screen readers. Mirrors `ticketLabel`.
+String ticketLabel(WagzEvent event) {
+  final cells = dayStrip(event).where((c) => c.kind != 'mid' && c.kind != 'gap').toList();
+  final daily = event.dailyHours?.text;
+  String long(String short) {
+    final i = _short.indexOf(short);
+    return i < 0 ? short : _long[i];
+  }
+
+  String stop(String text) => text.endsWith('.') ? text : '$text.';
+  String at(DayCell c) => '${long(c.weekday)} ${c.date}${c.time != null ? ' u ${c.time}' : ''}';
+  if (cells.length == 1) {
+    final only = cells.first;
+    return only.time != null ? '${only.weekday} ${only.date}, ${only.time}.' : '${only.weekday} ${only.date}';
+  }
+  final last = cells.last;
+  final end = last.kind == 'open' ? 'Kraj nije naveden.' : stop('Kraj: ${at(last)}');
+  return '${stop('Početak: ${at(cells.first)}')} $end${daily != null ? ' Svaki dan $daily.' : ''}';
+}
+
 /// Train-ticket strip: one stub per day, dashed perforation with a half-round notch.
 class DayStripView extends StatelessWidget {
   const DayStripView({super.key, required this.event});
@@ -107,7 +127,10 @@ class DayStripView extends StatelessWidget {
     final result = ticket(event);
     final stubs = result.stubs;
     final height = MediaQuery.textScalerOf(context).scale(66).clamp(66.0, 92.0);
-    return Column(
+    return Semantics(
+      label: ticketLabel(event),
+      excludeSemantics: true,
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
@@ -156,6 +179,7 @@ class DayStripView extends StatelessWidget {
           ),
         ],
       ],
+      ),
     );
   }
 }
@@ -216,7 +240,7 @@ class _StubPainter extends CustomPainter {
   _StubPainter({required this.first, required this.last, required this.tone});
   final bool first, last;
   final String tone;
-  static const radius = 7.0, stroke = 1.25, notch = 6.5;
+  static const radius = 7.0, stroke = 1.0, notch = 6.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -264,15 +288,11 @@ class _StubPainter extends CustomPainter {
     }
     if (!first) {
       final cy = h / 2;
-      // The perforation breaks just above and below the notch.
-      _dashed(canvas, Path()..moveTo(0, top)..lineTo(0, cy - notch - 3), pen);
-      _dashed(canvas, Path()..moveTo(0, cy + notch + 3)..lineTo(0, bottom), pen);
+      _dashed(canvas, Path()..moveTo(0, top)..lineTo(0, cy - notch), pen);
+      _dashed(canvas, Path()..moveTo(0, cy + notch)..lineTo(0, bottom), pen);
       final bite = Path()
         ..moveTo(0, cy - notch)
-        ..arcToPoint(
-          Offset(0, cy + notch),
-          radius: const Radius.elliptical(8, notch),
-        );
+        ..arcToPoint(Offset(0, cy + notch), radius: const Radius.circular(notch));
       canvas.drawPath(bite, Paint()..color = paper);
       canvas.drawPath(bite, pen);
     }

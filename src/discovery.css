@@ -708,7 +708,7 @@
   align-items: center;
   justify-content: center;
   background: #fff;
-  border: 1.25px solid var(--ink);
+  border: 1px solid var(--ink);
   border-right-width: 0;
   white-space: nowrap;
 }
@@ -719,7 +719,7 @@
   border-radius: 7px 0 0 7px;
 }
 .stub:last-child {
-  border-right-width: 1.25px;
+  border-right-width: 1px;
   border-radius: 0 7px 7px 0;
 }
 .stub:only-child {
@@ -738,6 +738,15 @@
   font-size: 0.8125rem;
   font-weight: 400;
   color: var(--muted);
+}
+/* Whole-pixel widths keep every perforation and notch on the same pixel grid. */
+.stub-main:not(:only-child) {
+  width: 98px;
+  padding: 0;
+}
+.stub-open {
+  width: 56px;
+  padding: 0;
 }
 .stub-mid {
   width: 52px;
@@ -769,29 +778,13 @@
   position: absolute;
   top: 50%;
   left: -1px;
-  width: 9px;
-  height: 13px;
-  margin-top: -6.5px;
+  width: 7px;
+  height: 12px;
+  margin-top: -6px;
   background: var(--hole);
-  border: 1.25px solid var(--ink);
+  border: 1px solid var(--ink);
   border-left: 0;
-  border-radius: 0 6.5px 6.5px 0;
-}
-/* Short breaks in the perforation just above and below the notch. */
-.stub-notch::before,
-.stub-notch::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  width: 1px;
-  height: 3px;
-  background: var(--hole);
-}
-.stub-notch::before {
-  top: -4px;
-}
-.stub-notch::after {
-  bottom: -4px;
+  border-radius: 0 6px 6px 0;
 }
 .ticket-daily {
   display: flex;

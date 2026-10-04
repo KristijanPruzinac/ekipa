@@ -127,3 +127,25 @@ export function ticket(
   });
   return { stubs, daily };
 }
+
+const longName = (short: string) => LONG[SHORT.indexOf(short)] ?? short;
+
+/** Plain-language reading of the ticket for screen readers (the stubs are abbreviated). */
+export function ticketLabel(
+  event: Pick<PublicEvent, 'startsAt' | 'endsAt'> & { dailyHours?: PublicEvent['dailyHours'] },
+): string {
+  const cells = dayStrip(event).filter((cell) => cell.kind !== 'mid' && cell.kind !== 'gap');
+  const daily = dailyHoursText(event.dailyHours ?? null);
+  const at = (cell: DayCell) =>
+    `${longName(cell.weekday)} ${cell.date}${cell.time ? ` u ${cell.time}` : ''}`;
+  if (cells.length === 1) {
+    const [only] = cells;
+    return only.time
+      ? `${only.weekday} ${only.date}, ${only.time}.`
+      : `${only.weekday} ${only.date}`;
+  }
+  const [first, last] = [cells[0], cells[cells.length - 1]];
+  const stop = (text: string) => (text.endsWith('.') ? text : `${text}.`);
+  const end = last.kind === 'open' ? 'Kraj nije naveden.' : stop(`Kraj: ${at(last)}`);
+  return `${stop(`Početak: ${at(first)}`)} ${end}${daily ? ` Svaki dan ${daily}.` : ''}`;
+}

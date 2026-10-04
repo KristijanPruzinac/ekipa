@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { dayStrip, ticket } from '../shared/day-strip.ts';
+import { dayStrip, ticket, ticketLabel } from '../shared/day-strip.ts';
 
 const strip = (startsAt: string, endsAt: string | null = null) =>
   dayStrip({ startsAt, endsAt }).map((cell) =>
@@ -101,4 +101,27 @@ test('in progress only during the daily hours', async () => {
   assert.equal(isOngoing(festival, '2026-10-23T17:30:00Z'), true);
   assert.equal(isOngoing(festival, '2026-10-23T01:00:00Z'), false);
   assert.equal(isOngoing({ ...festival, dailyHours: null }, '2026-10-23T01:00:00Z'), true);
+});
+
+test('screen-reader reading of the ticket is plain language', () => {
+  assert.equal(
+    ticketLabel({ startsAt: '2026-10-24T20:30:00+02:00', endsAt: '2026-10-25T02:30:00+02:00' }),
+    'Početak: subota 24.10. u 20:30. Kraj: nedjelja 25.10. u 02:30.',
+  );
+  assert.equal(
+    ticketLabel({
+      startsAt: '2026-10-22T20:30:00+02:00',
+      endsAt: '2026-10-24T21:30:00+02:00',
+      dailyHours: { start: '20:30', end: '21:30' },
+    }),
+    'Početak: četvrtak 22.10. Kraj: subota 24.10. Svaki dan 20:30–21:30.',
+  );
+  assert.equal(
+    ticketLabel({ startsAt: '2026-10-09T19:00:00+02:00', endsAt: null }),
+    'Početak: petak 9.10. u 19:00. Kraj nije naveden.',
+  );
+  assert.equal(
+    ticketLabel({ startsAt: '2026-10-24T20:30:00+02:00', endsAt: '2026-10-24T21:30:00+02:00' }),
+    'subota 24.10., 20:30–21:30.',
+  );
 });
