@@ -18,6 +18,7 @@ import { ADMIN_PATH, eventPath, publicSiteUrl } from '../shared/site';
 import { Admin } from './Admin';
 import { EventArt } from './EventArt';
 import { EventTimeline } from './EventTimeline';
+import { DayStrip } from './DayStrip';
 import {
   api,
   ApiError,
@@ -676,21 +677,8 @@ export function EventFacts({ event, now }: { event: PublicEvent; now: string }) 
         <div>
           <dt>KADA</dt>
           <dd>
-            {dateFormat(event.startsAt, {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })}
-            <span>{timeFormat(event.startsAt)}</span>
-            {event.endsAt && (
-              <span>
-                Do {dateFormat(event.endsAt, { day: 'numeric', month: 'long' })}
-                {event.endsAt.length > 10 ? `, ${timeFormat(event.endsAt)}` : ''}
-              </span>
-            )}
+            <DayStrip event={event} />
             {durationLabel(event) && <span>Trajanje: {durationLabel(event)}</span>}
-            {!event.endsAt && <span>Kraj nije naveden</span>}
           </dd>
         </div>
         <div>

@@ -16,6 +16,11 @@ export type EventStatus = 'scheduled' | 'cancelled' | 'postponed';
 export type Publication = 'published' | 'draft' | 'rejected';
 
 export type Audience = 'students' | 'adults' | 'seniors';
+/** Hours an event runs on each day of a multi-day range, only when the source states them. */
+export interface DailyHours {
+  start: string;
+  end: string | null;
+}
 export interface EventDiscovery {
   screening?: { kind: 'routine' | 'special'; reason: string; sourceUrl: string };
   audiences: Audience[];
@@ -46,6 +51,7 @@ export interface EventCandidate {
   category: Category;
   price: string | null;
   status: EventStatus;
+  dailyHours?: DailyHours | null;
   discovery?: EventDiscovery;
 }
 
@@ -117,6 +123,7 @@ export interface EventDraft {
   category: Category;
   price: string | null;
   status: EventStatus;
+  dailyHours?: DailyHours | null;
   sourceUrl: string | null;
 }
 export interface Tip {

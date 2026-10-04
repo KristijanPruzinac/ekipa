@@ -38,6 +38,7 @@ function publicEventRecord(event: WagzEvent): PublicEvent {
     category: event.category,
     price: event.price,
     status: event.status,
+    ...(event.dailyHours ? { dailyHours: event.dailyHours } : {}),
     discovery: event.discovery,
     sources: event.sources,
     firstSeenAt: event.firstSeenAt,

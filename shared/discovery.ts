@@ -210,8 +210,21 @@ export function isOngoing(event: PublicEvent, now: string): boolean {
     event.startsAt.length === 10
       ? localDay(event.startsAt) < localDay(now)
       : Date.parse(event.startsAt) <= Date.parse(now);
-  return started && (end.length === 10 ? localDay(now) <= end : Date.parse(now) < Date.parse(end));
+  const inRange =
+    started && (end.length === 10 ? localDay(now) <= end : Date.parse(now) < Date.parse(end));
+  if (!inRange || !event.dailyHours) return inRange;
+  // A multi-day event with daily hours is only "in progress" during those hours.
+  const clock = zagrebClock.format(new Date(now));
+  const { start, end: close } = event.dailyHours;
+  if (!close) return clock >= start;
+  return close > start ? clock >= start && clock < close : clock >= start || clock < close;
 }
+const zagrebClock = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Zagreb',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
 
 /** Compact public copy. Date-only ranges count calendar dates, never guessed hours. */
 export function eventDurationText(event: PublicEvent, now?: string): string {

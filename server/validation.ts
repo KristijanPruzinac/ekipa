@@ -1,4 +1,4 @@
-import { categories, type EventCandidate, type EventDraft } from '../shared/types.ts';
+import { categories, type EventCandidate, type EventDraft, type DailyHours } from '../shared/types.ts';
 import { inferDiscovery, isFree, validateDiscovery } from './discovery.ts';
 
 export class ValidationError extends Error {}
@@ -131,6 +131,26 @@ function text(value: unknown, max: number, required = false): string | null {
   return value.trim();
 }
 
+const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** Daily hours apply only to multi-day ranges and only with a valid start clock. */
+export function validDailyHours(
+  value: unknown,
+  startsAt: string,
+  endsAt: string | null,
+): DailyHours | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.start !== 'string' || !CLOCK.test(row.start)) return null;
+  if (
+    row.end !== null &&
+    row.end !== undefined &&
+    (typeof row.end !== 'string' || !CLOCK.test(row.end))
+  )
+    return null;
+  if (!startsAt || !endsAt || endsAt.slice(0, 10) <= startsAt.slice(0, 10)) return null;
+  return { start: row.start, end: (row.end as string | null | undefined) ?? null };
+}
+
 export function validateDraft(
   input: unknown,
   options: { allowIncomplete?: boolean } = {},
@@ -174,6 +194,9 @@ export function validateDraft(
     category: row.category as EventDraft['category'],
     price: text(row.price, 300),
     status: row.status as EventDraft['status'],
+    ...(validDailyHours(row.dailyHours, startsAt, endsAt)
+      ? { dailyHours: validDailyHours(row.dailyHours, startsAt, endsAt) }
+      : {}),
     sourceUrl: safeUrl(row.sourceUrl),
   };
 }

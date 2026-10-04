@@ -178,6 +178,7 @@ export function reconcileExtraction(
       for (const key of ['venue', 'address', 'price', 'endsAt'] as const) {
         if (merged[key] === null) merged[key] = event[key];
       }
+      if (!merged.dailyHours && event.dailyHours) merged.dailyHours = event.dailyHours;
       if (merged.category === 'other') merged.category = event.category;
       const discovery =
         target.discovery ?? inferDiscovery(target.title, page.text, page.url, merged.price);

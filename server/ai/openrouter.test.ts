@@ -1137,3 +1137,31 @@ test('only explicit end labels and interval endpoints preserve closing times', (
     '2026-10-02',
   );
 });
+
+test('daily hours are kept only with a verbatim quote that prints the hours', async () => {
+  const text =
+    'Festival: od 22. do 24. listopada 2026., svaki dan od 18 do 21 h, Trg slobode, Osijek.';
+  const base = {
+    ...candidate,
+    title: 'Festival',
+    startsAt: '2026-10-22',
+    endsAt: '2026-10-24',
+    dateEvidence: 'od 22. do 24. listopada 2026.',
+  };
+  const run = (dailyHours: unknown) =>
+    extractEvents({ ...page, text }, config, accounting().ledger, {
+      fetch: mock(() => response(extraction([{ ...base, dailyHours }]))),
+    });
+  const kept = await run({ start: '18:00', end: '21:00', evidence: 'svaki dan od 18 do 21 h' });
+  assert.deepEqual(kept.events[0].dailyHours, { start: '18:00', end: '21:00' });
+  for (const invented of [
+    { start: '19:00', end: '21:00', evidence: 'svaki dan od 18 do 21 h' },
+    { start: '18:00', end: '21:00', evidence: 'svaki dan navečer' },
+    { start: '18:00', end: '21:00', evidence: 'od 18 do 21 h svaki dan, kaže organizator' },
+  ]) {
+    const result = await run(invented);
+    assert.equal(result.events[0].dailyHours, undefined, JSON.stringify(invented));
+  }
+  const none = await run(null);
+  assert.equal(none.events[0].dailyHours, undefined);
+});
