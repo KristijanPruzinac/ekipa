@@ -1,34 +1,25 @@
-import { dailyHoursText, dayStrip } from '../shared/day-strip';
+import { ticket } from '../shared/day-strip';
 import type { PublicEvent } from '../shared/types';
 
-/** Calendar-like start/end strip: each day is a box; times sit on the start and end boxes. */
+/** Train-ticket strip: one stub per day, perforated joins, daily hours printed once below. */
 export function DayStrip({ event }: { event: PublicEvent }) {
-  const cells = dayStrip(event);
-  const daily = cells.length > 1 ? dailyHoursText(event.dailyHours ?? null) : null;
+  const { stubs, daily } = ticket(event);
   return (
     <>
-      <ol className="day-strip">
-        {cells.map((cell, index) => (
-          <li key={index} className={`day-cell day-${cell.kind}`}>
-            {cell.kind === 'gap' ? (
-              <span className="day-gap">+ {cell.hidden} dana</span>
-            ) : (
-              <>
-                <span className="day-weekday">{cell.weekday}</span>
-                <strong className="day-date">{cell.date}</strong>
-                {cell.kind === 'open' ? (
-                  <span className="day-time day-time-missing">nije naveden</span>
-                ) : cell.kind !== 'mid' || cell.time ? (
-                  <span className={`day-time${cell.time ? '' : ' day-time-missing'}`}>
-                    {cell.time ?? (cell.kind === 'single' ? 'vrijeme nije navedeno' : '—')}
-                  </span>
-                ) : null}
-              </>
-            )}
+      <ol className="ticket">
+        {stubs.map((stub, index) => (
+          <li key={index} className={`stub stub-${stub.tone}`}>
+            {index > 0 && <span className="stub-notch" aria-hidden="true" />}
+            {stub.big && <strong>{stub.big}</strong>}
+            <small>{stub.small}</small>
           </li>
         ))}
       </ol>
-      {daily && <span className="day-daily">Svaki dan {daily}</span>}
+      {daily && (
+        <p className="ticket-daily">
+          svaki dan <strong>{daily}</strong>
+        </p>
+      )}
     </>
   );
 }

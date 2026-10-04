@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { dayStrip } from '../shared/day-strip.ts';
+import { dayStrip, ticket } from '../shared/day-strip.ts';
 
 const strip = (startsAt: string, endsAt: string | null = null) =>
   dayStrip({ startsAt, endsAt }).map((cell) =>
@@ -9,7 +9,7 @@ const strip = (startsAt: string, endsAt: string | null = null) =>
 
 test('same-day event is one box with both times', () => {
   assert.deepEqual(strip('2026-10-04T17:00:00+02:00', '2026-10-04T18:20:00+02:00'), [
-    'single nedjelja 4.10. 17:00 – 18:20',
+    'single nedjelja 4.10. 17:00–18:20',
   ]);
 });
 
@@ -46,16 +46,37 @@ test('missing end and missing time are explicit', () => {
   ]);
 });
 
-test('daily hours put the same hours on every day box', () => {
-  const cells = dayStrip({
-    startsAt: '2026-10-22T18:00:00+02:00',
-    endsAt: '2026-10-24T21:00:00+02:00',
-    dailyHours: { start: '18:00', end: '21:00' },
+test('daily hours print once under the ticket; stubs carry dates', () => {
+  const result = ticket({
+    startsAt: '2026-10-22T20:30:00+02:00',
+    endsAt: '2026-10-24T21:30:00+02:00',
+    dailyHours: { start: '20:30', end: '21:30' },
   });
+  assert.equal(result.daily, '20:30–21:30');
   assert.deepEqual(
-    cells.map((cell) => `${cell.kind} ${cell.time}`),
-    ['start 18:00–21:00', 'mid 18:00–21:00', 'end 18:00–21:00'],
+    result.stubs.map((stub) => `${stub.tone} ${stub.big ?? '-'} ${stub.small}`),
+    ['main 22.10. čet', 'mid 23. pet', 'main 24.10. sub'],
   );
+});
+
+test('ticket stubs: times big, dates small; mid days, gaps and open ends', () => {
+  const show = (startsAt: string, endsAt: string | null = null) =>
+    ticket({ startsAt, endsAt }).stubs.map((s) => `${s.tone} ${s.big ?? '-'} ${s.small}`);
+  assert.deepEqual(show('2026-10-24T20:30:00+02:00', '2026-10-24T21:30:00+02:00'), [
+    'main 20:30–21:30 subota 24.10.',
+  ]);
+  assert.deepEqual(show('2026-10-22T18:00:00+02:00', '2026-10-24T21:00:00+02:00'), [
+    'main 18:00 čet 22.10.',
+    'mid - pet',
+    'main 21:00 sub 24.10.',
+  ]);
+  assert.deepEqual(show('2026-10-02T10:00:00+02:00', '2026-11-15'), [
+    'main 10:00 pet 2.10.',
+    'mid +43 dana',
+    'main 15.11. ned',
+  ]);
+  assert.deepEqual(show('2026-10-09T19:00:00+02:00'), ['main 19:00 pet 9.10.', 'open ? kraj']);
+  assert.deepEqual(show('2026-10-10'), ['main 10.10. subota']);
 });
 
 test('in progress only during the daily hours', async () => {

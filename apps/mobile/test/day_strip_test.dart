@@ -24,7 +24,7 @@ void main() {
 
   test('same day, past midnight, ranges and missing data match the web strip', () {
     expect(strip('2026-10-04T17:00:00+02:00', '2026-10-04T18:20:00+02:00'), [
-      'single nedjelja 4.10. 17:00 – 18:20',
+      'single nedjelja 4.10. 17:00–18:20',
     ]);
     expect(strip('2026-10-24T20:30:00+02:00', '2026-10-25T02:30:00+02:00'), [
       'start sub 24.10. 20:30',
@@ -47,15 +47,21 @@ void main() {
     expect(strip('2026-10-10'), ['single subota 10.10. -']);
   });
 
-  test('daily hours sit on every day and limit "in progress" to those hours', () {
+  test('daily hours print once below; "in progress" only during them', () {
     const daily = DailyHours('18:00', '21:00');
+    final result = ticket(
+      const WagzEvent(
+        id: 'd',
+        title: 'D',
+        startsAt: '2026-10-22T18:00:00+02:00',
+        endsAt: '2026-10-24T21:00:00+02:00',
+        dailyHours: daily,
+      ),
+    );
+    expect(result.daily, '18:00–21:00');
     expect(
-      strip('2026-10-22T18:00:00+02:00', '2026-10-24T21:00:00+02:00', daily),
-      [
-        'start čet 22.10. 18:00–21:00',
-        'mid pet 23.10. 18:00–21:00',
-        'end sub 24.10. 18:00–21:00',
-      ],
+      result.stubs.map((s) => '${s.tone} ${s.big ?? '-'} ${s.small}'),
+      ['main 22.10. čet', 'mid 23. pet', 'main 24.10. sub'],
     );
     const festival = WagzEvent(
       id: 'f',
@@ -86,6 +92,14 @@ void main() {
                     title: 'X',
                     startsAt: '2026-10-22T18:00:00+02:00',
                     endsAt: '2026-10-25T21:00:00+02:00',
+                  ),
+                ),
+                DayStripView(
+                  event: const WagzEvent(
+                    id: 'y',
+                    title: 'Y',
+                    startsAt: '2026-10-24T20:30:00+02:00',
+                    endsAt: '2026-10-24T21:30:00+02:00',
                   ),
                 ),
                 const EventMapView(

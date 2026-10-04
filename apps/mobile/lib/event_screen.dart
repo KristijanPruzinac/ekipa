@@ -14,10 +14,6 @@ class EventScreen extends StatelessWidget {
     final sources = event.sources.where(
       (source) => safeLink(source.url) != null,
     );
-    final evidence = [
-      if (event.discovery.prominenceEvidence != null)
-        event.discovery.prominenceEvidence!,
-    ];
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: MediaQuery.textScalerOf(context).scale(56),
@@ -86,7 +82,7 @@ class EventScreen extends StatelessWidget {
               Eyebrow('KADA'),
               const SizedBox(height: 8),
               DayStripView(event: event),
-              if (durationLabel(event) != null) ...[
+              if (event.dailyHours == null && durationLabel(event) != null) ...[
                 const SizedBox(height: 6),
                 Text(
                   'Trajanje: ${durationLabel(event)}',
@@ -124,15 +120,6 @@ class EventScreen extends StatelessWidget {
                   source.url,
                 ),
               ),
-              for (final item in evidence.where(
-                (item) => safeLink(item.sourceUrl) != null,
-              ))
-                _source(
-                  context,
-                  'Zašto je istaknuto?',
-                  item.reason,
-                  item.sourceUrl,
-                ),
               const SizedBox(height: 20),
               const Text(
                 'Planovi se mogu promijeniti. Prije odlaska provjeri izvornu najavu. '
@@ -168,18 +155,18 @@ class EventScreen extends StatelessWidget {
   ) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Material(
-      color: const Color(0xffe7edc5),
-      borderRadius: BorderRadius.circular(4),
+      color: lime,
+      borderRadius: BorderRadius.circular(8),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         shape: RoundedRectangleBorder(
-          side: const BorderSide(color: Color(0xff96a366)),
-          borderRadius: BorderRadius.circular(4),
+          side: const BorderSide(color: ink, width: 1.5),
+          borderRadius: BorderRadius.circular(8),
         ),
-        focusColor: const Color(0xffd8e294),
-        hoverColor: const Color(0xffe3eab8),
+        focusColor: const Color(0xffc8e500),
+        hoverColor: const Color(0xffd4f200),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(subtitle, style: const TextStyle(color: muted)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Color(0xff3a3d33))),
         trailing: const Icon(Icons.north_east),
         onTap: () => openSource(context, url),
       ),

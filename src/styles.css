@@ -1276,9 +1276,9 @@ summary:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  border: 1px solid #96a366;
-  background: #e7edc5;
-  border-radius: 4px;
+  border: 1.5px solid var(--ink);
+  background: var(--lime);
+  border-radius: 8px;
   min-height: 52px;
   padding: 14px 16px;
   margin-top: 7px;
@@ -1286,11 +1286,10 @@ summary:focus-visible {
   font-weight: 650;
 }
 .source-link:hover {
-  background: #e3eab8;
-  border-color: #728400;
+  background: #d4f200;
 }
 .source-link:active {
-  background: #d8e294;
+  background: #c8e500;
 }
 .source-link > svg {
   flex-shrink: 0;
@@ -1304,7 +1303,7 @@ summary:focus-visible {
   font-size: 0.90625rem;
   font-weight: 400;
   margin-top: 4px;
-  color: var(--muted);
+  color: #3a3d33;
 }
 .detail-sources > .fine-print {
   margin-top: 17px;

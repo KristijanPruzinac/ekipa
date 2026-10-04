@@ -685,116 +685,112 @@
   }
 }
 
-/* Event detail day strip: every day is a box; start/end carry their times. */
-.day-strip {
+/* Event detail ticket: one stub per day, dashed perforation, half-round notch (A). */
+.ticket {
+  --hole: var(--paper);
   display: flex;
-  flex-wrap: nowrap;
+  max-width: 100%;
   margin: 2px 0 8px;
   padding: 0;
   list-style: none;
-  max-width: 100%;
 }
-.day-cell {
-  flex: 0 1 78px;
-  min-width: 58px;
-  padding: 6px 6px 7px;
-  border: 1.5px solid var(--line);
-  border-right-width: 0;
-  background: #fff;
-  text-align: center;
+.event-page .ticket {
+  --hole: #faf9f4;
+}
+.stub {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 66px;
+  padding: 0 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-}
-.day-cell:first-child {
-  border-radius: 8px 0 0 8px;
-}
-.day-cell:last-child {
-  border-right-width: 1.5px;
-  border-radius: 0 8px 8px 0;
-}
-.day-cell:only-child {
-  border-radius: 8px;
-  flex-basis: 170px;
-}
-.day-weekday {
-  font-size: 0.6875rem;
-  color: var(--muted);
-}
-.day-date {
-  font-size: 1rem;
-  line-height: 1.2;
-}
-.day-time {
-  margin-top: 3px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  justify-content: center;
+  background: #fff;
+  border: 1.25px solid var(--ink);
+  border-right-width: 0;
   white-space: nowrap;
 }
-.day-start,
-.day-end,
-.day-single {
-  background: var(--lime);
-  border-color: var(--ink);
+.stub + .stub {
+  border-left-style: dashed;
 }
-.day-start .day-weekday,
-.day-end .day-weekday,
-.day-single .day-weekday {
-  color: var(--ink);
+.stub:first-child {
+  border-radius: 7px 0 0 7px;
 }
-.day-start .day-time,
-.day-end .day-time,
-.day-single .day-time {
-  background: var(--ink);
-  color: var(--lime);
+.stub:last-child {
+  border-right-width: 1.25px;
+  border-radius: 0 7px 7px 0;
 }
-.day-mid,
-.day-gap-cell,
-.day-gap {
-  background: #f3ffb3;
+.stub:only-child {
+  border-radius: 7px;
 }
-.day-mid {
-  border-color: var(--ink);
+.event-facts dd .stub strong {
+  font-size: 1.6875rem;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.3px;
+  font-variant-numeric: tabular-nums;
 }
-.day-cell.day-gap {
-  border-style: dashed;
-  border-color: var(--ink);
-  justify-content: center;
-}
-.day-gap {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-.day-time.day-time-missing,
-.day-start .day-time.day-time-missing,
-.day-end .day-time.day-time-missing,
-.day-single .day-time.day-time-missing {
-  background: none;
-  color: var(--ink);
-  border: 1px dashed var(--ink);
-  font-weight: 400;
-}
-.day-open {
-  border-style: dashed;
-  background: none;
-}
-.day-open .day-weekday,
-.day-open .day-date {
-  color: var(--muted);
-}
-.day-open .day-time.day-time-missing {
-  border: 0;
-  color: var(--muted);
-  font-size: 0.6875rem;
-}
-
-.day-daily {
+.event-facts dd .stub small {
+  display: block;
+  margin-top: 4px;
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 400;
+  color: var(--muted);
+}
+.stub-mid {
+  width: 52px;
+  padding: 0 4px;
+  background: #ecebe4;
+}
+.event-facts dd .stub-mid strong {
+  font-size: 1.25rem;
+  color: #444441;
+}
+.event-facts dd .stub-mid small {
+  margin-top: 2px;
+  font-size: 0.875rem;
+  color: #444441;
+}
+.stub-mid strong + small {
+  margin-top: 2px;
+}
+.stub-open {
+  background: none;
+  border-style: dashed;
+}
+.event-facts dd .stub-open strong,
+.event-facts dd .stub-open small {
+  color: var(--muted);
+}
+/* Notch: a half-circle on the perforation, open on its left, bulging right. */
+.stub-notch {
+  position: absolute;
+  top: 50%;
+  left: -1.25px;
+  width: 7px;
+  height: 12px;
+  margin-top: -6px;
+  background: var(--hole);
+  border: 1.25px solid var(--ink);
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+}
+.ticket-daily {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 2px 0 6px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.ticket-daily strong {
+  font-size: 1.375rem;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.3px;
 }
 
 /* Event map: static light tiles with a lime pin (pin A). */

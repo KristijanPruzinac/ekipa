@@ -655,7 +655,6 @@ function EventDetail({
 
 export function EventFacts({ event, now }: { event: PublicEvent; now: string }) {
   const sources = event.sources.filter((source) => safeLink(source.url));
-  const discovery = event.discovery;
   return (
     <>
       {event.status !== 'scheduled' && (
@@ -679,7 +678,9 @@ export function EventFacts({ event, now }: { event: PublicEvent; now: string }) 
           <dt>KADA</dt>
           <dd>
             <DayStrip event={event} />
-            {durationLabel(event) && <span>Trajanje: {durationLabel(event)}</span>}
+            {!event.dailyHours && durationLabel(event) && (
+              <span>Trajanje: {durationLabel(event)}</span>
+            )}
           </dd>
         </div>
         <div>
@@ -696,31 +697,6 @@ export function EventFacts({ event, now }: { event: PublicEvent; now: string }) 
       </dl>
       <EventMap event={event} />
       {event.description && <div className="event-description">{event.description}</div>}
-      {discovery?.prominence && (
-        <section className="detail-discovery" aria-label="Razlozi oznaka">
-          <h3>Dobro je znati</h3>
-          <ul>
-            {discovery?.prominence && (
-              <li>
-                <strong>{discovery.prominence.label}</strong>
-                <p>{discovery.prominence.reason}</p>
-                {safeLink(discovery.prominence.sourceUrl) && (
-                  <a
-                    href={safeLink(discovery.prominence.sourceUrl)!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Provjeri u najavi <Arrow diagonal />
-                  </a>
-                )}
-              </li>
-            )}
-          </ul>
-          {discovery?.prominence && (
-            <p>Oznaka opisuje vrstu programa iz najave, a ne broj posjetitelja.</p>
-          )}
-        </section>
-      )}
       <div className="detail-sources">
         <p className="eyebrow">IZVOR I DETALJI</p>
         {sources.length ? (

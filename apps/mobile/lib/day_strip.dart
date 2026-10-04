@@ -50,61 +50,109 @@ List<DayCell> dayStrip(WagzEvent event) {
   final endTime = end.length == 10 ? null : formatDate(end, 'HH:mm');
   if (endDay == startDay) {
     final time = startTime != null && endTime != null
-        ? '$startTime – $endTime'
+        ? '$startTime–$endTime'
         : startTime ?? (endTime != null ? 'do $endTime' : null);
     return [_cell('single', startDay, time, true)];
   }
   final span = endDay.difference(startDay).inDays + 1;
-  final daily = event.dailyHours?.text;
-  final first = _cell('start', startDay, daily ?? startTime);
-  final last = _cell('end', endDay, daily ?? endTime);
+  // Daily hours are printed once under the ticket; the day stubs carry dates only.
+  final daily = event.dailyHours != null;
+  final first = _cell('start', startDay, daily ? null : startTime);
+  final last = _cell('end', endDay, daily ? null : endTime);
   if (span > maxVisibleDays) {
     return [first, DayCell('gap', '', '', null, span - 2), last];
   }
   return [
     first,
     for (var index = 1; index < span - 1; index++)
-      _cell('mid', startDay.add(Duration(days: index)), daily),
+      _cell('mid', startDay.add(Duration(days: index)), null),
     last,
   ];
 }
 
+/// One ticket stub: a big line and a small line. Mirrors shared/day-strip.ts `ticket`.
+class Stub {
+  const Stub(this.tone, this.big, this.small);
+  final String tone; // main | mid | open
+  final String? big;
+  final String small;
+}
+
+({List<Stub> stubs, String? daily}) ticket(WagzEvent event) {
+  final cells = dayStrip(event);
+  final daily = cells.length > 1 ? event.dailyHours?.text : null;
+  final stubs = [
+    for (final cell in cells)
+      if (cell.kind == 'gap')
+        Stub('mid', '+${cell.hidden}', 'dana')
+      else if (cell.kind == 'open')
+        const Stub('open', '?', 'kraj')
+      else if (cell.kind == 'mid')
+        Stub('mid', daily != null ? '${cell.date.split('.').first}.' : null, cell.weekday)
+      else if (cell.time != null)
+        Stub('main', cell.time, '${cell.weekday} ${cell.date}')
+      else
+        Stub('main', cell.date, cell.weekday),
+  ];
+  return (stubs: stubs, daily: daily);
+}
+
+/// Train-ticket strip: one stub per day, dashed perforation with a half-round notch.
 class DayStripView extends StatelessWidget {
   const DayStripView({super.key, required this.event});
   final WagzEvent event;
 
   @override
   Widget build(BuildContext context) {
-    final cells = dayStrip(event);
-    final daily = cells.length > 1 ? event.dailyHours?.text : null;
+    final result = ticket(event);
+    final stubs = result.stubs;
+    final height = MediaQuery.textScalerOf(context).scale(66).clamp(66.0, 92.0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          key: const ValueKey('day-strip'),
-          children: [
-            for (var index = 0; index < cells.length; index++)
-              Flexible(
-                flex: cells.length == 1 ? 0 : 1,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: cells.length == 1 ? 190 : 86,
-                    minWidth: cells.length == 1 ? 150 : 0,
-                  ),
-                  child: _DayBox(
-                    cell: cells[index],
-                    first: index == 0,
-                    last: index == cells.length - 1,
-                  ),
+        SizedBox(
+          height: height,
+          child: Row(
+            key: const ValueKey('day-strip'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var index = 0; index < stubs.length; index++)
+                stubs[index].tone == 'mid'
+                    ? SizedBox(
+                        width: 52,
+                        child: _StubBox(
+                          stub: stubs[index],
+                          first: index == 0,
+                          last: index == stubs.length - 1,
+                        ),
+                      )
+                    : Flexible(
+                        child: _StubBox(
+                          stub: stubs[index],
+                          first: index == 0,
+                          last: index == stubs.length - 1,
+                        ),
+                      ),
+            ],
+          ),
+        ),
+        if (result.daily != null) ...[
+          const SizedBox(height: 6),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.end,
+            spacing: 7,
+            children: [
+              const Text('svaki dan', style: TextStyle(fontSize: 14, color: muted)),
+              Text(
+                result.daily!,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w500,
+                  height: 1.1,
+                  fontFeatures: [FontFeature.tabularFigures()],
                 ),
               ),
-          ],
-        ),
-        if (daily != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            'Svaki dan $daily',
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ],
           ),
         ],
       ],
@@ -112,99 +160,131 @@ class DayStripView extends StatelessWidget {
   }
 }
 
-class _DayBox extends StatelessWidget {
-  const _DayBox({required this.cell, required this.first, required this.last});
-  final DayCell cell;
+class _StubBox extends StatelessWidget {
+  const _StubBox({required this.stub, required this.first, required this.last});
+  final Stub stub;
   final bool first, last;
 
   @override
   Widget build(BuildContext context) {
-    final edge = const {'start', 'end', 'single'}.contains(cell.kind);
-    final dashed = cell.kind == 'open' || cell.kind == 'gap';
-    final background = edge
-        ? lime
-        : cell.kind == 'mid' || cell.kind == 'gap'
-        ? const Color(0xfff3ffb3)
-        : Colors.transparent;
-    final radius = BorderRadius.horizontal(
-      left: Radius.circular(first ? 8 : 0),
-      right: Radius.circular(last ? 8 : 0),
-    );
-    final missing = cell.time == null;
-    Widget? chip;
-    if (cell.kind == 'open') {
-      chip = const Text(
-        'nije naveden',
-        style: TextStyle(fontSize: 11, color: muted),
-      );
-    } else if (cell.kind != 'mid' || cell.time != null) {
-      chip = Container(
-        margin: const EdgeInsets.only(top: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: missing ? null : ink,
-          border: missing ? Border.all(color: ink) : null,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Text(
-          cell.time ?? (cell.kind == 'single' ? 'vrijeme nije navedeno' : '—'),
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: missing ? FontWeight.w400 : FontWeight.w700,
-            color: missing ? ink : lime,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.fade,
-          softWrap: false,
-        ),
-      );
-    }
-    return Container(
-      padding: const EdgeInsets.fromLTRB(4, 6, 4, 7),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: radius,
-        border: Border(
-          top: BorderSide(color: edge || !dashed ? ink : muted, width: 1.5),
-          bottom: BorderSide(color: edge || !dashed ? ink : muted, width: 1.5),
-          left: BorderSide(color: edge || !dashed ? ink : muted, width: 1.5),
-          right: last
-              ? BorderSide(color: edge || !dashed ? ink : muted, width: 1.5)
-              : BorderSide.none,
-        ),
-      ),
-      child: cell.kind == 'gap'
-          ? Center(
-              heightFactor: 2.4,
-              child: Text(
-                '+ ${cell.hidden} dana',
-                style: const TextStyle(fontSize: 12, color: muted),
-              ),
-            )
-          : Column(
+    final mid = stub.tone == 'mid', open = stub.tone == 'open';
+    final tint = mid ? const Color(0xff444441) : open ? muted : ink;
+    return CustomPaint(
+      painter: _StubPainter(first: first, last: last, tone: stub.tone),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: mid ? 4 : 14),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  cell.weekday,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: cell.kind == 'open' ? muted : ink,
+                if (stub.big != null)
+                  Text(
+                    stub.big!,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: mid ? 20 : 27,
+                      fontWeight: FontWeight.w500,
+                      height: 1,
+                      letterSpacing: -0.3,
+                      color: tint,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                Padding(
+                  padding: EdgeInsets.only(top: stub.big == null ? 0 : (mid ? 2 : 4)),
+                  child: Text(
+                    stub.small,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: mid ? 14 : 13,
+                      color: mid ? tint : muted,
+                    ),
                   ),
                 ),
-                Text(
-                  cell.date,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: cell.kind == 'open' ? muted : ink,
-                  ),
-                ),
-                if (chip != null) FittedBox(fit: BoxFit.scaleDown, child: chip),
               ],
             ),
+          ),
+        ),
+      ),
     );
   }
+}
+
+class _StubPainter extends CustomPainter {
+  _StubPainter({required this.first, required this.last, required this.tone});
+  final bool first, last;
+  final String tone;
+  static const radius = 7.0, stroke = 1.25, notch = 6.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height, half = stroke / 2;
+    final rl = first ? radius : 0.0, rr = last ? radius : 0.0;
+    final shape = RRect.fromRectAndCorners(
+      Rect.fromLTWH(0, half, w, h - stroke),
+      topLeft: Radius.circular(rl),
+      bottomLeft: Radius.circular(rl),
+      topRight: Radius.circular(rr),
+      bottomRight: Radius.circular(rr),
+    );
+    if (tone != 'open') {
+      canvas.drawRRect(
+        shape,
+        Paint()..color = tone == 'mid' ? const Color(0xffecebe4) : Colors.white,
+      );
+    }
+    final pen = Paint()
+      ..color = ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke;
+    final top = half, bottom = h - half, left = first ? half : 0.0;
+    final right = last ? w - half : w;
+    final outline = Path()..moveTo(left + rl, top)..lineTo(right - rr, top);
+    if (last) {
+      outline
+        ..arcToPoint(Offset(right, top + rr), radius: const Radius.circular(radius))
+        ..lineTo(right, bottom - rr)
+        ..arcToPoint(Offset(right - rr, bottom), radius: const Radius.circular(radius));
+    } else {
+      outline.moveTo(right, bottom);
+    }
+    outline.lineTo(left + rl, bottom);
+    if (first) {
+      outline
+        ..arcToPoint(Offset(left, bottom - rl), radius: const Radius.circular(radius))
+        ..lineTo(left, top + rl)
+        ..arcToPoint(Offset(left + rl, top), radius: const Radius.circular(radius));
+    }
+    if (tone == 'open') {
+      _dashed(canvas, outline, pen);
+    } else {
+      canvas.drawPath(outline, pen);
+    }
+    if (!first) {
+      final cy = h / 2;
+      _dashed(canvas, Path()..moveTo(0, top)..lineTo(0, cy - notch), pen);
+      _dashed(canvas, Path()..moveTo(0, cy + notch)..lineTo(0, bottom), pen);
+      final bite = Path()
+        ..moveTo(0, cy - notch)
+        ..arcToPoint(Offset(0, cy + notch), radius: const Radius.circular(notch));
+      canvas.drawPath(bite, Paint()..color = paper);
+      canvas.drawPath(bite, pen);
+    }
+  }
+
+  void _dashed(Canvas canvas, Path path, Paint pen) {
+    for (final metric in path.computeMetrics()) {
+      for (var d = 0.0; d < metric.length; d += 6) {
+        canvas.drawPath(metric.extractPath(d, math.min(d + 3, metric.length)), pen);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StubPainter old) =>
+      old.first != first || old.last != last || old.tone != tone;
 }
 
 /// Minimal static map: light CARTO tiles with the lime pin; tapping opens the maps app.

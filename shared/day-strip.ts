@@ -75,7 +75,7 @@ export function dayStrip(
         'single',
         startDay,
         startTime && endTime
-          ? `${startTime} – ${endTime}`
+          ? `${startTime}–${endTime}`
           : (startTime ?? (endTime ? `do ${endTime}` : null)),
         true,
       ),
@@ -84,17 +84,46 @@ export function dayStrip(
     Math.round(
       (Date.parse(`${endDay}T12:00:00Z`) - Date.parse(`${startDay}T12:00:00Z`)) / 86_400_000,
     ) + 1;
-  // With daily hours every day box carries the same hours instead of one start and one end.
-  const daily = dailyHoursText(event.dailyHours ?? null);
-  const first = cell('start', startDay, daily ?? startTime);
-  const last = cell('end', endDay, daily ?? endTime);
+  // Daily hours are printed once under the ticket, so the day stubs carry dates only.
+  const daily = Boolean(event.dailyHours);
+  const first = cell('start', startDay, daily ? null : startTime);
+  const last = cell('end', endDay, daily ? null : endTime);
   if (span > MAX_VISIBLE_DAYS)
     return [first, { kind: 'gap', weekday: '', date: '', time: null, hidden: span - 2 }, last];
   return [
     first,
     ...Array.from({ length: span - 2 }, (_, index) =>
-      cell('mid', addDays(startDay, index + 1), daily),
+      cell('mid', addDays(startDay, index + 1), null),
     ),
     last,
   ];
+}
+
+/** One stub of the event-detail ticket: a big line and a small line. */
+export interface Stub {
+  tone: 'main' | 'mid' | 'open';
+  big: string | null;
+  small: string;
+}
+
+/** Ticket stubs plus daily hours, printed once under the ticket for multi-day runs. */
+export function ticket(
+  event: Pick<PublicEvent, 'startsAt' | 'endsAt'> & { dailyHours?: PublicEvent['dailyHours'] },
+): { stubs: Stub[]; daily: string | null } {
+  const cells = dayStrip(event);
+  const daily = cells.length > 1 ? dailyHoursText(event.dailyHours ?? null) : null;
+  const stubs = cells.map((cell): Stub => {
+    if (cell.kind === 'gap') return { tone: 'mid', big: `+${cell.hidden}`, small: 'dana' };
+    if (cell.kind === 'open') return { tone: 'open', big: '?', small: 'kraj' };
+    if (cell.kind === 'mid')
+      return {
+        tone: 'mid',
+        big: daily ? `${cell.date.split('.')[0]}.` : null,
+        small: cell.weekday,
+      };
+    return cell.time
+      ? { tone: 'main', big: cell.time, small: `${cell.weekday} ${cell.date}` }
+      : { tone: 'main', big: cell.date, small: cell.weekday };
+  });
+  return { stubs, daily };
 }
